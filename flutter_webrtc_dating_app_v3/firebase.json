@@ -1,0 +1,25 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "availchatproject",
+          "appId": "1:179987163172:android:d371b6f21f4eca07ad10b1",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "availchatproject",
+          "configurations": {
+            "android": "1:179987163172:android:d371b6f21f4eca07ad10b1",
+            "ios": "1:179987163172:ios:ee01292a51f91364ad10b1",
+            "macos": "1:179987163172:ios:ee01292a51f91364ad10b1",
+            "web": "1:179987163172:web:0ef1024dcacd78bfad10b1",
+            "windows": "1:179987163172:web:799b3fcd49317574ad10b1"
+          }
+        }
+      }
+    }
+  }
+}

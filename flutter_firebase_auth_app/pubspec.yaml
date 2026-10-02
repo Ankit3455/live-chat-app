@@ -1,0 +1,89 @@
+name: availchat
+description: AvailChat - Dating/Chat app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.6.1
+  firebase_messaging: ^15.2.1
+  firebase_storage: ^12.3.8
+  firebase_database: ^11.3.5
+
+  # State Management
+  provider: ^6.1.2
+
+  # 🆕 NEW - WebRTC & Call Features
+  flutter_webrtc: ^1.2.0
+  wakelock_plus: ^1.1.4
+  uuid: ^4.3.3  # For generating call IDs
+  flutter_local_notifications: ^17.2.3
+
+  # Permissions
+  permission_handler: ^11.4.0
+
+  # Images
+  image_picker: ^1.0.4
+
+  # Location
+  geolocator: ^10.1.0
+  location: ^5.0.3
+
+  # Device Info
+  device_info_plus: ^9.1.1
+
+  # HTTP
+  http: ^1.1.0
+  dio: ^5.4.0
+
+  # Google Sign In
+  google_sign_in: ^6.3.0
+
+  # ML Kit
+  google_mlkit_translation: ^0.10.1
+
+  # UI
+  cupertino_icons: ^1.0.6
+  lottie: ^3.1.2  # ✅ ADD THIS
+  google_fonts: ^6.1.0
+  cached_network_image: ^3.3.0
+
+  # Utils
+  intl: ^0.18.1
+  shared_preferences: ^2.3.3  # ← ADD THIS for ProfileCompletionManager
+  geocoding: ^3.0.0           # ← ADD THIS for location geocoding
+  audioplayers: ^6.1.0
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # ✅ Add assets
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
+    - assets/animations/zodiac.json           # Add these
+    - assets/animations/star_animation.json  # Add these
+    - assets/animations/space.json  # Add these
+    - assets/sounds/incoming_call.mp3
+  
+fonts:
+    - family: Montserrat
+      fonts:
+        - asset: fonts/Montserrat-Regular.ttf
+        - asset: fonts/Montserrat-Bold.ttf
+          weight: 700

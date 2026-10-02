@@ -1,0 +1,29 @@
+# Bundled Flutter SDK (use a separately installed SDK)
+/flutter/
+
+# Flutter/Dart generated files
+**/.dart_tool/
+**/.packages
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+
+# Android generated output and local files
+**/android/.gradle/
+**/android/local.properties
+**/android/**/build/
+**/*.apk
+**/*.aab
+**/*.log
+
+# IDE and OS files
+**/.idea/
+**/.vscode/
+**/.DS_Store
+**/Thumbs.db
+
+# Signing secrets
+**/*.jks
+**/*.keystore
+**/key.properties

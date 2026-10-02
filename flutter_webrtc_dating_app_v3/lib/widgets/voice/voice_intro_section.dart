@@ -1,0 +1,103 @@
+//Settings → Edit Profile me dikhne wala section.
+// Shows current status, play/re-record/delete.
+//lib/widgets/voice/voice_intro_section.dart
+
+import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
+import '../../models/user_model.dart';
+import '../../services/voice_intro_service.dart';
+import 'voice_record_sheet.dart';
+
+class VoiceIntroSection extends StatefulWidget {
+  const VoiceIntroSection({super.key, required this.user});
+  final UserModel user;
+
+  @override
+  State<VoiceIntroSection> createState() => _VoiceIntroSectionState();
+}
+
+class _VoiceIntroSectionState extends State<VoiceIntroSection> {
+  final AudioPlayer _player = AudioPlayer();
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openRecorder() async {
+    final res = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const VoiceRecordSheet(),
+    );
+    if (res == true && mounted) {
+      setState(() {}); // parent screen should refresh user model after save
+    }
+  }
+
+  Future<void> _play() async {
+    final url = widget.user.voiceIntroUrl;
+    if (url == null || url.trim().isEmpty) return;
+    await _player.stop();
+    await _player.play(UrlSource(url));
+  }
+
+  Future<void> _delete() async {
+    await VoiceIntroService.deleteVoice();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Voice intro removed')));
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final has = (widget.user.voiceIntroUrl != null && widget.user.voiceIntroUrl!.trim().isNotEmpty);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Voice Intro", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Text(
+          "Let others hear your vibe. 10–20s intro helps people know you faster.",
+          style: const TextStyle(color: Colors.white70, fontSize: 13.5),
+        ),
+        const SizedBox(height: 10),
+        if (!has)
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: _openRecorder,
+                icon: const Icon(Icons.mic_rounded),
+                label: const Text('Record intro'),
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _play,
+                icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                label: const Text('Play', style: TextStyle(color: Colors.white)),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: _openRecorder,
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                label: const Text('Re-record', style: TextStyle(color: Colors.white)),
+              ),
+              const SizedBox(width: 10),
+              TextButton.icon(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                label: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}

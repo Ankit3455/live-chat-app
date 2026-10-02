@@ -1,0 +1,1041 @@
+# 💰 Coin System - Complete Implementation Plan
+
+Perfect! Sab confirm ho gaya. Ab main complete implementation plan deta hoon.
+
+---
+
+## 💳 Payment Gateway Recommendation:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              PAYMENT GATEWAY OPTIONS (India)                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  🏆 RAZORPAY (Recommended)                                  │
+│  ├─ ✅ Best for India                                       │
+│  ├─ ✅ Easy Flutter integration                             │
+│  ├─ ✅ UPI, Cards, Wallets, NetBanking                     │
+│  ├─ ✅ 2% transaction fee                                   │
+│  ├─ ✅ Quick setup (1-2 days)                              │
+│  ├─ ✅ Good documentation                                   │
+│  └─ 📦 Package: razorpay_flutter                           │
+│                                                             │
+│  Other Options:                                             │
+│  ├─ Paytm: Complex integration                             │
+│  ├─ PhonePe: Limited Flutter support                       │
+│  ├─ Stripe: Better for international                       │
+│  └─ Cashfree: Good alternative                             │
+│                                                             │
+│  💡 RECOMMENDATION: Razorpay                                │
+│     (Same level as WebRTC - industry standard)             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Complete File Structure:
+
+```
+lib/
+├── 📁 models/
+│   ├── wallet_model.dart                 ✅ NEW
+│   ├── coin_transaction_model.dart       ✅ NEW
+│   ├── coin_package_model.dart           ✅ NEW
+│   ├── daily_reward_model.dart           ✅ NEW
+│   ├── instant_call_access_model.dart    ✅ NEW
+│   └── profile_viewer_model.dart         ✅ NEW
+│
+├── 📁 services/
+│   ├── wallet_service.dart               ✅ NEW
+│   ├── daily_reward_service.dart         ✅ NEW
+│   ├── payment_service.dart              ✅ NEW (Razorpay)
+│   ├── instant_call_service.dart         ✅ NEW
+│   └── profile_viewer_service.dart       ✅ NEW
+│
+├── 📁 providers/
+│   └── wallet_provider.dart              ✅ NEW
+│
+├── 📁 screens/
+│   ├── 📁 wallet/
+│   │   ├── coin_store_screen.dart        ✅ NEW
+│   │   ├── transaction_history_screen.dart ✅ NEW
+│   │   └── earn_coins_screen.dart        ✅ NEW
+│   │
+│   └── 📁 profile/
+│       └── profile_viewers_screen.dart   ✅ NEW
+│
+├── 📁 widgets/
+│   ├── 📁 wallet/
+│   │   ├── coin_balance_widget.dart      ✅ NEW
+│   │   ├── coin_package_card.dart        ✅ NEW
+│   │   ├── daily_reward_popup.dart       ✅ NEW
+│   │   ├── transaction_tile.dart         ✅ NEW
+│   │   └── low_balance_dialog.dart       ✅ NEW
+│   │
+│   ├── 📁 call/
+│   │   └── instant_call_bottom_sheet.dart ✅ NEW
+│   │
+│   └── 📁 profile/
+│       └── blurred_viewer_card.dart      ✅ NEW
+│
+└── 📁 core/
+    └── 📁 constants/
+        └── coin_constants.dart           ✅ NEW
+```
+
+---
+
+## 📄 File 1: coin_constants.dart
+
+```dart
+// lib/core/constants/coin_constants.dart
+
+class CoinConstants {
+  // Prevent instantiation
+  CoinConstants._();
+
+  // ═══════════════════════════════════════════════════════════
+  // DAILY REWARD STREAK
+  // ═══════════════════════════════════════════════════════════
+  static const List<int> dailyRewardStreak = [2, 2, 3, 3, 4, 4, 10];
+  // Day 1: 2, Day 2: 2, Day 3: 3, Day 4: 3, Day 5: 4, Day 6: 4, Day 7: 10
+  
+  static const int weeklyTotalCoins = 28; // Sum of streak
+
+  // ═══════════════════════════════════════════════════════════
+  // PROFILE COMPLETION BONUSES
+  // ═══════════════════════════════════════════════════════════
+  static const int bonusBasicInfo = 5;
+  static const int bonusPhotoUpload = 5;
+  static const int bonusBioWritten = 5;
+  static const int bonusInterestsAdded = 5;
+  static const int bonusKundaliDetails = 10;
+  static const int totalProfileBonus = 30;
+
+  // ═══════════════════════════════════════════════════════════
+  // INSTANT CALL ACCESS PRICING
+  // ═══════════════════════════════════════════════════════════
+  static const Map<int, int> instantCallPricing = {
+    30: 20,    // 30 minutes = 20 coins
+    60: 35,    // 1 hour = 35 coins
+    180: 80,   // 3 hours = 80 coins
+    1440: 150, // 24 hours = 150 coins
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // PROFILE VIEWERS PRICING
+  // ═══════════════════════════════════════════════════════════
+  static const int viewersUnlock24Hours = 15;
+  static const int viewersUnlock7Days = 50;
+
+  // ═══════════════════════════════════════════════════════════
+  // COIN EXPIRY
+  // ═══════════════════════════════════════════════════════════
+  static const int freeCoinsExpiryDays = 30;
+
+  // ═══════════════════════════════════════════════════════════
+  // COIN PACKAGES (INR)
+  // ═══════════════════════════════════════════════════════════
+  static const List<Map<String, dynamic>> coinPackages = [
+    {
+      'id': 'starter',
+      'name': 'Starter',
+      'coins': 50,
+      'bonusCoins': 5,
+      'price': 49,
+      'discount': 0,
+      'isPopular': false,
+    },
+    {
+      'id': 'popular',
+      'name': 'Popular',
+      'coins': 150,
+      'bonusCoins': 30,
+      'price': 129,
+      'discount': 20,
+      'isPopular': true,
+    },
+    {
+      'id': 'best_value',
+      'name': 'Best Value',
+      'coins': 500,
+      'bonusCoins': 150,
+      'price': 399,
+      'discount': 40,
+      'isPopular': false,
+    },
+    {
+      'id': 'mega',
+      'name': 'Mega Pack',
+      'coins': 1000,
+      'bonusCoins': 300,
+      'price': 699,
+      'discount': 50,
+      'isPopular': false,
+    },
+    {
+      'id': 'ultra',
+      'name': 'Ultra Pack',
+      'coins': 2500,
+      'bonusCoins': 1000,
+      'price': 1499,
+      'discount': 60,
+      'isPopular': false,
+    },
+  ];
+}
+```
+
+---
+
+## 📄 File 2: wallet_model.dart
+
+```dart
+// lib/models/wallet_model.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class WalletModel {
+  final int totalCoins;
+  final int purchasedCoins;
+  final int freeCoins;
+  final DateTime? lastDailyReward;
+  final int currentStreak;
+  final Map<String, bool> profileBonusesClaimed;
+  final DateTime? profileViewersUnlockExpiry;
+
+  WalletModel({
+    required this.totalCoins,
+    required this.purchasedCoins,
+    required this.freeCoins,
+    this.lastDailyReward,
+    this.currentStreak = 0,
+    this.profileBonusesClaimed = const {},
+    this.profileViewersUnlockExpiry,
+  });
+
+  // Check if can claim daily reward
+  bool get canClaimDailyReward {
+    if (lastDailyReward == null) return true;
+    
+    final now = DateTime.now();
+    final lastClaim = lastDailyReward!;
+    
+    // Check if it's a new day
+    return now.year > lastClaim.year ||
+           now.month > lastClaim.month ||
+           now.day > lastClaim.day;
+  }
+
+  // Check if streak is still valid (not missed a day)
+  bool get isStreakValid {
+    if (lastDailyReward == null) return true;
+    
+    final now = DateTime.now();
+    final lastClaim = lastDailyReward!;
+    final difference = now.difference(lastClaim).inHours;
+    
+    // Streak breaks if more than 48 hours since last claim
+    return difference < 48;
+  }
+
+  // Get today's reward amount
+  int get todayRewardAmount {
+    if (!isStreakValid) return 2; // Reset to day 1
+    
+    final streakDay = currentStreak % 7; // 0-6
+    const rewards = [2, 2, 3, 3, 4, 4, 10];
+    return rewards[streakDay];
+  }
+
+  // Get next day's streak position (1-7)
+  int get displayStreak {
+    if (!isStreakValid) return 1;
+    return (currentStreak % 7) + 1;
+  }
+
+  // Check if profile viewers unlocked
+  bool get isProfileViewersUnlocked {
+    if (profileViewersUnlockExpiry == null) return false;
+    return DateTime.now().isBefore(profileViewersUnlockExpiry!);
+  }
+
+  factory WalletModel.empty() {
+    return WalletModel(
+      totalCoins: 0,
+      purchasedCoins: 0,
+      freeCoins: 0,
+      currentStreak: 0,
+      profileBonusesClaimed: {},
+    );
+  }
+
+  factory WalletModel.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return WalletModel.empty();
+
+    return WalletModel(
+      totalCoins: map['totalCoins'] ?? 0,
+      purchasedCoins: map['purchasedCoins'] ?? 0,
+      freeCoins: map['freeCoins'] ?? 0,
+      lastDailyReward: map['lastDailyReward'] != null
+          ? (map['lastDailyReward'] as Timestamp).toDate()
+          : null,
+      currentStreak: map['currentStreak'] ?? 0,
+      profileBonusesClaimed: Map<String, bool>.from(
+        map['profileBonusesClaimed'] ?? {},
+      ),
+      profileViewersUnlockExpiry: map['profileViewersUnlockExpiry'] != null
+          ? (map['profileViewersUnlockExpiry'] as Timestamp).toDate()
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'totalCoins': totalCoins,
+      'purchasedCoins': purchasedCoins,
+      'freeCoins': freeCoins,
+      'lastDailyReward': lastDailyReward != null
+          ? Timestamp.fromDate(lastDailyReward!)
+          : null,
+      'currentStreak': currentStreak,
+      'profileBonusesClaimed': profileBonusesClaimed,
+      'profileViewersUnlockExpiry': profileViewersUnlockExpiry != null
+          ? Timestamp.fromDate(profileViewersUnlockExpiry!)
+          : null,
+    };
+  }
+
+  WalletModel copyWith({
+    int? totalCoins,
+    int? purchasedCoins,
+    int? freeCoins,
+    DateTime? lastDailyReward,
+    int? currentStreak,
+    Map<String, bool>? profileBonusesClaimed,
+    DateTime? profileViewersUnlockExpiry,
+  }) {
+    return WalletModel(
+      totalCoins: totalCoins ?? this.totalCoins,
+      purchasedCoins: purchasedCoins ?? this.purchasedCoins,
+      freeCoins: freeCoins ?? this.freeCoins,
+      lastDailyReward: lastDailyReward ?? this.lastDailyReward,
+      currentStreak: currentStreak ?? this.currentStreak,
+      profileBonusesClaimed: profileBonusesClaimed ?? this.profileBonusesClaimed,
+      profileViewersUnlockExpiry: profileViewersUnlockExpiry ?? this.profileViewersUnlockExpiry,
+    );
+  }
+}
+```
+
+---
+
+## 📄 File 3: coin_transaction_model.dart
+
+```dart
+// lib/models/coin_transaction_model.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum TransactionType { earn, spend, purchase, expire }
+
+enum TransactionReason {
+  dailyLogin,
+  profileCompletion,
+  purchase,
+  instantCallAccess,
+  profileViewers,
+  expired,
+  refund,
+  bonus,
+}
+
+class CoinTransactionModel {
+  final String id;
+  final String userId;
+  final TransactionType type;
+  final TransactionReason reason;
+  final int amount;
+  final String coinType; // 'free' or 'purchased'
+  final String description;
+  final DateTime timestamp;
+  final DateTime? expiryDate;
+  final String? relatedUserId;
+  final Map<String, dynamic>? metadata;
+
+  CoinTransactionModel({
+    required this.id,
+    required this.userId,
+    required this.type,
+    required this.reason,
+    required this.amount,
+    required this.coinType,
+    required this.description,
+    required this.timestamp,
+    this.expiryDate,
+    this.relatedUserId,
+    this.metadata,
+  });
+
+  bool get isExpired {
+    if (expiryDate == null) return false;
+    return DateTime.now().isAfter(expiryDate!);
+  }
+
+  bool get isCredit => type == TransactionType.earn || type == TransactionType.purchase;
+  bool get isDebit => type == TransactionType.spend || type == TransactionType.expire;
+
+  factory CoinTransactionModel.fromMap(String id, Map<String, dynamic> map) {
+    return CoinTransactionModel(
+      id: id,
+      userId: map['userId'] ?? '',
+      type: TransactionType.values.firstWhere(
+        (e) => e.name == map['type'],
+        orElse: () => TransactionType.earn,
+      ),
+      reason: TransactionReason.values.firstWhere(
+        (e) => e.name == map['reason'],
+        orElse: () => TransactionReason.bonus,
+      ),
+      amount: map['amount'] ?? 0,
+      coinType: map['coinType'] ?? 'free',
+      description: map['description'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      expiryDate: map['expiryDate'] != null
+          ? (map['expiryDate'] as Timestamp).toDate()
+          : null,
+      relatedUserId: map['relatedUserId'],
+      metadata: map['metadata'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'type': type.name,
+      'reason': reason.name,
+      'amount': amount,
+      'coinType': coinType,
+      'description': description,
+      'timestamp': Timestamp.fromDate(timestamp),
+      'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
+      'relatedUserId': relatedUserId,
+      'metadata': metadata,
+    };
+  }
+}
+```
+
+---
+
+## 📄 File 4: coin_package_model.dart
+
+```dart
+// lib/models/coin_package_model.dart
+
+class CoinPackageModel {
+  final String id;
+  final String name;
+  final int coins;
+  final int bonusCoins;
+  final int price; // INR
+  final int discount;
+  final bool isPopular;
+
+  CoinPackageModel({
+    required this.id,
+    required this.name,
+    required this.coins,
+    required this.bonusCoins,
+    required this.price,
+    required this.discount,
+    required this.isPopular,
+  });
+
+  int get totalCoins => coins + bonusCoins;
+  
+  double get pricePerCoin => price / totalCoins;
+  
+  String get formattedPrice => '₹$price';
+  
+  String get savingsText => discount > 0 ? '$discount% OFF' : '';
+
+  factory CoinPackageModel.fromMap(Map<String, dynamic> map) {
+    return CoinPackageModel(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      coins: map['coins'] ?? 0,
+      bonusCoins: map['bonusCoins'] ?? 0,
+      price: map['price'] ?? 0,
+      discount: map['discount'] ?? 0,
+      isPopular: map['isPopular'] ?? false,
+    );
+  }
+}
+```
+
+---
+
+## 📄 File 5: instant_call_access_model.dart
+
+```dart
+// lib/models/instant_call_access_model.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class InstantCallAccessModel {
+  final String id;
+  final String fromUserId;
+  final String toUserId;
+  final String chatId;
+  final DateTime purchasedAt;
+  final DateTime expiresAt;
+  final int durationMinutes;
+  final int coinsSpent;
+  final bool used;
+
+  InstantCallAccessModel({
+    required this.id,
+    required this.fromUserId,
+    required this.toUserId,
+    required this.chatId,
+    required this.purchasedAt,
+    required this.expiresAt,
+    required this.durationMinutes,
+    required this.coinsSpent,
+    this.used = false,
+  });
+
+  bool get isActive {
+    return DateTime.now().isBefore(expiresAt);
+  }
+
+  Duration get remainingTime {
+    final remaining = expiresAt.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  String get remainingTimeText {
+    final remaining = remainingTime;
+    if (remaining == Duration.zero) return 'Expired';
+    
+    if (remaining.inHours > 0) {
+      return '${remaining.inHours}h ${remaining.inMinutes % 60}m left';
+    } else {
+      return '${remaining.inMinutes}m left';
+    }
+  }
+
+  factory InstantCallAccessModel.fromMap(String id, Map<String, dynamic> map) {
+    return InstantCallAccessModel(
+      id: id,
+      fromUserId: map['fromUserId'] ?? '',
+      toUserId: map['toUserId'] ?? '',
+      chatId: map['chatId'] ?? '',
+      purchasedAt: (map['purchasedAt'] as Timestamp).toDate(),
+      expiresAt: (map['expiresAt'] as Timestamp).toDate(),
+      durationMinutes: map['durationMinutes'] ?? 0,
+      coinsSpent: map['coinsSpent'] ?? 0,
+      used: map['used'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'fromUserId': fromUserId,
+      'toUserId': toUserId,
+      'chatId': chatId,
+      'purchasedAt': Timestamp.fromDate(purchasedAt),
+      'expiresAt': Timestamp.fromDate(expiresAt),
+      'durationMinutes': durationMinutes,
+      'coinsSpent': coinsSpent,
+      'used': used,
+    };
+  }
+}
+```
+
+---
+
+## 📄 File 6: profile_viewer_model.dart
+
+```dart
+// lib/models/profile_viewer_model.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class ProfileViewerModel {
+  final String id;
+  final String viewerId;
+  final String viewedUserId;
+  final DateTime timestamp;
+  final bool isRevealed;
+  
+  // Viewer details (populated when revealed)
+  final String? viewerName;
+  final String? viewerPhoto;
+  final int? viewerAge;
+
+  ProfileViewerModel({
+    required this.id,
+    required this.viewerId,
+    required this.viewedUserId,
+    required this.timestamp,
+    this.isRevealed = false,
+    this.viewerName,
+    this.viewerPhoto,
+    this.viewerAge,
+  });
+
+  String get timeAgoText {
+    final difference = DateTime.now().difference(timestamp);
+    
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${(difference.inDays / 7).floor()}w ago';
+    }
+  }
+
+  factory ProfileViewerModel.fromMap(String id, Map<String, dynamic> map) {
+    return ProfileViewerModel(
+      id: id,
+      viewerId: map['viewerId'] ?? '',
+      viewedUserId: map['viewedUserId'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      isRevealed: map['isRevealed'] ?? false,
+      viewerName: map['viewerName'],
+      viewerPhoto: map['viewerPhoto'],
+      viewerAge: map['viewerAge'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'viewerId': viewerId,
+      'viewedUserId': viewedUserId,
+      'timestamp': Timestamp.fromDate(timestamp),
+      'isRevealed': isRevealed,
+      'viewerName': viewerName,
+      'viewerPhoto': viewerPhoto,
+      'viewerAge': viewerAge,
+    };
+  }
+
+  ProfileViewerModel copyWith({
+    bool? isRevealed,
+    String? viewerName,
+    String? viewerPhoto,
+    int? viewerAge,
+  }) {
+    return ProfileViewerModel(
+      id: id,
+      viewerId: viewerId,
+      viewedUserId: viewedUserId,
+      timestamp: timestamp,
+      isRevealed: isRevealed ?? this.isRevealed,
+      viewerName: viewerName ?? this.viewerName,
+      viewerPhoto: viewerPhoto ?? this.viewerPhoto,
+      viewerAge: viewerAge ?? this.viewerAge,
+    );
+  }
+}
+```
+
+---
+
+## 📄 File 7: wallet_service.dart
+
+```dart
+// lib/services/wallet_service.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/wallet_model.dart';
+import '../models/coin_transaction_model.dart';
+import '../core/constants/coin_constants.dart';
+
+class WalletService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String get _userId => _auth.currentUser!.uid;
+  
+  DocumentReference get _walletRef => 
+      _firestore.collection('users').doc(_userId);
+  
+  CollectionReference get _transactionsRef =>
+      _firestore.collection('coinTransactions');
+
+  // ═══════════════════════════════════════════════════════════
+  // GET WALLET
+  // ═══════════════════════════════════════════════════════════
+  
+  Stream<WalletModel> watchWallet() {
+    return _walletRef.snapshots().map((doc) {
+      final data = doc.data() as Map<String, dynamic>?;
+      return WalletModel.fromMap(data?['wallet']);
+    });
+  }
+
+  Future<WalletModel> getWallet() async {
+    final doc = await _walletRef.get();
+    final data = doc.data() as Map<String, dynamic>?;
+    return WalletModel.fromMap(data?['wallet']);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ADD COINS (Earn/Purchase)
+  // ═══════════════════════════════════════════════════════════
+  
+  Future<void> addCoins({
+    required int amount,
+    required String coinType, // 'free' or 'purchased'
+    required TransactionReason reason,
+    required String description,
+    String? relatedUserId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final wallet = await getWallet();
+    
+    // Calculate new balances
+    final newPurchased = coinType == 'purchased'
+        ? wallet.purchasedCoins + amount
+        : wallet.purchasedCoins;
+    final newFree = coinType == 'free'
+        ? wallet.freeCoins + amount
+        : wallet.freeCoins;
+    
+    // Calculate expiry for free coins
+    DateTime? expiryDate;
+    if (coinType == 'free') {
+      expiryDate = DateTime.now().add(
+        Duration(days: CoinConstants.freeCoinsExpiryDays),
+      );
+    }
+
+    // Batch write
+    final batch = _firestore.batch();
+
+    // Update wallet
+    batch.update(_walletRef, {
+      'wallet.totalCoins': newPurchased + newFree,
+      'wallet.purchasedCoins': newPurchased,
+      'wallet.freeCoins': newFree,
+    });
+
+    // Add transaction
+    final txnRef = _transactionsRef.doc();
+    batch.set(txnRef, CoinTransactionModel(
+      id: txnRef.id,
+      userId: _userId,
+      type: coinType == 'purchased' 
+          ? TransactionType.purchase 
+          : TransactionType.earn,
+      reason: reason,
+      amount: amount,
+      coinType: coinType,
+      description: description,
+      timestamp: DateTime.now(),
+      expiryDate: expiryDate,
+      relatedUserId: relatedUserId,
+      metadata: metadata,
+    ).toMap());
+
+    await batch.commit();
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SPEND COINS
+  // ═══════════════════════════════════════════════════════════
+  
+  Future<bool> spendCoins({
+    required int amount,
+    required TransactionReason reason,
+    required String description,
+    String? relatedUserId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final wallet = await getWallet();
+    
+    // Check sufficient balance
+    if (wallet.totalCoins < amount) {
+      return false; // Insufficient balance
+    }
+
+    // Deduct from free coins first, then purchased
+    int remainingToDeduct = amount;
+    int newFree = wallet.freeCoins;
+    int newPurchased = wallet.purchasedCoins;
+
+    if (newFree >= remainingToDeduct) {
+      newFree -= remainingToDeduct;
+      remainingToDeduct = 0;
+    } else {
+      remainingToDeduct -= newFree;
+      newFree = 0;
+      newPurchased -= remainingToDeduct;
+    }
+
+    // Batch write
+    final batch = _firestore.batch();
+
+    // Update wallet
+    batch.update(_walletRef, {
+      'wallet.totalCoins': newPurchased + newFree,
+      'wallet.purchasedCoins': newPurchased,
+      'wallet.freeCoins': newFree,
+    });
+
+    // Add transaction
+    final txnRef = _transactionsRef.doc();
+    batch.set(txnRef, CoinTransactionModel(
+      id: txnRef.id,
+      userId: _userId,
+      type: TransactionType.spend,
+      reason: reason,
+      amount: amount,
+      coinType: 'mixed',
+      description: description,
+      timestamp: DateTime.now(),
+      relatedUserId: relatedUserId,
+      metadata: metadata,
+    ).toMap());
+
+    await batch.commit();
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CHECK BALANCE
+  // ═══════════════════════════════════════════════════════════
+  
+  Future<bool> hasEnoughCoins(int amount) async {
+    final wallet = await getWallet();
+    return wallet.totalCoins >= amount;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GET TRANSACTIONS
+  // ═══════════════════════════════════════════════════════════
+  
+  Stream<List<CoinTransactionModel>> watchTransactions({int limit = 50}) {
+    return _transactionsRef
+        .where('userId', isEqualTo: _userId)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            return CoinTransactionModel.fromMap(
+              doc.id,
+              doc.data() as Map<String, dynamic>,
+            );
+          }).toList();
+        });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // INITIALIZE WALLET (for new users)
+  // ═══════════════════════════════════════════════════════════
+  
+  Future<void> initializeWallet() async {
+    final doc = await _walletRef.get();
+    final data = doc.data() as Map<String, dynamic>?;
+    
+    if (data?['wallet'] == null) {
+      await _walletRef.update({
+        'wallet': WalletModel.empty().toMap(),
+      });
+    }
+  }
+}
+```
+
+---
+
+## 📄 File 8: daily_reward_service.dart
+
+```dart
+// lib/services/daily_reward_service.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/wallet_model.dart';
+import '../models/coin_transaction_model.dart';
+import '../core/constants/coin_constants.dart';
+import 'wallet_service.dart';
+
+class DailyRewardService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final WalletService _walletService = WalletService();
+
+  String get _userId => _auth.currentUser!.uid;
+
+  DocumentReference get _walletRef =>
+      _firestore.collection('users').doc(_userId);
+
+  // ═══════════════════════════════════════════════════════════
+  // CLAIM DAILY REWARD
+  // ═══════════════════════════════════════════════════════════
+
+  Future<DailyRewardResult> claimDailyReward() async {
+    final wallet = await _walletService.getWallet();
+
+    // Check if can claim
+    if (!wallet.canClaimDailyReward) {
+      return DailyRewardResult(
+        success: false,
+        message: 'Already claimed today!',
+        coinsEarned: 0,
+        newStreak: wallet.displayStreak,
+      );
+    }
+
+    // Calculate reward and streak
+    int newStreak;
+    int rewardAmount;
+
+    if (wallet.isStreakValid) {
+      // Continue streak
+      newStreak = (wallet.currentStreak + 1) % 7;
+      rewardAmount = CoinConstants.dailyRewardStreak[wallet.currentStreak % 7];
+    } else {
+      // Reset streak
+      newStreak = 1;
+      rewardAmount = CoinConstants.dailyRewardStreak[0];
+    }
+
+    // Update wallet and add transaction
+    await _walletService.addCoins(
+      amount: rewardAmount,
+      coinType: 'free',
+      reason: TransactionReason.dailyLogin,
+      description: 'Day ${(newStreak % 7) + 1} login reward',
+    );
+
+    // Update streak info
+    await _walletRef.update({
+      'wallet.lastDailyReward': Timestamp.now(),
+      'wallet.currentStreak': newStreak,
+    });
+
+    return DailyRewardResult(
+      success: true,
+      message: 'Reward claimed!',
+      coinsEarned: rewardAmount,
+      newStreak: (newStreak % 7) + 1,
+      isWeekComplete: newStreak % 7 == 0,
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GET REWARD STATUS
+  // ═══════════════════════════════════════════════════════════
+
+  Future<DailyRewardStatus> getRewardStatus() async {
+    final wallet = await _walletService.getWallet();
+
+    return DailyRewardStatus(
+      canClaim: wallet.canClaimDailyReward,
+      currentDay: wallet.displayStreak,
+      todayReward: wallet.todayRewardAmount,
+      streakValid: wallet.isStreakValid,
+      rewards: CoinConstants.dailyRewardStreak,
+    );
+  }
+}
+
+class DailyRewardResult {
+  final bool success;
+  final String message;
+  final int coinsEarned;
+  final int newStreak;
+  final bool isWeekComplete;
+
+  DailyRewardResult({
+    required this.success,
+    required this.message,
+    required this.coinsEarned,
+    required this.newStreak,
+    this.isWeekComplete = false,
+  });
+}
+
+class DailyRewardStatus {
+  final bool canClaim;
+  final int currentDay;
+  final int todayReward;
+  final bool streakValid;
+  final List<int> rewards;
+
+  DailyRewardStatus({
+    required this.canClaim,
+    required this.currentDay,
+    required this.todayReward,
+    required this.streakValid,
+    required this.rewards,
+  });
+}
+```
+
+---
+
+## 📊 Implementation Summary:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              FILES READY (8/18)                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ✅ COMPLETED:                                              │
+│  ├─ coin_constants.dart                                    │
+│  ├─ wallet_model.dart                                      │
+│  ├─ coin_transaction_model.dart                            │
+│  ├─ coin_package_model.dart                                │
+│  ├─ instant_call_access_model.dart                         │
+│  ├─ profile_viewer_model.dart                              │
+│  ├─ wallet_service.dart                                    │
+│  └─ daily_reward_service.dart                              │
+│                                                             │
+│  📋 PENDING:                                                │
+│  ├─ instant_call_service.dart                              │
+│  ├─ profile_viewer_service.dart                            │
+│  ├─ payment_service.dart (Razorpay)                        │
+│  ├─ wallet_provider.dart                                   │
+│  ├─ coin_store_screen.dart                                 │
+│  ├─ coin_balance_widget.dart                               │
+│  ├─ daily_reward_popup.dart                                │
+│  ├─ instant_call_bottom_sheet.dart                         │
+│  ├─ profile_viewers_screen.dart                            │
+│  └─ transaction_history_screen.dart                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ❓ Next Steps:
+
+```
+Kya karna chahte ho:
+
+A) Baaki ke services complete karu?
+   (instant_call_service, profile_viewer_service, payment_service)
+
+B) UI screens banana start karu?
+   (coin_store_screen, daily_reward_popup, etc.)
+
+C) Dono saath mein (service + UI)?
+
+D) Pehle existing files share karo for integration?
+   (user_model, home_screen, chat_screen)
+```
+
+**Bata do kaunsa option!** 🚀

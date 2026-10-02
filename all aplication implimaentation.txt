@@ -1,0 +1,133 @@
+Below is your **NOTEPAD-READY**, clean, plain-text version.
+No formatting, no emojis — fully compatible with .txt file.
+Just copy → paste into Notepad → save.
+
+---
+
+# ================================
+
+# APP DEFECTS & IMPROVEMENT PLAN
+
+# (HINGLISH NOTEPAD VERSION)
+
+# ================================
+
+## A. FUNCTIONAL DEFECTS
+
+1. Astrology compatibility chip profile card par nahi dikh rahi
+
+* Expected: Dusre user ki profile par compatibility chip show ho.
+* Issue: Calculation ya UI render nahi ho raha.
+* Fix: Compatibility function call + null check add karna hoga.
+
+2. Home screen par Search icon remove karna hai
+
+* AppBar se icon hata dena hai.
+
+3. Change Avatar option galat jagah par hai
+
+* Correct: My Profile screen par option hona chahiye aur working hona chahiye.
+* Edit Profile se ye option remove karna hai.
+* Fix: Code swap + avatar update refresh karna.
+
+4. Edit Profile screen enhancement
+
+* Layout purana lag raha.
+* Improve: Sections, better spacing, icons, grouped fields.
+
+5. Settings screen ke options inactive
+
+* Each setting button ko correct navigation/function assign karna hai.
+
+6. Hamburger menu remove karna hai
+
+* Menu items ko merge karna hai Profile + Settings me.
+* Home screen se hamburger icon hata dena hai.
+
+7. Notification tap proper screen open nahi karta
+
+* App open hoti hai but chat window/call window nahi khulti.
+* Fix: onMessageOpenedApp me deep linking add karna hoga (chatId ya callId ke base par redirect).
+
+8. Audio/Video call screen par name aur call icon nahi aa raha
+
+* User model pass nahi ho raha ya binding incorrect.
+* Fix: Navigator se user data pass + UI rebuild.
+
+9. Audio/Video call ki ringtone play nahi ho rahi
+
+* Asset missing ya pubspec me path nahi.
+* Fix: Ringtone asset add + audio player configure.
+
+10. Unknown user ke liye call buttons disable rehne chahiye
+
+* Currently: Random profile se message karne par bhi call buttons enabled hote hain (incorrect).
+* Correct: Chat screen me ek toggle hoga (Enable Audio / Enable Video). Dono users enable kare to hi call allowed.
+* Priority: High (security and misuse prevention).
+
+11. New message tab ke notifications silent hone chahiye
+
+* Currently sound aa raha hai (incorrect).
+* Fix: Notification channel LOW priority, no sound.
+
+12. Avatar generation signup ke time sahi nahi ho raha
+
+* Questionnaire answers → avatar mapping wrong.
+* Fix: Fields mapping correct karo.
+
+13. HomeTour har screen par show ho raha hai
+
+* Expected: Sirf first time show ho.
+* Fix: SharedPreference me "homeTourShown=true" store karo.
+
+14. Astrology questionnaire flow incorrect
+
+* Extra screen, matching logic apply nahi ho raha.
+* Fix:
+
+  1. DOB se Zodiac nikalo
+  2. Zodiac ke hisab se compatibility score calculate karo
+  3. Profile par score dikhaye
+  4. Extra screens remove karo
+
+## B. IMPROVEMENT POINTS
+
+1. Tooltips add karna (New Chats + Call System)
+
+* New chat tooltip: "Ye chat silent hai. Jab aap reply karoge tab notification active hogi."
+* Call tooltip: "Calls tabhi possible hain jab dono users call permission enable karein."
+* Compatibility tooltip: "Astrology compatibility zodiac ke base par calculate hoti hai."
+
+## C. NEW FEATURE SUGGESTIONS (No Swipe Feature Required)
+
+1. Premium compatibility insights
+
+* Deep zodiac + interest + personality compatibility.
+
+2. Who viewed my profile
+
+* Premium users ko visitor list show hogi.
+
+3. Read receipts
+
+* "Seen at" timestamps only for premium.
+
+4. Visibility boost
+
+* User profile top position par 24 hrs.
+
+5. Voice notes in chat (premium only)
+
+6. Incognito mode
+
+* Only un users ko aap dikhoge jise aap chat karte ho.
+
+7. Avatar customization premium pack
+
+* Premium outfits, hair, accessories.
+
+8. Unlimited profile viewing
+
+9. Verified badge (phone + selfie verification)
+
+10. Location-based match priority

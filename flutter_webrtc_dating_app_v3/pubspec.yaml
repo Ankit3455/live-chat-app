@@ -1,0 +1,146 @@
+name: availchat
+description: AvailChat - Dating/Chat app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.6.1
+  firebase_messaging: ^15.2.1
+  firebase_storage: ^12.3.8
+  firebase_database: ^11.3.5
+  firebase_crashlytics: ^4.1.3
+
+  # State Management
+  provider: ^6.1.2
+
+  # 🆕 NEW - WebRTC & Call Features
+  flutter_webrtc: ^1.2.0
+  wakelock_plus: ^1.1.4
+  uuid: ^4.3.3  # For generating call IDs
+  flutter_local_notifications: ^19.5.0
+
+  # Permissions
+  permission_handler: ^11.4.0
+
+  # Images
+  image_picker: ^1.1.1
+
+  # Location
+  geolocator: ^10.1.0
+  location: ^5.0.3
+
+  # Device Info
+  device_info_plus: ^9.1.1
+
+  # HTTP
+  http: ^1.1.0
+
+  # Google Sign In
+  google_sign_in: ^6.3.0
+
+  # ML Kit
+  google_mlkit_translation: ^0.10.1
+
+  # UI
+  cupertino_icons: ^1.0.6
+  lottie: ^3.1.2  # ✅ ADD THIS
+  google_fonts: ^6.1.0
+  cached_network_image: ^3.3.0
+  badges: ^3.1.2
+  flutter_slidable: ^3.1.0
+  shimmer: ^3.0.0
+  flutter_animate: ^4.5.0
+  modal_bottom_sheet: ^3.0.0
+  animated_text_kit: ^4.3.0
+
+  # Utils
+  intl: ^0.18.1
+  shared_preferences: ^2.3.3  # ← ADD THIS for ProfileCompletionManager
+  geocoding: ^3.0.0           # ← ADD THIS for location geocoding
+  audioplayers: ^6.1.0
+  tutorial_coach_mark: ^1.3.3
+  confetti: ^0.7.0
+
+  # recording:
+  record: ^6.1.2
+  path_provider: ^2.1.4
+
+  #Notification
+  onesignal_flutter: ^5.3.4
+
+  #Avatar
+  image: ^4.0.17
+  flutter_svg: ^2.0.0
+  flutter_image_compress: ^2.3.0
+
+
+  # Game dependency:
+  flame: ^1.34.0
+  flame_forge2d: ^0.19.2+2
+  simple_ripple_animation: ^0.0.9
+
+  # Need to thing to apply
+  #  # Images & media polish
+  #  flutter_blurhash: ^0.8.2      # blurred placeholders before images load
+  #  flutter_image_compress: ^2.3.0 # upload se pehle image compress (data + speed)
+  #  image_cropper: ^6.0.0          # avatar crop UI
+
+  #  # Analytics & experiments
+  #  firebase_analytics: ^10.10.7   # funnels, retention, screen events
+  #  firebase_remote_config: ^5.2.1  # A/B toggles, feature flags without updates
+
+  #  # Performance & stability
+  #  firebase_performance: ^0.9.4+2  # trace slow UI / network
+  #  connectivity_plus: ^6.1.0       # offline banners, retry logic
+
+  #  # Deep links & growth
+  #  firebase_dynamic_links: ^6.0.8  # invite links, profile share deep-links
+
+  #  # Background tasks
+  #  workmanager: ^0.5.2             # periodic tasks (token sync, cleanups)
+
+  #  # Maps (you already have geo)
+  #  google_maps_flutter: ^2.7.0     # optional: map discovery / meetups
+  #  pull_to_refresh: ^2.0.0         # chat lists & discover paging
+  #  flutter_staggered_grid_view: ^0.7.0 # more interesting card grids
+  #  video_player: ^2.9.2
+  #  chewie: ^1.7.5                  # profile intro videos
+  #  linkfy_text: ^1.1.6             # detect links/hashtags in bios & chat
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/
+    # Animations
+    - assets/animations/
+    - assets/animations/zodiac.json
+    - assets/animations/star_animation.json
+    - assets/animations/space.json
+
+    # Icons
+    - assets/icons/
+
+    # Images - main folder
+    - assets/images/
+
+    # Images - subfolders (ADD THESE!)
+    - assets/images/dice/
+    - assets/images/crown/
+
+    # Sounds (ADD THIS!)
+    - assets/sounds/

@@ -1,0 +1,91 @@
+{
+  "project_info": {
+    "project_number": "179987163172",
+    "firebase_url": "https://availchatproject-default-rtdb.firebaseio.com",
+    "project_id": "availchatproject",
+    "storage_bucket": "availchatproject.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179987163172:android:01bb2da3439e68adad10b1",
+        "android_client_info": {
+          "package_name": "com.example.availchat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "179987163172-acg7r60vcbv3s4eibh7p6q3pcm4mpuvc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.availchat",
+            "certificate_hash": "2c2c83398144ce1459f1664b871b9f6bc5f8b3f2"
+          }
+        },
+        {
+          "client_id": "179987163172-4j1tnbeov5kejo7le97ni65iasougv7j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-QJ3kmRxCagHQOVJ9uEScyVOdkXUHZO0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "179987163172-4j1tnbeov5kejo7le97ni65iasougv7j.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "179987163172-laaui80vvrl8is3nhhl1l7h3fk34r5uh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterWebrtcDatingAppV3"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179987163172:android:d371b6f21f4eca07ad10b1",
+        "android_client_info": {
+          "package_name": "com.example.flutter_webrtc_dating_app_v3"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "179987163172-4j1tnbeov5kejo7le97ni65iasougv7j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-QJ3kmRxCagHQOVJ9uEScyVOdkXUHZO0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "179987163172-4j1tnbeov5kejo7le97ni65iasougv7j.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "179987163172-laaui80vvrl8is3nhhl1l7h3fk34r5uh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterWebrtcDatingAppV3"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
