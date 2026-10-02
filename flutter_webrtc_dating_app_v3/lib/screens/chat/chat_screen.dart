@@ -1264,7 +1264,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _updateTypingStatus(false);
 
     try {
-      await _chatService.sendMessage(
+      final messageId = await _chatService.sendMessage(
         conversationId: _conversationId,
         receiverId: widget.otherUserId,
         message: message,
@@ -1274,16 +1274,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() => _replyToMessage = null);
 
       // ✅ OneSignal push trigger (non-blocking for UI)
-      try {
-        final currentUserId = _chatService.currentUserId;
+      if (messageId != null) {
         await OneSignalSender.sendChatNotification(
-          senderId: currentUserId,
-          receiverId: widget.otherUserId,
-          message: message,
           conversationId: _conversationId,
+          messageId: messageId,
         );
-      } catch (e) {
-        debugPrint('OneSignal push failed: $e');
       }
 
       // Scroll to top; live stream will insert the new message
