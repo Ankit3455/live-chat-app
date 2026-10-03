@@ -1,13 +1,13 @@
 // lib/models/user_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:availchat/core/utils/auth_validators.dart';
+
 class UserModel {
   final String? uid;
   final String? email;
   final String username;
   final String profileImage;
-  final String? lastMessage;
-  final String? timeAgo;
   final bool online;
   final List<String> interests;
   final String? habits;
@@ -15,6 +15,9 @@ class UserModel {
   final String? activityLevel;
   final String? relationshipGoal;
   final dynamic avatar;
+
+  /// Canonical DOB (Timestamp `dateOfBirth`, legacy `dob` string accepted).
+  /// Only present on the user's own doc; public profiles carry [age].
   final DateTime? dateOfBirth;
   final String? zodiacSign;
 
@@ -38,19 +41,20 @@ class UserModel {
 
   // Basic info
   final String? gender;
-  final int? age;
-  final String? dob;
+  final int? _storedAge;
   final String? birthTime;
+  final String? birthLocation;
   final String? location;
   final String? bio;
 
   // Compatibility
-  final String? compatibilityText;
   final int? matchPercentage;
 
-  // Discovery
+  // Discovery. Coordinates exist only on the user's own doc; other users are
+  // known by a precision-5 [geohash].
   final double? userLatitude;
   final double? userLongitude;
+  final String? geohash;
   final bool discoveryEnabled;
 
   // Mandatory fields
@@ -78,7 +82,7 @@ class UserModel {
   final List<String>? movieGenres;
   final List<String>? tvGenres;
 
-  // Profile tracking
+  // Profile tracking (null when never computed)
   final int? profileCompletionPercentage;
 
   // FCM tokens
@@ -97,8 +101,6 @@ class UserModel {
     this.email,
     this.username = "Unknown",
     this.profileImage = "",
-    this.lastMessage,
-    this.timeAgo,
     this.online = false,
     this.interests = const [],
     this.habits,
@@ -117,15 +119,15 @@ class UserModel {
     this.lifestyle,
     this.idealDate,
     this.gender,
-    this.age,
-    this.dob,
+    int? age,
     this.birthTime,
+    this.birthLocation,
     this.location,
     this.bio,
-    this.compatibilityText,
     this.matchPercentage,
     this.userLatitude,
     this.userLongitude,
+    this.geohash,
     this.discoveryEnabled = false,
     this.relationshipStatus,
     this.hereFor,
@@ -159,7 +161,16 @@ class UserModel {
     this.voiceIntroDurationSeconds,
     this.avatarVersion,
     this.avatarProperties,
-  });
+  }) : _storedAge = age;
+
+  /// Age from [dateOfBirth], else the age published on a public profile.
+  int? get age =>
+      dateOfBirth != null ? AgePolicy.ageOn(dateOfBirth!) : _storedAge;
+
+  /// Legacy dd/MM/yyyy view of [dateOfBirth] for older readers.
+  String? get dob => dateOfBirth == null
+      ? null
+      : AgePolicy.legacyDobFormat.format(dateOfBirth!);
 
   // Helper to get avatar as string
   String? get avatarString {
@@ -187,48 +198,57 @@ class UserModel {
     return null;
   }
 
-  /// Robust DOB parser: handles Timestamp, dd/mm/yyyy, yyyy-mm-dd, epoch (int)
-  static DateTime? _parseDobFlexible(dynamic dobValue) {
-    if (dobValue == null) return null;
-
+  /// The single DOB parser for both `dateOfBirth` and legacy `dob`:
+  /// Timestamp, DateTime, epoch s/ms, ISO, dd/MM/yyyy, d-M-yyyy, yyyy/MM/dd.
+  static DateTime? parseDob(dynamic value) {
+    if (value == null) return null;
     try {
-      if (dobValue is Timestamp) return dobValue.toDate();
-      if (dobValue is DateTime) return dobValue;
-      if (dobValue is int) {
-        // epoch seconds or ms guess: if > 10^12 treat as ms
-        if (dobValue > 1000000000000) {
-          return DateTime.fromMillisecondsSinceEpoch(dobValue);
-        } else {
-          // treat as seconds
-          return DateTime.fromMillisecondsSinceEpoch(dobValue * 1000);
-        }
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is num) {
+        final n = value.toInt();
+        return DateTime.fromMillisecondsSinceEpoch(
+            n > 1000000000000 ? n : n * 1000);
       }
-      if (dobValue is String) {
-        final s = dobValue.trim();
-        // Try ISO first
-        final iso = DateTime.tryParse(s);
-        if (iso != null) return iso;
-
-        // Accept dd/mm/yyyy or d/m/yyyy
-        final parts = s.split(RegExp(r'[-\/]'));
+      if (value is Map && value['_seconds'] is num) {
+        return DateTime.fromMillisecondsSinceEpoch(
+            (value['_seconds'] as num).toInt() * 1000);
+      }
+      if (value is String) {
+        final s = value.trim();
+        if (s.isEmpty) return null;
+        final parts = s.split(RegExp(r'[-/.]'));
         if (parts.length == 3) {
           final a = int.tryParse(parts[0]);
           final b = int.tryParse(parts[1]);
           final c = int.tryParse(parts[2]);
           if (a != null && b != null && c != null) {
-            // If format looks like dd/mm/yyyy (day > 31 improbable as year)
-            if (a > 31) {
-              // Maybe yyyy/mm/dd
-              return DateTime(a, b, c);
-            }
-            // dd/mm/yyyy
-            return DateTime(c, b, a);
+            final d = a > 31 ? DateTime(a, b, c) : DateTime(c, b, a);
+            return d.year > 1900 ? d : null;
           }
         }
+        return DateTime.tryParse(s);
       }
-    } catch (e) {
-      // ignore and return null
-    }
+    } catch (_) {}
+    return null;
+  }
+
+  static String? _str(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+    return null;
+  }
+
+  static int? _int(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  static double? _double(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.trim());
     return null;
   }
 
@@ -271,112 +291,99 @@ class UserModel {
   }
 
   // ===== FROM MAP =====
-  // NOTE: Accepts optional uid (preferred). Backward-compatible.
+  // Reads both private users/{uid} docs and public_profiles/{uid} docs.
+  // No hard casts: a malformed field becomes null instead of dropping the user.
   factory UserModel.fromMap(Map<String, dynamic> map, {String? uid}) {
-    final dobParsed = _parseDobFlexible(map['dateOfBirth'] ?? map['dob']);
+    final dobParsed = parseDob(map['dateOfBirth']) ?? parseDob(map['dob']);
+    final hereFor = map['hereFor'];
     return UserModel(
-      uid: uid ?? map['uid'] as String?,
-      email: map['email'] as String?,
-      username: map['username'] as String? ?? "Unknown",
-      profileImage: map['profileImage'] as String? ?? "",
-      lastMessage: map['lastMessage'] as String?,
-      timeAgo: map['timeAgo'] as String?,
-      online: map['online'] as bool? ?? false,
+      uid: uid ?? _str(map['uid']),
+      email: _str(map['email']),
+      username: _str(map['username']) ?? "Unknown",
+      profileImage: _str(map['profileImage']) ?? "",
+      online: _safeBoolConversion(map['online']),
       interests: _safeListConversion(map['interests']),
-      habits: map['habits'] as String?,
-      profession: map['profession'] as String?,
-      activityLevel: map['activityLevel'] as String?,
-      relationshipGoal: map['relationshipGoal'] as String?,
+      habits: _str(map['habits']),
+      profession: _str(map['profession']),
+      activityLevel: _str(map['activityLevel']),
+      relationshipGoal: _str(map['relationshipGoal']),
       avatar: map['avatar'],
       dateOfBirth: dobParsed,
-      zodiacSign: map['zodiacSign'] as String? ?? map['sunSign'] as String?,
-      sunSign: map['sunSign'] as String?,
-      voiceIntroUrl: map['voiceIntroUrl'] as String?,
-      voiceIntroDurationSeconds: (map['voiceIntroDurationSeconds'] as num?)?.toInt(),
-      avatarVersion: (map['avatarVersion'] as num?)?.toInt() ?? 1,
+      zodiacSign: _str(map['zodiacSign']) ?? _str(map['sunSign']),
+      sunSign: _str(map['sunSign']),
+      voiceIntroUrl: _str(map['voiceIntroUrl']),
+      voiceIntroDurationSeconds: _int(map['voiceIntroDurationSeconds']),
+      avatarVersion: _int(map['avatarVersion']) ?? 1,
       avatarProperties: _safeMapConversion(map['avatarProperties']),
       preferredSigns: _safeListConversion(map['preferredSigns']),
-      personalityPriority: map['personalityPriority'] as String?,
+      personalityPriority: _str(map['personalityPriority']),
       believesInAstrology: _safeBoolConversion(map['believesInAstrology']),
       astrologyBeliefLevel: _parseAstrologyBeliefLevel(map['astrologyBeliefLevel']),
-      relationshipPriority: map['relationshipPriority'] as String?,
-      vibePreference: map['vibePreference'] as String?,
-      lifestyle: map['lifestyle'] as String? ?? map['sleepSchedule'] as String?,
-      sleepSchedule: map['sleepSchedule'] as String?,
-      idealDate: map['idealDate'] as String?,
-      gender: map['gender'] as String?,
-      age: (map['age'] as num?)?.toInt(),
-      dob: map['dob'] as String?,
-      birthTime: map['birthTime'] as String?,
-      location: map['location'] as String?,
-      bio: map['bio'] as String?,
-      compatibilityText: map['compatibilityText'] as String?,
-      matchPercentage: (map['matchPercentage'] as num?)?.toInt(),
-      userLatitude: (map['userLatitude'] as num?)?.toDouble(),
-      userLongitude: (map['userLongitude'] as num?)?.toDouble(),
-      discoveryEnabled: map['discoveryEnabled'] as bool? ?? false,
-      relationshipStatus: map['relationshipStatus'] as String?,
-      hereFor: _safeNullableListConversion(map['hereFor']),
-      height: map['height'] as String?,
-      bodyType: map['bodyType'] as String?,
-      education: map['education'] as String?,
-      foodPreference: map['foodPreference'] as String?,
-      smokingHabits: map['smokingHabits'] as String?,
-      drinkingHabits: map['drinkingHabits'] as String?,
-      exerciseFrequency: map['exerciseFrequency'] as String?,
+      relationshipPriority: _str(map['relationshipPriority']),
+      vibePreference: _str(map['vibePreference']),
+      lifestyle: _str(map['lifestyle']) ?? _str(map['sleepSchedule']),
+      sleepSchedule: _str(map['sleepSchedule']),
+      idealDate: _str(map['idealDate']),
+      gender: _str(map['gender']),
+      age: _int(map['age']),
+      birthTime: _str(map['birthTime']),
+      birthLocation: _str(map['birthLocation']) ?? _str(map['placeOfBirth']),
+      location: _str(map['location']),
+      bio: _str(map['bio']),
+      matchPercentage: _int(map['matchPercentage']),
+      userLatitude: _double(map['userLatitude']),
+      userLongitude: _double(map['userLongitude']),
+      geohash: _str(map['geohash']),
+      discoveryEnabled: map['discoveryEnabled'] == true,
+      relationshipStatus: _str(map['relationshipStatus']),
+      // hereFor was written both as a string and as a list.
+      hereFor: hereFor is String
+          ? (hereFor.trim().isEmpty ? null : [hereFor.trim()])
+          : _safeNullableListConversion(hereFor),
+      height: _str(map['height']),
+      bodyType: _str(map['bodyType']),
+      education: _str(map['education']),
+      foodPreference: _str(map['foodPreference']),
+      smokingHabits: _str(map['smokingHabits']),
+      drinkingHabits: _str(map['drinkingHabits']),
+      exerciseFrequency: _str(map['exerciseFrequency']),
       pets: _safeNullableListConversion(map['pets']),
-      wantsChildren: map['wantsChildren'] as String?,
-      partyingFrequency: map['partyingFrequency'] as String?,
-      tattoos: map['tattoos'] as String?,
-      personalityType: map['personalityType'] as String?,
-      politicalViews: map['politicalViews'] as String?,
-      religiousViews: map['religiousViews'] as String?,
+      wantsChildren: _str(map['wantsChildren']),
+      partyingFrequency: _str(map['partyingFrequency']),
+      tattoos: _str(map['tattoos']),
+      personalityType: _str(map['personalityType']),
+      politicalViews: _str(map['politicalViews']),
+      religiousViews: _str(map['religiousViews']),
       musicGenres: _safeNullableListConversion(map['musicGenres']),
       movieGenres: _safeNullableListConversion(map['movieGenres']),
       tvGenres: _safeNullableListConversion(map['tvGenres']),
-      //profileCompletionPercentage: (map['profileCompletionPercentage'] as num?)?.toInt(),
-      profileCompletionPercentage: (map['profileCompletionPercentage'] as num?)?.toInt() ?? 30,
+      profileCompletionPercentage: _int(map['profileCompletionPercentage']),
       fcmTokens: _safeNullableListConversion(map['fcmTokens']),
       lastSeen: _parseTimestamp(map['lastSeen']),
       notificationSettings: _safeMapConversion(map['notificationSettings']),
-      lastLocationUpdate: (map['lastLocationUpdate'] as num?)?.toInt(),
-      contactPreference: map['contactPreference'] as String?,
+      lastLocationUpdate: _int(map['lastLocationUpdate']),
+      contactPreference: _str(map['contactPreference']),
     );
   }
 
-  // ===== FROM FIRESTORE (existing helper retained but kept simple) =====
+  // ===== FROM FIRESTORE =====
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    try {
-      if (!doc.exists) {
-        return UserModel(uid: doc.id);
-      }
-
-      final data = doc.data() as Map<String, dynamic>?;
-
-      if (data == null) {
-        return UserModel(uid: doc.id);
-      }
-
-      return UserModel.fromMap(data, uid: doc.id);
-    } catch (e, stackTrace) {
-      print('❌ Error parsing user ${doc.id}: $e');
-      print('Stack trace: $stackTrace');
-      return UserModel(uid: doc.id, username: 'Error Loading User');
-    }
+    final data = doc.data();
+    if (data is! Map<String, dynamic>) return UserModel(uid: doc.id);
+    return UserModel.fromMap(data, uid: doc.id);
   }
 
   // dietPreference getter implemented (was returning null earlier)
   get dietPreference => foodPreference;
 
   // ===== TO MAP =====
+  // Own users/{uid} doc only. Age is derived, so it is not stored.
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
       'email': email,
       'username': username,
       'profileImage': profileImage,
-      'lastMessage': lastMessage,
-      'timeAgo': timeAgo,
       'online': online,
       'interests': interests,
       'habits': habits,
@@ -384,9 +391,10 @@ class UserModel {
       'activityLevel': activityLevel,
       'relationshipGoal': relationshipGoal,
       'avatar': avatar,
-      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'dateOfBirth':
+          dateOfBirth != null ? Timestamp.fromDate(dateOfBirth!) : null,
+      'dob': dob,
       'sunSign': zodiacSign ?? sunSign,
-      // ✅ NEW: write booleans for believesInAstrology (not 'yes'/'no')
       'voiceIntroUrl': voiceIntroUrl,
       'voiceIntroDurationSeconds': voiceIntroDurationSeconds,
       'avatarVersion': avatarVersion,
@@ -402,15 +410,14 @@ class UserModel {
       'sleepSchedule': lifestyle ?? sleepSchedule,
       'idealDate': idealDate,
       'gender': gender,
-      'age': age,
-      'dob': dob,
       'birthTime': birthTime,
+      'birthLocation': birthLocation,
       'location': location,
       'bio': bio,
-      'compatibilityText': compatibilityText,
       'matchPercentage': matchPercentage,
       'userLatitude': userLatitude,
       'userLongitude': userLongitude,
+      'geohash': geohash,
       'discoveryEnabled': discoveryEnabled,
       'relationshipStatus': relationshipStatus,
       'hereFor': hereFor,
@@ -456,7 +463,6 @@ class UserModel {
     dynamic avatar,
     DateTime? dateOfBirth,
     String? zodiacSign,
-    // ✅ NEW
     String? voiceIntroUrl,
     int? voiceIntroDurationSeconds,
     int? avatarVersion,
@@ -471,14 +477,14 @@ class UserModel {
     String? idealDate,
     String? gender,
     int? age,
-    String? dob,
     String? birthTime,
+    String? birthLocation,
     String? location,
     String? bio,
-    String? compatibilityText,
     int? matchPercentage,
     double? userLatitude,
     double? userLongitude,
+    String? geohash,
     bool? discoveryEnabled,
     String? relationshipStatus,
     List<String>? hereFor,
@@ -534,15 +540,15 @@ class UserModel {
       lifestyle: lifestyle ?? this.lifestyle,
       idealDate: idealDate ?? this.idealDate,
       gender: gender ?? this.gender,
-      age: age ?? this.age,
-      dob: dob ?? this.dob,
+      age: age ?? _storedAge,
       birthTime: birthTime ?? this.birthTime,
+      birthLocation: birthLocation ?? this.birthLocation,
       location: location ?? this.location,
       bio: bio ?? this.bio,
-      compatibilityText: compatibilityText ?? this.compatibilityText,
       matchPercentage: matchPercentage ?? this.matchPercentage,
       userLatitude: userLatitude ?? this.userLatitude,
       userLongitude: userLongitude ?? this.userLongitude,
+      geohash: geohash ?? this.geohash,
       discoveryEnabled: discoveryEnabled ?? this.discoveryEnabled,
       relationshipStatus: relationshipStatus ?? this.relationshipStatus,
       hereFor: hereFor ?? this.hereFor,

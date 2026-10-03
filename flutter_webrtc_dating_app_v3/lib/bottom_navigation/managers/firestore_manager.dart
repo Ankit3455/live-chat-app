@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:availchat/models/user_model.dart';
-
-import '../../core/services/location_service.dart';
-import '../../managers/filter_preferences.dart';
+import 'package:availchat/services/discovery_feed_service.dart';
+import 'package:availchat/services/safety_service.dart';
 
 /// Central Firestore data access + in-memory state for user lists / filters.
 class FirestoreManager extends ChangeNotifier {
@@ -21,7 +19,8 @@ class FirestoreManager extends ChangeNotifier {
   List<UserModel> _allUsers = [];
   List<UserModel> _filteredUsers = [];
   UserModel? _currentUser;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _usersSubscription;
+  DiscoveryFeed? _feed;
+  DiscoveryFilters _filters = const DiscoveryFilters();
   bool _isLoading = false;
   String? _error;
 
@@ -73,68 +72,41 @@ class FirestoreManager extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Loading users (filtered / unfiltered)
+  // Loading users (paginated public profiles, see DiscoveryFeed)
   // ---------------------------------------------------------------------------
 
-  /// Entry point: decides based on local filter preference.
-  Future<void> loadUsers(BuildContext context) async {
-    final filterPrefs = await FilterPreferences.getInstance();
-    final isFilterEnabled = filterPrefs.applyFilters;
+  /// Loads the first discovery page with the user's saved filters.
+  Future<void> loadUsers(BuildContext context) => _loadFirstPage();
 
-    if (isFilterEnabled) {
-      await loadFilteredUsers(context);
-    } else {
-      await loadUsersFromFirestore();
-    }
-  }
+  /// First page without the user's filters (18+/blocked rules still apply).
+  Future<void> loadUsersFromFirestore() =>
+      _loadFirstPage(filters: const DiscoveryFilters());
 
-  /// Real-time all-users listener (no client-side filters except excluding self).
-  Future<void> loadUsersFromFirestore() async {
-    final currentUid = _auth.currentUser?.uid;
-    if (currentUid == null) {
-      _error = 'User not authenticated';
-      notifyListeners();
-      return;
-    }
+  /// First page with the user's saved filters applied.
+  Future<void> loadFilteredUsers(BuildContext context) => _loadFirstPage();
 
-    _setLoading(true);
+  bool get hasMore => _feed?.hasMore ?? false;
 
+  /// Next page, appended to [filteredUsers].
+  Future<void> loadMoreUsers() async {
+    final feed = _feed;
+    if (feed == null || _isLoading || !feed.hasMore) return;
     try {
-      await _usersSubscription?.cancel();
-
-      _usersSubscription = _firestore
-          .collection('users')
-          .where('discoveryEnabled', isEqualTo: true)
-          .snapshots()
-          .listen((QuerySnapshot<Map<String, dynamic>> snapshot) {
-        final userList = <UserModel>[];
-
-        for (final doc in snapshot.docs) {
-          final user = _safeUserModelFromDoc(doc);
-          if (user == null) continue;
-
-          userList.add(user);
-          if (user.uid == currentUid) _currentUser = user;
-        }
-
-        _allUsers = userList;
-        _filteredUsers = userList.where((u) => u.uid != currentUid).toList();
-
-        _clearErrorAndStopLoading();
-      }, onError: (error) {
-        _error = 'Error loading users: $error';
-        _isLoading = false;
-        notifyListeners();
-      });
-    } catch (e) {
+      final page = await feed.nextPage(
+        filters: _filters,
+        me: _currentUser,
+        hiddenUids: SafetyService.instance.hiddenUserIdsNow,
+      );
+      _allUsers = [..._allUsers, ...page];
+      _filteredUsers = _allUsers;
+      notifyListeners();
+    } catch (_) {
       _error = 'Error loading users';
-      _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Loads users once and applies client-side filters (gender/distance/age/online).
-  Future<void> loadFilteredUsers(BuildContext context) async {
+  Future<void> _loadFirstPage({DiscoveryFilters? filters}) async {
     final currentUid = _auth.currentUser?.uid;
     if (currentUid == null) {
       _error = 'User not authenticated';
@@ -144,118 +116,24 @@ class FirestoreManager extends ChangeNotifier {
     }
 
     _setLoading(true);
-
     try {
-      // Ensure we have the current user loaded
-      final currentUserDoc =
-      await _firestore.collection('users').doc(currentUid).get();
-      if (currentUserDoc.exists) {
-        _currentUser = _safeUserModelFromDoc(currentUserDoc);
-        if (_currentUser?.profileCompletionPercentage == null) {
-          _currentUser = _currentUser!.copyWith(
-            profileCompletionPercentage: 30,
-          );
-        }
+      // Current user always comes from the own doc, never from the feed.
+      final me = await _firestore.collection('users').doc(currentUid).get();
+      _currentUser = me.exists ? _safeUserModelFromDoc(me) : null;
 
-      }
-
-      final userLat = _currentUser?.userLatitude;
-      final userLng = _currentUser?.userLongitude;
-
-      if (userLat == null || userLng == null) {
-        _error = 'Please update your location first';
-        _isLoading = false;
-        _filteredUsers = [];
-        notifyListeners();
-        return;
-      }
-
-      final filterPrefs = await FilterPreferences.getInstance();
-      final preferredGender = (filterPrefs.genderPreference).toLowerCase();
-      final maxDistance = filterPrefs.distancePreference.toDouble();
-      final minAge = filterPrefs.minAge;
-      final maxAge = filterPrefs.maxAge;
-      final onlineOnly = filterPrefs.onlineOnly;
-
-      // Gender pre-filter (two-case handling if you store mixed-case)
-      if (preferredGender != 'everyone') {
-        final capitalized =
-            preferredGender[0].toUpperCase() + preferredGender.substring(1);
-
-        final results = await Future.wait([
-          _firestore.collection('users')
-              .where('discoveryEnabled', isEqualTo: true)
-              .where('gender', isEqualTo: preferredGender)
-              .get(),
-          _firestore.collection('users')
-              .where('discoveryEnabled', isEqualTo: true)
-              .where('gender', isEqualTo: capitalized)
-              .get(),
-        ]);
-
-        final merged = <String, DocumentSnapshot<Map<String, dynamic>>>{};
-        for (final res in results) {
-          for (final d in res.docs) {
-            merged[d.id] = d;
-          }
-        }
-
-        _allUsers = merged.values
-            .where((d) => d.id != currentUid)
-            .map(_safeUserModelFromDoc)
-            .whereType<UserModel>()
-            .toList();
-      } else {
-        final snap = await _firestore.collection('users') .where('discoveryEnabled', isEqualTo: true).get();
-        _allUsers = snap.docs
-            .where((d) => d.id != currentUid)
-            .map(_safeUserModelFromDoc)
-            .whereType<UserModel>()
-            .toList();
-      }
-
-      // Client-side filters
-      _filteredUsers = _allUsers.where((user) {
-        // Distance filter (exclude users with missing location)
-        if (user.userLatitude == null || user.userLongitude == null) return false;
-        final distance = LocationUtils.calculateDistance(
-          userLat,
-          userLng,
-          user.userLatitude!,
-          user.userLongitude!,
-        );
-        if (distance > maxDistance) return false;
-
-        // Age filter
-        if (user.age != null) {
-          if (user.age! < minAge || user.age! > maxAge) return false;
-        }
-
-        // Online filter
-        if (onlineOnly && !(user.online)) return false;
-
-        return true;
-      }).toList();
-
-      // Sort by distance ascending
-      _filteredUsers.sort((a, b) {
-        final distA = LocationUtils.calculateDistance(
-          userLat,
-          userLng,
-          a.userLatitude ?? 0.0,
-          a.userLongitude ?? 0.0,
-        );
-        final distB = LocationUtils.calculateDistance(
-          userLat,
-          userLng,
-          b.userLatitude ?? 0.0,
-          b.userLongitude ?? 0.0,
-        );
-        return distA.compareTo(distB);
-      });
-
+      _filters = filters ?? await DiscoveryFilters.load();
+      if (_feed?.myUid != currentUid) _feed = DiscoveryFeed(myUid: currentUid);
+      _feed!.reset();
+      _allUsers = await _feed!.nextPage(
+        filters: _filters,
+        me: _currentUser,
+        hiddenUids: SafetyService.instance.hiddenUserIdsNow,
+      );
+      _filteredUsers = _allUsers;
       _isLoading = false;
-      _error = _filteredUsers.isEmpty ? 'No users found matching your criteria' : null;
+      _error = _filteredUsers.isEmpty && _filters.applyFilters
+          ? 'No users found matching your criteria'
+          : null;
       notifyListeners();
     } catch (e) {
       _error = 'Error loading users';
@@ -263,6 +141,12 @@ class FirestoreManager extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Approximate distance (5 km buckets) to a loaded profile.
+  int? distanceKmFor(UserModel user) => user.uid == null
+      ? null
+      : _feed?.distanceKmFor(user.uid!) ??
+          DiscoveryFeed.approxDistanceKm(_currentUser, user);
 
   // ---------------------------------------------------------------------------
   // Search / helpers
@@ -279,7 +163,7 @@ class FirestoreManager extends ChangeNotifier {
       final bio = (u.bio ?? '').toLowerCase();
       final prof = (u.profession ?? '').toLowerCase();
       final habits = (u.habits ?? '').toLowerCase();
-      final interests = (u.interests ?? const <String>[]).map((e) => e.toLowerCase());
+      final interests = u.interests.map((e) => e.toLowerCase());
 
       return username.contains(q) ||
           bio.contains(q) ||
@@ -297,15 +181,11 @@ class FirestoreManager extends ChangeNotifier {
     return _filteredUsers.take(limit).toList();
   }
 
-  /// Safe fetch single user
+  /// Own profile for me, the public profile for anyone else.
   Future<UserModel?> getUserById(String userId) async {
-    try {
-      final doc = await _firestore.collection('users').doc(userId).get();
-      if (doc.exists) return _safeUserModelFromDoc(doc);
-    } catch (_) {
-      // ignore
-    }
-    return null;
+    final me = _auth.currentUser?.uid;
+    if (me == null) return null;
+    return DiscoveryFeed.fetchProfile(userId, myUid: me);
   }
 
   /// Update current user doc with partial data and refresh local model.
@@ -335,8 +215,10 @@ class FirestoreManager extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   void cleanup() {
-    _usersSubscription?.cancel();
-    _usersSubscription = null;
+    _feed = null;
+    _allUsers = [];
+    _filteredUsers = [];
+    _currentUser = null;
   }
 
   @override
@@ -354,22 +236,6 @@ class FirestoreManager extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
-
-  void _clearErrorAndStopLoading() {
-    _isLoading = false;
-    _error = null;
-    notifyListeners();
-  }
-
-  // /// Parses a Firestore doc to UserModel, swallowing per-doc errors safely.
-  // UserModel? _safeUserModelFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-  //   try {
-  //     return UserModel.fromFirestore(doc);
-  //   } catch (_) {
-  //     // Corrupt/bad doc — ignore just this one.
-  //     return null;
-  //   }
-  // }
 
   UserModel? _safeUserModelFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     try {
