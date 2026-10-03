@@ -585,50 +585,64 @@ class LudoLobbyScreen extends StatefulWidget {
 class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   final _service = LudoGameService();
   final _auth = FirebaseAuth.instance;
-  final _fs = FirebaseFirestore.instance;
 
   bool _searching = false;
   String? _error;
   Timer? _waitingTimer;
   Timer? _searchTimer;
+  Timer? _heartbeatTimer;
+  Timer? _claimTimeout;
   int _waitSeconds = 0;
   String? _myQueueDocId;
   StreamSubscription? _matchListener;
   bool _navigated = false;
+  bool _creating = false;
+  DateTime? _searchStartedAt;
+  String? _resumeMatchId;
 
   // NEW: Player count selection
   int _selectedPlayerCount = 2;
   int _playersFound = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _loadResumableMatch();
+  }
+
+  @override
   void dispose() {
-    _waitingTimer?.cancel();
-    _searchTimer?.cancel();
-    _matchListener?.cancel();
+    _stopTimers();
     _cleanupQueue();
     super.dispose();
   }
 
+  void _stopTimers() {
+    _waitingTimer?.cancel();
+    _searchTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    _claimTimeout?.cancel();
+    _claimTimeout = null;
+    _matchListener?.cancel();
+    _matchListener = null;
+  }
+
+  Future<void> _loadResumableMatch() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    final matchId = await _service.findResumableMatch(uid);
+    if (mounted) setState(() => _resumeMatchId = matchId);
+  }
+
   Future<void> _cleanupQueue() async {
-    if (_myQueueDocId != null) {
-      try {
-        final currentUid = _auth.currentUser?.uid;
-        if (currentUid != null) {
-          final docRef = _fs.collection('ludo_queue').doc(_myQueueDocId);
-          final docSnap = await docRef.get();
-          if (docSnap.exists && docSnap.data()?['uid'] == currentUid) {
-            await _service.dequeue(_myQueueDocId!);
-            debugPrint('✅ Cleaned up queue doc: $_myQueueDocId');
-          }
-        }
-      } catch (e) {
-        debugPrint('❌ Cleanup error: $e');
-      }
-      _myQueueDocId = null;
-    }
+    final docId = _myQueueDocId;
+    if (docId == null) return;
+    _myQueueDocId = null;
+    await _service.dequeue(docId);
   }
 
   Future<void> _findMatch() async {
+    if (_searching) return;
     final user = _auth.currentUser;
     if (user == null) {
       setState(() => _error = 'Please sign in to play');
@@ -636,7 +650,9 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     }
 
     _navigated = false;
+    _creating = false;
     _playersFound = 1; // Self
+    _searchStartedAt = DateTime.now();
     setState(() {
       _searching = true;
       _error = null;
@@ -656,7 +672,31 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     try {
       debugPrint('🔍 Looking for ${_selectedPlayerCount}P game...');
 
-      // Add self to queue with player count preference
+      // A match created by another player claims (deletes) our queue entry,
+      // so listen for matches we are part of before entering the queue.
+      _matchListener = _service.watchMyPlayingMatches(user.uid).listen(
+        (snapshot) {
+          if (_navigated) return;
+          final since = _searchStartedAt!.subtract(const Duration(seconds: 30));
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['maxPlayers'] != _selectedPlayerCount) continue;
+            final createdAt = data['createdAt'] as Timestamp?;
+            if (createdAt != null && createdAt.toDate().isBefore(since)) {
+              continue;
+            }
+            final players = Map<String, dynamic>.from(data['players'] ?? {});
+            final info = players[user.uid];
+            if (info is Map && info['status'] == 'active') {
+              debugPrint('✅ Match ready: ${doc.id}');
+              _navigateToGame(doc.id);
+              return;
+            }
+          }
+        },
+        onError: (e) => debugPrint('❌ Match listener error: $e'),
+      );
+
       final queueRef = await _service.enqueue(
         user.uid,
         user.displayName ?? 'Player',
@@ -664,132 +704,93 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
         playerCount: _selectedPlayerCount,
       );
       _myQueueDocId = queueRef.id;
+      if (!_searching || _navigated) {
+        _cleanupQueue();
+        return;
+      }
       debugPrint('✅ Added to queue: ${queueRef.id}');
 
-      // Listen for matches
-      _matchListener = _fs
-          .collection('ludo_matches')
-          .where('state', whereIn: ['waiting', 'playing'])
-          .where('maxPlayers', isEqualTo: _selectedPlayerCount)
-          .snapshots()
-          .listen((snapshot) {
-        if (_navigated) return;
-
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final players = Map<String, dynamic>.from(data['players'] ?? {});
-          final createdAt = data['createdAt'] as Timestamp?;
-
-          // Skip old matches
-          if (createdAt != null) {
-            final age = DateTime.now().difference(createdAt.toDate());
-            if (age.inHours > 1) continue;
-          }
-
-          if (players.containsKey(user.uid)) {
-            final playerInfo = players[user.uid] as Map<String, dynamic>?;
-            final status = playerInfo?['status']?.toString() ?? 'active';
-
-            if (status == 'active') {
-              // Check if game is ready to start
-              final activePlayers = data['activePlayers'] ?? players.length;
-              final maxPlayers = data['maxPlayers'] ?? 2;
-
-              setState(() => _playersFound = activePlayers);
-
-              if (activePlayers >= maxPlayers) {
-                debugPrint('✅ Match ready: ${doc.id}');
-                _cleanupQueue();
-                _navigateToGame(doc.id);
-                return;
-              }
-            }
-          }
-        }
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+        if (_navigated || !_searching) return;
+        final stillQueued = await _service.heartbeat(user.uid);
+        if (!stillQueued) _onQueueEntryGone();
       });
 
-      // Periodically try to create/join match
       _searchTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
         if (_navigated || !_searching || !mounted) {
           timer.cancel();
           return;
         }
-
         await _tryCreateOrJoinMatch(user);
       });
 
-      // Initial attempt
       await _tryCreateOrJoinMatch(user);
-
     } catch (e) {
       debugPrint('❌ Find match error: $e');
       _cancelSearch('Connection error. Please try again.');
     }
   }
 
-  Future<void> _tryCreateOrJoinMatch(User user) async {
-    try {
-      if (_selectedPlayerCount == 2) {
-        // 2 Player: Find one opponent
-        final opponents = await _service.findQueueOpponents(
-          user.uid,
-          1,
-          playerCount: 2,
-        );
-
-        if (opponents.isNotEmpty && !_navigated) {
-          final opponent = opponents.first;
-          final oppData = opponent.data() ?? {};
-          final oppUid = oppData['uid']?.toString() ?? '';
-
-          if (oppUid.isNotEmpty && oppUid != user.uid) {
-            final matchRef = await _service.createMatchFromQueue(
-              opponentRefs: [opponent.reference],
-              opponentUids: [oppUid],
-              opponentNames: [oppData['displayName']?.toString() ?? 'Player'],
-              opponentAvatars: [oppData['avatar']?.toString() ?? ''],
-              hostUid: user.uid,
-              hostName: user.displayName ?? 'Player',
-              hostAvatar: user.photoURL ?? '',
-              playerCount: 2,
-            );
-
-            try { await opponent.reference.delete(); } catch (_) {}
-            _cleanupQueue();
-            _navigateToGame(matchRef.id);
-          }
-        }
-      } else {
-        // 4 Player: Find three opponents
-        final opponents = await _service.findQueueOpponents(
-          user.uid,
-          3,
-          playerCount: 4,
-        );
-
-        setState(() => _playersFound = 1 + opponents.length);
-
-        if (opponents.length >= 3 && !_navigated) {
-          final matchRef = await _service.createMatchFromQueue(
-            opponentRefs: opponents.map((o) => o.reference).toList(),
-            opponentUids: opponents.map((o) => o.data()?['uid']?.toString() ?? '').toList(),
-            opponentNames: opponents.map((o) => o.data()?['displayName']?.toString() ?? 'Player').toList(),
-            opponentAvatars: opponents.map((o) => o.data()?['avatar']?.toString() ?? '').toList(),
-            hostUid: user.uid,
-            hostName: user.displayName ?? 'Player',
-            hostAvatar: user.photoURL ?? '',
-            playerCount: 4,
-          );
-
-          for (final opp in opponents) {
-            try { await opp.reference.delete(); } catch (_) {}
-          }
-          _cleanupQueue();
-          _navigateToGame(matchRef.id);
-        }
+  /// Our queue entry was claimed by another player's match: stop polling
+  /// and wait for the match listener.
+  void _onQueueEntryGone() {
+    if (_navigated || !_searching) return;
+    _myQueueDocId = null;
+    _searchTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    _claimTimeout ??= Timer(const Duration(seconds: 15), () {
+      if (!_navigated) {
+        _cancelSearch('Could not join the match. Please try again.');
       }
+    });
+  }
+
+  Future<void> _tryCreateOrJoinMatch(User user) async {
+    if (_creating || _navigated || !_searching) return;
+    _creating = true;
+    try {
+      if (!await _service.isQueued(user.uid)) {
+        _onQueueEntryGone();
+        return;
+      }
+
+      final needed = _selectedPlayerCount - 1;
+      final opponents = await _service.findQueueOpponents(
+        user.uid,
+        needed,
+        playerCount: _selectedPlayerCount,
+      );
+
+      if (mounted && _selectedPlayerCount > 2) {
+        setState(() => _playersFound = 1 + opponents.length);
+      }
+
+      if (opponents.length < needed || _navigated || !_searching) return;
+
+      final matchRef = await _service.createMatchFromQueue(
+        hostQueueRef: _service.queueRef(user.uid),
+        opponentRefs: opponents.map((o) => o.reference).toList(),
+        opponentUids:
+            opponents.map((o) => o.data()?['uid']?.toString() ?? '').toList(),
+        opponentNames: opponents
+            .map((o) => o.data()?['displayName']?.toString() ?? 'Player')
+            .toList(),
+        opponentAvatars: opponents
+            .map((o) => o.data()?['avatar']?.toString() ?? '')
+            .toList(),
+        hostUid: user.uid,
+        hostName: user.displayName ?? 'Player',
+        hostAvatar: user.photoURL ?? '',
+        playerCount: _selectedPlayerCount,
+      );
+
+      _myQueueDocId = null; // claimed inside the transaction
+      _navigateToGame(matchRef.id);
     } catch (e) {
+      // Usually another player claimed one of the entries first.
       debugPrint('❌ Create/Join match error: $e');
+    } finally {
+      _creating = false;
     }
   }
 
@@ -797,9 +798,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     if (_navigated) return;
     _navigated = true;
 
-    _waitingTimer?.cancel();
-    _searchTimer?.cancel();
-    _matchListener?.cancel();
+    _stopTimers();
+    _cleanupQueue();
 
     if (!mounted) return;
 
@@ -813,10 +813,14 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     );
   }
 
+  void _resumeMatch() {
+    final matchId = _resumeMatchId;
+    if (matchId == null) return;
+    _navigateToGame(matchId);
+  }
+
   void _cancelSearch([String? errorMessage]) {
-    _waitingTimer?.cancel();
-    _searchTimer?.cancel();
-    _matchListener?.cancel();
+    _stopTimers();
     _cleanupQueue();
 
     if (mounted) {
@@ -825,6 +829,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
         _error = errorMessage;
         _playersFound = 0;
       });
+    } else {
+      _searching = false;
     }
   }
 
@@ -938,6 +944,11 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
           ),
 
           const SizedBox(height: 32),
+
+          if (_resumeMatchId != null) ...[
+            _buildResumeBanner(),
+            const SizedBox(height: 24),
+          ],
 
           // Player Count Selection
           _buildPlayerCountSelector(),
@@ -1123,9 +1134,38 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
           const SizedBox(height: 12),
           _buildInfoRow(Icons.timer, '30 sec per turn'),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.emoji_events, 'Win to earn points'),
-          const SizedBox(height: 12),
           _buildInfoRow(Icons.chat, 'In-game chat available'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResumeBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green.withOpacity(0.6)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sports_esports, color: Colors.green),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'You have a match in progress.',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: _resumeMatch,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Resume match'),
+          ),
         ],
       ),
     );

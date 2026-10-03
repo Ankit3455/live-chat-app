@@ -284,6 +284,8 @@
 
 
 // lib/feature/games/ludo/widgets/board_widget.dart
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -295,22 +297,33 @@ import 'pawn_widget.dart';
 class BoardWidget extends StatelessWidget {
   const BoardWidget({super.key});
 
-  double ludoBoard(BuildContext context) {
-    double width = MediaQuery.of(context).size.width;
-    if (width > 500) return 500;
-    if (width < 300) return 300;
-    return width - 20;
-  }
-
-  double boxStepSize(BuildContext context) => ludoBoard(context) / 15;
+  static const double _margin = 10;
 
   @override
   Widget build(BuildContext context) {
+    // Fit the shorter side so the board never overflows short or
+    // landscape screens.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screen = MediaQuery.of(context).size;
+        final maxW = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : screen.width;
+        final maxH = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : screen.height;
+        final size = (min(maxW, maxH) - 2 * _margin).clamp(120.0, 500.0);
+        return _buildBoard(size);
+      },
+    );
+  }
+
+  Widget _buildBoard(double board) {
     return Container(
-      margin: const EdgeInsets.all(10),
+      margin: const EdgeInsets.all(_margin),
       clipBehavior: Clip.antiAlias,
-      width: ludoBoard(context),
-      height: ludoBoard(context),
+      width: board,
+      height: board,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -328,19 +341,25 @@ class BoardWidget extends StatelessWidget {
       ),
       child: Consumer<LudoMultiplayerProvider>(
         builder: (context, provider, child) {
-          return _buildPawnsStack(context, provider);
+          return _buildPawnsStack(board, provider);
         },
       ),
     );
   }
 
-  Widget _buildPawnsStack(BuildContext context, LudoMultiplayerProvider provider) {
-    final players = provider.players;
+  Widget _buildPawnsStack(double board, LudoMultiplayerProvider provider) {
+    final cell = board / 15;
+    final boardColors = provider.boardColors;
+    final players = provider.players
+        .where((p) => boardColors.contains(p.type.name))
+        .toList();
     final currentTurn = provider.currentTurnType;
 
-    // Sort players - current player on top
-    List<LudoPlayer> sortedPlayers = List.from(players);
-    sortedPlayers.sort((a, b) => currentTurn == a.type ? 1 : -1);
+    // Current player's pawns drawn last (on top); otherwise keep board order.
+    int rank(LudoPlayer p) =>
+        (p.type == currentTurn ? 10 : 0) + p.type.index;
+    final sortedPlayers = List<LudoPlayer>.from(players)
+      ..sort((a, b) => rank(a).compareTo(rank(b)));
 
     Map<String, List<PawnWidget>> pawnsRaw = {};
     List<Widget> playersPawn = [];
@@ -371,10 +390,10 @@ class BoardWidget extends StatelessWidget {
             var player = players.firstWhere((p) => p.type == e.type);
             return AnimatedPositioned(
               key: ValueKey("${e.type.name}_${e.index}"),
-              left: LudoPath.stepBox(ludoBoard(context), player.homePath[e.index][0]),
-              top: LudoPath.stepBox(ludoBoard(context), player.homePath[e.index][1]),
-              width: boxStepSize(context),
-              height: boxStepSize(context),
+              left: LudoPath.stepBox(board, player.homePath[e.index][0]),
+              top: LudoPath.stepBox(board, player.homePath[e.index][1]),
+              width: cell,
+              height: cell,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOut,
               child: e,
@@ -396,10 +415,10 @@ class BoardWidget extends StatelessWidget {
             key: ValueKey("${e.type.name}_${e.index}"),
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOut,
-            left: LudoPath.stepBox(ludoBoard(context), coordinates[0]),
-            top: LudoPath.stepBox(ludoBoard(context), coordinates[1]),
-            width: boxStepSize(context),
-            height: boxStepSize(context),
+            left: LudoPath.stepBox(board, coordinates[0]),
+            top: LudoPath.stepBox(board, coordinates[1]),
+            width: cell,
+            height: cell,
             child: e,
           ));
         } else {
@@ -411,10 +430,10 @@ class BoardWidget extends StatelessWidget {
                 key: ValueKey("${e.type.name}_${e.index}"),
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOut,
-                left: LudoPath.stepBox(ludoBoard(context), coordinates[0]) + (index * 4),
-                top: LudoPath.stepBox(ludoBoard(context), coordinates[1]) - (index * 2),
-                width: boxStepSize(context) - 4,
-                height: boxStepSize(context),
+                left: LudoPath.stepBox(board, coordinates[0]) + (index * 4),
+                top: LudoPath.stepBox(board, coordinates[1]) - (index * 2),
+                width: cell - 4,
+                height: cell,
                 child: e,
               );
             }),
@@ -428,12 +447,13 @@ class BoardWidget extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         ...playersPawn,
-        ..._buildWinners(context, provider.winners),
+        ..._buildWinners(board, provider.winners),
       ],
     );
   }
 
-  List<Widget> _buildWinners(BuildContext context, List<LudoPlayerType> winners) {
+  List<Widget> _buildWinners(double board, List<LudoPlayerType> winners) {
+    final cell = board / 15;
     return List.generate(winners.length, (index) {
       if (index > 2) return const SizedBox.shrink();
 
@@ -467,10 +487,10 @@ class BoardWidget extends StatelessWidget {
         left: x == 0 ? 0 : null,
         right: x == 1 ? 0 : null,
         bottom: y == 1 ? 0 : null,
-        width: ludoBoard(context) * .4,
-        height: ludoBoard(context) * .4,
+        width: board * .4,
+        height: board * .4,
         child: Padding(
-          padding: EdgeInsets.all(boxStepSize(context)),
+          padding: EdgeInsets.all(cell),
           child: Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),

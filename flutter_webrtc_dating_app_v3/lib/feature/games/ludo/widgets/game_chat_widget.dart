@@ -28,6 +28,28 @@ class _GameChatWidgetState extends State<GameChatWidget> {
 
   final List<String> _quickReactions = ['👍', '😂', '😢', '😡', '🎉', '🔥', '💀', '🎲'];
 
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _chatStream;
+  final String? _myUid = FirebaseAuth.instance.currentUser?.uid;
+  String? _lastMessageId;
+
+  @override
+  void initState() {
+    super.initState();
+    _chatStream = _service.watchChat(widget.matchId);
+  }
+
+  /// The list is reversed (newest at offset 0), so "bottom" is 0.
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   void dispose() {
     _textController.dispose();
@@ -65,18 +87,8 @@ class _GameChatWidgetState extends State<GameChatWidget> {
       type: type,
     );
 
-    _textController.clear();
-
-    // Scroll to bottom
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    if (type == 'text') _textController.clear();
+    _scrollToLatest();
   }
 
   @override
@@ -161,7 +173,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
           // Messages List
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _service.watchChat(widget.matchId),
+              stream: _chatStream,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(
@@ -201,8 +213,16 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                   );
                 }
 
+                final newestId = messages.first.id;
+                if (newestId != _lastMessageId) {
+                  _lastMessageId = newestId;
+                  _scrollToLatest();
+                }
+
+                // Query is newest-first; a reversed list shows newest at the bottom.
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -225,8 +245,10 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                 Expanded(
                   child: TextField(
                     controller: _textController,
+                    maxLength: LudoGameService.chatMaxLength,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
+                      counterText: '',
                       hintText: 'Type a message...',
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                       filled: true,
@@ -272,7 +294,10 @@ class _GameChatWidgetState extends State<GameChatWidget> {
     final senderName = data['senderName']?.toString() ?? 'Player';
     final message = data['message']?.toString() ?? '';
     final type = data['type']?.toString() ?? 'text';
-    final isMe = senderColor == widget.localColor;
+    final senderUid = data['senderUid']?.toString();
+    final isMe = senderUid != null
+        ? senderUid == _myUid
+        : senderColor == widget.localColor;
 
     final color = _getColorFromString(senderColor);
 

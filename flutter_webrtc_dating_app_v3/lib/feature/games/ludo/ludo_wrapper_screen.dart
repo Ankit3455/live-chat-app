@@ -418,7 +418,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'audio.dart';
 import 'ludo_lobby_screen.dart';
 import 'ludo_multiplayer_provider.dart';
 import 'widgets/board_widget.dart';
@@ -439,7 +438,6 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
   late LudoMultiplayerProvider _provider;
   final _gameService = LudoGameService();
   bool _hasLeft = false;
-  bool _gameOverHandled = false;
 
   @override
   void initState() {
@@ -447,12 +445,14 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
     _provider = LudoMultiplayerProvider(matchId: widget.matchId);
     _provider.start();
+    // Opening the match (e.g. "Resume match" from the lobby) clears 'away'.
+    _handlePlayerReconnect();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _provider.disposeProvider();
+    _provider.dispose();
     super.dispose();
   }
 
@@ -474,7 +474,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
 
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      _handlePlayerLeave();
+      _handlePlayerAway();
     }
 
     if (state == AppLifecycleState.resumed) {
@@ -482,41 +482,45 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
     }
   }
 
-  Future<void> _handlePlayerLeave() async {
+  /// Backgrounding is not leaving: start the away grace period instead.
+  Future<void> _handlePlayerAway() async {
     if (_hasLeft) return;
     if (_provider.gameState == LudoGameState.finish) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    await _gameService.playerLeft(
-      matchId: widget.matchId,
-      odId: uid,
-    );
-
-    debugPrint('📤 Player left: $uid');
+    await _gameService.playerAway(matchId: widget.matchId, odId: uid);
   }
 
   Future<void> _handlePlayerReconnect() async {
+    if (_hasLeft) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final reconnected = await _gameService.playerReconnect(
-      matchId: widget.matchId,
-      odId: uid,
-    );
+    await _gameService.playerReconnect(matchId: widget.matchId, odId: uid);
+  }
 
-    if (reconnected) {
-      debugPrint('📥 Player reconnected: $uid');
-    }
+  Future<void> _handlePlayerLeave() async {
+    _hasLeft = true;
+    _provider.stopActions();
+    if (_provider.gameState == LudoGameState.finish) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await _gameService.playerLeft(matchId: widget.matchId, odId: uid);
+    debugPrint('📤 Player left: $uid');
   }
 
   Future<bool> _onWillPop() async {
-    if (_provider.gameState == LudoGameState.finish) {
+    if (_provider.gameState == LudoGameState.finish || _provider.matchMissing) {
       _hasLeft = true;
+      _provider.stopActions();
       return true;
     }
 
+    final multiPlayer = _provider.maxPlayers > 2;
     final shouldLeave = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -527,9 +531,11 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
           '🚪 Leave Game?',
           style: TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'If you leave, your opponent will win after 5 minutes.\n\nYou can rejoin within 5 minutes to continue playing.',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          multiPlayer
+              ? 'If you leave, you are out of this match and cannot rejoin. The other players keep playing.'
+              : 'If you leave, you forfeit this match and your opponent wins.',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
@@ -546,12 +552,17 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
     );
 
     if (shouldLeave == true) {
-      _hasLeft = true;
       await _handlePlayerLeave();
       return true;
     }
 
     return false;
+  }
+
+  void _backToLobby() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LudoLobbyScreen()),
+    );
   }
 
   @override
@@ -565,15 +576,8 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
           body: SafeArea(
             child: Consumer<LudoMultiplayerProvider>(
               builder: (context, provider, _) {
-                if (provider.gameState == LudoGameState.finish && !_gameOverHandled) {
-                  _gameOverHandled = true;
-                  if (provider.winners.isNotEmpty) {
-                    if (provider.winners.first.name == provider.localColor) {
-                      Audio.playWin();
-                    } else {
-                      Audio.playLose();
-                    }
-                  }
+                if (provider.matchMissing) {
+                  return _buildMatchMissingView();
                 }
 
                 if (!provider.ready) {
@@ -584,10 +588,6 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
                   return _buildWaitingForOpponent();
                 }
 
-                if (provider.opponentLeft && provider.gameState != LudoGameState.finish) {
-                  return _buildOpponentLeftView(provider);
-                }
-
                 return Stack(
                   children: [
                     Column(
@@ -596,6 +596,8 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
                         _buildHeader(context, provider),
                         const SizedBox(height: 8),
                         _buildTurnIndicator(provider),
+                        if (provider.gameState != LudoGameState.finish)
+                          _buildAwayBanner(provider),
                         const SizedBox(height: 8),
                         const Expanded(
                           child: Center(child: BoardWidget()),
@@ -661,7 +663,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
           OutlinedButton.icon(
             onPressed: () async {
               if (await _onWillPop()) {
-                if (mounted) Navigator.pop(context);
+                if (mounted) _backToLobby();
               }
             },
             icon: const Icon(Icons.arrow_back),
@@ -676,46 +678,77 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
     );
   }
 
-  Widget _buildOpponentLeftView(LudoMultiplayerProvider provider) {
+  Widget _buildMatchMissingView() {
     return Center(
-      child: Container(
-        margin: const EdgeInsets.all(32),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.orange, width: 2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person_off, size: 60, color: Colors.orange),
-            const SizedBox(height: 16),
-            const Text(
-              '😔 Opponent Left',
-              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 60, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text(
+            'This match is no longer available.',
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () {
+              _hasLeft = true;
+              _backToLobby();
+            },
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Back to Lobby'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: BorderSide(color: Colors.white.withOpacity(0.3)),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Waiting ${provider.forfeitTimeLeft} for them to return...',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'You will win automatically if they don\'t return!',
-              style: TextStyle(color: Colors.green, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            LinearProgressIndicator(
-              value: provider.forfeitProgress,
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation(Colors.orange),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  /// Shown while an opponent is away; the game keeps going underneath.
+  Widget _buildAwayBanner(LudoMultiplayerProvider provider) {
+    return ValueListenableBuilder<int>(
+      valueListenable: provider.secondTick,
+      builder: (context, _, __) {
+        final away = provider.awayOpponents;
+        if (away.isEmpty) return const SizedBox.shrink();
+        final twoPlayer = provider.maxPlayers <= 2;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.withOpacity(0.6)),
+          ),
+          child: Column(
+            children: away.map((p) {
+              final String text;
+              if (p.skipped) {
+                text = '${p.name} is away. Their turns are skipped until they return.';
+              } else if (twoPlayer) {
+                text = '${p.name} is away. You win if they do not return in ${p.secondsLeft}s.';
+              } else {
+                text = '${p.name} is away. Their turns are skipped in ${p.secondsLeft}s.';
+              }
+              return Row(
+                children: [
+                  const Icon(Icons.person_off, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 
@@ -849,30 +882,36 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: provider.turnTimeLeft <= 10 ? Colors.red.withOpacity(0.3) : Colors.black26,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.timer,
-                  color: provider.turnTimeLeft <= 10 ? Colors.red : Colors.white70,
-                  size: 16,
+          ValueListenableBuilder<int>(
+            valueListenable: provider.turnTimeLeft,
+            builder: (context, timeLeft, _) {
+              final low = timeLeft <= 10;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: low ? Colors.red.withOpacity(0.3) : Colors.black26,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  '${provider.turnTimeLeft}s',
-                  style: TextStyle(
-                    color: provider.turnTimeLeft <= 10 ? Colors.red : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer,
+                      color: low ? Colors.red : Colors.white70,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${timeLeft}s',
+                      style: TextStyle(
+                        color: low ? Colors.red : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -994,12 +1033,12 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
   // }
 
   Widget _buildGameOverOverlay(LudoMultiplayerProvider provider) {
-    // Check if local player is winner (regardless of finish reason)
-    final isLocalWinner = provider.winners.isNotEmpty &&
-        provider.localColor != null &&
-        provider.winners.any((w) => w.name == provider.localColor);
-
     final winner = provider.winners.isNotEmpty ? provider.winners.first : null;
+    final isLocalWinner =
+        winner != null && winner.name == provider.localColor;
+    final localRank = provider.winners
+            .indexWhere((w) => w.name == provider.localColor) +
+        1;
     final reason = provider.finishReason;
 
     String title = '';
@@ -1015,10 +1054,14 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
           : 'Congratulations! Winner: ${winner?.name.toUpperCase()}';
       icon = Icons.emoji_events;
       iconColor = Colors.amber;
+    } else if (localRank > 1) {
+      title = '🏅 You finished #$localRank';
+      subtitle = 'Winner: ${winner?.name.toUpperCase()}';
+      icon = Icons.emoji_events;
+      iconColor = Colors.blueGrey;
     } else if (reason == 'forfeit') {
-      // Local player forfeited (left the game)
       title = '😔 You Forfeited';
-      subtitle = 'You left the game. Opponent wins!';
+      subtitle = 'You left or were away too long.';
       icon = Icons.flag;
       iconColor = Colors.red;
     } else if (winner != null) {
@@ -1085,7 +1128,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
                 child: ElevatedButton.icon(
                   onPressed: () {
                     _hasLeft = true;
-                    Navigator.of(context).pop();
+                    _backToLobby();
                   },
                   icon: const Icon(Icons.home),
                   label: const Text('Back to Lobby'),

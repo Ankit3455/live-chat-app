@@ -57,7 +57,7 @@ class LudoPlayer {
   int get pawnOutsideCount => pawns.where((element) => element.step > -1).length;
 
   ///Moving mean you'll replace the current widget with the new widget
-  void movePawn(int index, int step) async {
+  void movePawn(int index, int step) {
     pawns[index] = PawnWidget(index, type, step: step, highlight: false);
   }
 
@@ -72,6 +72,14 @@ class LudoPlayer {
   void highlightAllPawns([bool highlight = true]) {
     for (var i = 0; i < pawns.length; i++) {
       highlightPawn(i, highlight);
+    }
+  }
+
+  ///Highlight exactly the given pawns (the legal moves) and clear the rest
+  void highlightPawns(Iterable<int> indices) {
+    final legal = indices.toSet();
+    for (var i = 0; i < pawns.length; i++) {
+      highlightPawn(i, legal.contains(i));
     }
   }
 
