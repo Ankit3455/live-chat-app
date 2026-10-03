@@ -1,1337 +1,647 @@
-// import 'package:flutter/material.dart';
-// import 'dart:async';
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:permission_handler/permission_handler.dart';
-//
-// // Models
-// import '../../models/chat_message_model.dart';
-// import '../../models/user_model.dart';
-// import '../../models/call_model.dart';
-//
-// // Services
-// import '../../services/chat_service.dart';
-// import '../../services/call/call_service.dart';
-//
-// // UI Components
-// import '../../core/constants/app_colors.dart';
-// import 'widgets/message_bubble.dart';
-//
-// // Call Screens
-// import '../calls/video_call_screen.dart';
-// import '../calls/audio_call_screen.dart';
-//
-// class ChatScreen extends StatefulWidget {
-//   final String otherUserId;
-//   final String? conversationId;
-//
-//   const ChatScreen({
-//     Key? key,
-//     required this.otherUserId,
-//     this.conversationId,
-//   }) : super(key: key);
-//
-//   @override
-//   State<ChatScreen> createState() => _ChatScreenState();
-// }
-//
-// class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
-//   final ChatService _chatService = ChatService();
-//   final CallService _callService = CallService();
-//   final TextEditingController _messageController = TextEditingController();
-//   final ScrollController _scrollController = ScrollController();
-//
-//   // Live stream for newest messages + de-dup with paged list
-//   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesLiveSub;
-//   final Set<String> _messageIds = {};
-//
-//   late String _conversationId;
-//   UserModel? _otherUser;
-//   bool _isLoading = true;
-//   bool _isSending = false;
-//   Timer? _typingTimer;
-//   bool _isTyping = false;
-//   ChatMessage? _replyToMessage;
-//   final FocusNode _messageFocusNode = FocusNode();
-//   DateTime? _clearedBefore;
-//
-//   Timer? _readDebounce;
-//   void _markReadDebounced() {
-//     _readDebounce?.cancel();
-//     _readDebounce = Timer(const Duration(milliseconds: 350), () {
-//       _chatService.markMessagesAsRead(_conversationId, widget.otherUserId);
-//     });
-//   }
-//
-//   // Call state
-//   bool _isCallInProgress = false;
-//
-//   // Pagination state
-//   final List<ChatMessage> _messages = [];
-//   bool _isLoadingMore = false;
-//   bool _hasMore = true;
-//   DocumentSnapshot? _lastDoc; // oldest loaded (for startAfterDocument)
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     WidgetsBinding.instance.addObserver(this);
-//     _initializeChat();
-//     _messageController.addListener(_onTypingChanged);
-//   }
-//
-//   @override
-//   void dispose() {
-//     WidgetsBinding.instance.removeObserver(this);
-//     _typingTimer?.cancel();
-//     _updateTypingStatus(false);
-//     _messageController.removeListener(_onTypingChanged);
-//     _messageController.dispose();
-//     _scrollController.dispose();
-//     _messageFocusNode.dispose();
-//     _messagesLiveSub?.cancel();
-//     _readDebounce?.cancel(); // keep
-//
-//     super.dispose();
-//   }
-//
-//   @override
-//   void didChangeAppLifecycleState(AppLifecycleState state) {
-//     if (state == AppLifecycleState.paused) {
-//       _updateTypingStatus(false);
-//     }
-//   }
-//
-//   Future<void> _initializeChat() async {
-//     try {
-//       if (widget.conversationId != null) {
-//         _conversationId = widget.conversationId!;
-//       } else {
-//         _conversationId =
-//         await _chatService.getOrCreateConversation(widget.otherUserId);
-//       }
-//
-//       final myUid = _chatService.currentUserId;
-//       final convSnap = await FirebaseFirestore.instance
-//           .collection('conversations')
-//           .doc(_conversationId)
-//           .get();
-//
-//       final data = convSnap.data() as Map<String, dynamic>? ?? {};
-//       final pd = (data['participantData'] as Map?) ?? {};
-//       final me = (pd[myUid] as Map?) ?? {};
-//       final cbTs = me['clearedBefore'];
-//       if (cbTs is Timestamp) _clearedBefore = cbTs.toDate();
-//
-//       _otherUser = await _chatService.getUserDetails(widget.otherUserId);
-//
-//       // Mark incoming as read once
-//       await _chatService.markMessagesAsRead(
-//           _conversationId, widget.otherUserId);
-//
-//       // initial page
-//       await _loadMoreMessages(initial: true);
-//
-//       // Build de-dup set from first page
-//       _messageIds
-//         ..clear()
-//         ..addAll(_messages.map((m) => m.id));
-//
-//       // Start live stream (conversationId is ready)
-//       _startLiveNewMessageListener();
-//
-//       if (mounted) {
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     }
-//   }
-//
-//   // ============= Typing =============
-//   void _onTypingChanged() {
-//     if (_messageController.text.isNotEmpty && !_isTyping) {
-//       _updateTypingStatus(true);
-//     }
-//
-//     _typingTimer?.cancel();
-//     _typingTimer = Timer(const Duration(seconds: 3), () {
-//       if (_isTyping) {
-//         _updateTypingStatus(false);
-//       }
-//     });
-//   }
-//
-//   Future<void> _updateTypingStatus(bool typing) async {
-//     if (_isTyping != typing) {
-//       _isTyping = typing;
-//       await _chatService.updateTypingStatus(_conversationId, typing);
-//     }
-//   }
-//
-//   // ============= Pagination Loader =============
-//   Future<void> _loadMoreMessages({bool initial = false}) async {
-//     if (_isLoadingMore || !_hasMore) return;
-//
-//     setState(() {
-//       _isLoadingMore = true;
-//     });
-//
-//     try {
-//       // Query messages ordered desc by 'timestamp'
-//       Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
-//           .collection('conversations')
-//           .doc(_conversationId)
-//           .collection('messages')
-//           .orderBy('timestamp', descending: true);
-//
-//       if (_clearedBefore != null) {
-//         ref = ref.where(
-//           'timestamp',
-//           isGreaterThan: Timestamp.fromDate(_clearedBefore!),
-//         );
-//       }
-//
-//       ref = ref.limit(30);
-//
-//       final QuerySnapshot<Map<String, dynamic>> snap = (_lastDoc == null)
-//           ? await ref.get()
-//           : await ref.startAfterDocument(_lastDoc!).get();
-//
-//       final docs = snap.docs;
-//
-//       if (docs.isEmpty) {
-//         _hasMore = false;
-//       } else {
-//         // update lastDoc to last (oldest in this page since desc)
-//         _lastDoc = docs.last;
-//
-//         final loaded =
-//         docs.map((d) => ChatMessage.fromFirestore(d)).toList();
-//
-//         // Append (we keep list reversed = newest at top, so just addAll)
-//         _messages.addAll(loaded);
-//
-//         // Track IDs to prevent duplicates when live stream also pushes them
-//         for (final m in loaded) {
-//           _messageIds.add(m.id);
-//         }
-//       }
-//     } catch (e) {
-//       // ignore for now
-//     } finally {
-//       if (mounted) {
-//         setState(() {
-//           _isLoadingMore = false;
-//         });
-//       }
-//     }
-//   }
-//
-//   // === Live listener for newest messages ===
-//   void _startLiveNewMessageListener() {
-//     _messagesLiveSub?.cancel();
-//     if (_conversationId.isEmpty) return;
-//
-//     Query<Map<String, dynamic>> liveRef = FirebaseFirestore.instance
-//         .collection('conversations')
-//         .doc(_conversationId)
-//         .collection('messages')
-//         .orderBy('timestamp', descending: true);
-//
-//     if (_clearedBefore != null) {
-//       liveRef = liveRef.where(
-//         'timestamp',
-//         isGreaterThan: Timestamp.fromDate(_clearedBefore!),
-//       );
-//     }
-//
-//     liveRef = liveRef.limit(20); // listen to the head
-//
-//     _messagesLiveSub = liveRef.snapshots().listen((snap) {
-//       if (!mounted) return;
-//
-//       final changes = snap.docChanges;
-//       if (changes.isEmpty) return;
-//
-//       bool listChanged = false;
-//
-//       for (final c in changes) {
-//         final data = c.doc.data();
-//         if (data == null) continue;
-//
-//         final msg = ChatMessage.fromFirestore(c.doc);
-//         // If I am viewing this chat and the other user sent a new message, mark as read.
-//         final isIncoming = msg.senderId == widget.otherUserId;
-//         if (isIncoming) {
-//           _markReadDebounced();
-//         }
-//         final id = msg.id;
-//
-//         if (_messageIds.contains(id)) {
-//           if (c.type == DocumentChangeType.modified) {
-//             final idx = _messages.indexWhere((m) => m.id == id);
-//             if (idx != -1) {
-//               _messages[idx] = msg;
-//               listChanged = true;
-//             }
-//           }
-//           continue;
-//         }
-//
-//         // New message: insert at top (reverse list)
-//         _messages.insert(0, msg);
-//         _messageIds.add(id);
-//         listChanged = true;
-//       }
-//
-//       if (listChanged) setState(() {});
-//     }, onError: (_) {});
-//   }
-//
-//   // ============= Send message =============
-//   Future<void> _sendMessage() async {
-//     final message = _messageController.text.trim();
-//     if (message.isEmpty || _isSending) return;
-//
-//     setState(() => _isSending = true);
-//
-//     _messageController.clear();
-//     _updateTypingStatus(false);
-//
-//     try {
-//       await _chatService.sendMessage(
-//         conversationId: _conversationId,
-//         receiverId: widget.otherUserId,
-//         message: message,
-//         replyToMessageId: _replyToMessage?.id,
-//       );
-//
-//       setState(() => _replyToMessage = null);
-//
-//       // Scroll to top; live stream will insert the new message
-//       if (_scrollController.hasClients) {
-//         _scrollController.animateTo(
-//           0,
-//           duration: const Duration(milliseconds: 250),
-//           curve: Curves.easeOut,
-//         );
-//       }
-//     } catch (e) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(content: Text('Failed to send message')),
-//       );
-//     } finally {
-//       if (mounted) setState(() => _isSending = false);
-//     }
-//   }
-//
-//   // ============= CALL METHODS =============
-//   Future<void> _startCall(CallType type) async {
-//     if (_isCallInProgress) {
-//       _showSnackBar('A call is already in progress');
-//       return;
-//     }
-//
-//     try {
-//       final permissions = type == CallType.video
-//           ? [Permission.camera, Permission.microphone]
-//           : [Permission.microphone];
-//
-//       Map<Permission, PermissionStatus> statuses = {};
-//       for (final permission in permissions) {
-//         statuses[permission] = await permission.request();
-//       }
-//
-//       bool allGranted = statuses.values.every((s) => s.isGranted);
-//       if (!allGranted) {
-//         final deniedPermission = statuses.entries
-//             .firstWhere((e) => !e.value.isGranted)
-//             .key;
-//         _showSnackBar(
-//           '${deniedPermission == Permission.camera ? 'Camera' : 'Microphone'} permission is required for calls',
-//         );
-//         return;
-//       }
-//
-//       setState(() => _isCallInProgress = true);
-//
-//       showDialog(
-//         context: context,
-//         barrierDismissible: false,
-//         builder: (context) => Center(
-//           child: Container(
-//             padding: const EdgeInsets.all(20),
-//             decoration: BoxDecoration(
-//               color: AppColors.inputBackground,
-//               borderRadius: BorderRadius.circular(10),
-//             ),
-//             child: Column(
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 CircularProgressIndicator(color: AppColors.purplePrimary),
-//                 const SizedBox(height: 15),
-//                 Text(
-//                   'Initiating ${type == CallType.video ? "video" : "voice"} call...',
-//                   style: TextStyle(color: AppColors.inputTextWhite),
-//                 ),
-//               ],
-//             ),
-//           ),
-//         ),
-//       );
-//
-//       final callId = await _callService.startCall(
-//         receiverId: widget.otherUserId,
-//         type: type,
-//       );
-//
-//       if (!mounted) return;
-//       Navigator.pop(context);
-//
-//       await Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => type == CallType.video
-//               ? VideoCallScreen(callId: callId, isOutgoing: true)
-//               : AudioCallScreen(callId: callId, isOutgoing: true),
-//         ),
-//       );
-//
-//       setState(() => _isCallInProgress = false);
-//     } catch (e) {
-//       setState(() => _isCallInProgress = false);
-//       if (!mounted) return;
-//       if (Navigator.canPop(context)) Navigator.pop(context);
-//       _showSnackBar('Failed to start call');
-//     }
-//   }
-//
-//   void _showSnackBar(String message) {
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       SnackBar(
-//         content: Text(message),
-//         backgroundColor: AppColors.purplePrimary,
-//         behavior: SnackBarBehavior.floating,
-//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-//       ),
-//     );
-//   }
-//
-//   // ============= UI BUILDERS =============
-//   @override
-//   Widget build(BuildContext context) {
-//     if (_isLoading) {
-//       return Scaffold(
-//         backgroundColor: AppColors.appBackground,
-//         body: Center(child: CircularProgressIndicator(color: AppColors.purplePrimary)),
-//       );
-//     }
-//
-//     return Scaffold(
-//       backgroundColor: AppColors.appBackground,
-//       appBar: _buildAppBar(),
-//       body: Column(
-//         children: [
-//           Expanded(child: _buildMessagesList()),
-//           _buildTypingIndicator(),
-//           if (_replyToMessage != null) _buildReplyPreview(),
-//           _buildMessageInput(),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   AppBar _buildAppBar() {
-//     final displayName = _otherUser?.username ?? 'User';
-//     final avatarUrl = (() {
-//       if (_otherUser?.profileImage != null && _otherUser!.profileImage.isNotEmpty) {
-//         return _otherUser!.profileImage;
-//       }
-//       return _otherUser?.avatarString;
-//     })();
-//
-//     return AppBar(
-//       backgroundColor: AppColors.purplePrimary,
-//       title: InkWell(
-//         onTap: () {},
-//         child: Row(
-//           children: [
-//             CircleAvatar(
-//               radius: 18,
-//               backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-//               backgroundColor: AppColors.purpleSecondary,
-//               child: (avatarUrl == null || avatarUrl.isEmpty)
-//                   ? Text(
-//                 displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-//                 style: const TextStyle(color: Colors.white),
-//               )
-//                   : null,
-//             ),
-//             const SizedBox(width: 12),
-//             Expanded(
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text(displayName, style: const TextStyle(fontSize: 16)),
-//                   StreamBuilder<DocumentSnapshot>(
-//                     stream: FirebaseFirestore.instance
-//                         .collection('users')
-//                         .doc(widget.otherUserId)
-//                         .snapshots(),
-//                     builder: (context, snapshot) {
-//                       if (!snapshot.hasData) return const SizedBox.shrink();
-//                       final data = snapshot.data?.data() as Map<String, dynamic>?;
-//                       final isOnline = data?['online'] ?? false;
-//
-//                       return Row(
-//                         mainAxisSize: MainAxisSize.min,
-//                         children: [
-//                           Container(
-//                             width: 8,
-//                             height: 8,
-//                             decoration: BoxDecoration(
-//                               color: isOnline ? Colors.greenAccent : Colors.grey,
-//                               shape: BoxShape.circle,
-//                             ),
-//                           ),
-//                           const SizedBox(width: 6),
-//                           Text(
-//                             isOnline ? 'Online' : 'Offline',
-//                             style: TextStyle(
-//                               fontSize: 12,
-//                               color: isOnline ? Colors.greenAccent : Colors.white70,
-//                             ),
-//                           ),
-//                         ],
-//                       );
-//                     },
-//                   ),
-//                 ],
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//       actions: [
-//         StreamBuilder<DocumentSnapshot>(
-//           stream: FirebaseFirestore.instance
-//               .collection('conversations')
-//               .doc(_conversationId)
-//               .snapshots(),
-//           builder: (context, snap) {
-//             final myUid = _chatService.currentUserId;
-//             bool canCall = true;
-//             bool isMuted = false;
-//
-//             if (snap.hasData && snap.data?.exists == true) {
-//               final data = snap.data!.data() as Map<String, dynamic>;
-//
-//               final statePerUser = (data['statePerUser'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())) ?? {};
-//               final myState = statePerUser[myUid];
-//               if (myState != null) canCall = myState == 'active';
-//
-//               if (myState == null) {
-//                 final pd = (data['participantData'] as Map?)?[myUid];
-//                 if (pd is Map) {
-//                   final status = (pd['status'] ?? '').toString();
-//                   final hasReplied = (pd['hasReplied'] ?? false) == true;
-//                   canCall = (status == 'active') || hasReplied;
-//                 }
-//               }
-//
-//               final m = data['muted'];
-//               if (m is Map && m[myUid] is bool) isMuted = m[myUid] as bool;
-//             }
-//
-//             final disabled = _isCallInProgress || !canCall;
-//
-//             return Row(
-//               children: [
-//                 if (isMuted)
-//                   const Padding(
-//                     padding: EdgeInsets.only(right: 4),
-//                     child: Icon(Icons.volume_off, size: 18, color: Colors.white70),
-//                   ),
-//                 IconButton(
-//                   icon: Icon(Icons.videocam, color: disabled ? Colors.white38 : Colors.white),
-//                   onPressed: disabled ? null : () => _startCall(CallType.video),
-//                   tooltip: 'Video Call',
-//                 ),
-//                 IconButton(
-//                   icon: Icon(Icons.call, color: disabled ? Colors.white38 : Colors.white),
-//                   onPressed: disabled ? null : () => _startCall(CallType.audio),
-//                   tooltip: 'Voice Call',
-//                 ),
-//                 PopupMenuButton<String>(
-//                   onSelected: (value) {
-//                     switch (value) {
-//                       case 'clear':
-//                         _clearChat();
-//                         break;
-//                       case 'block':
-//                         _blockUser();
-//                         break;
-//                       case 'report':
-//                         _reportUser();
-//                         break;
-//                     }
-//                   },
-//                   itemBuilder: (context) => const [
-//                     PopupMenuItem(value: 'clear', child: Text('Clear chat')),
-//                     PopupMenuItem(value: 'block', child: Text('Block user')),
-//                     PopupMenuItem(value: 'report', child: Text('Report user')),
-//                   ],
-//                 ),
-//               ],
-//             );
-//           },
-//         ),
-//       ],
-//     );
-//   }
-//
-//   // Messages list with infinite scroll
-//   Widget _buildMessagesList() {
-//     return NotificationListener<ScrollNotification>(
-//       onNotification: (n) {
-//         if (n is ScrollEndNotification &&
-//             _scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.90 &&
-//             !_isLoadingMore &&
-//             _hasMore) {
-//           _loadMoreMessages();
-//         }
-//         return false;
-//       },
-//       child: ListView.builder(
-//         controller: _scrollController,
-//         reverse: true,
-//         itemCount: _messages.length + (_hasMore ? 1 : 0),
-//         itemBuilder: (context, index) {
-//           if (index == _messages.length) {
-//             return _isLoadingMore
-//                 ? Padding(
-//               padding: const EdgeInsets.symmetric(vertical: 12),
-//               child: Center(child: CircularProgressIndicator(color: AppColors.purplePrimary)),
-//             )
-//                 : const SizedBox.shrink();
-//           }
-//
-//           final message = _messages[index];
-//           final isMe = message.senderId == _chatService.currentUserId;
-//
-//           final showDate = (index == _messages.length - 1) ||
-//               _shouldShowDate(_messages, index, message.timestamp);
-//
-//           return Column(
-//             children: [
-//               if (showDate) _buildDateSeparator(message.timestamp),
-//               MessageBubble(
-//                 message: message,
-//                 isMe: isMe,
-//                 otherUserName: _otherUser?.username ?? 'User',
-//                 otherUserAvatar: (() {
-//                   if (_otherUser?.profileImage != null && _otherUser!.profileImage.isNotEmpty) {
-//                     return _otherUser!.profileImage;
-//                   }
-//                   return _otherUser?.avatarString;
-//                 })(),
-//                 onReply: () {
-//                   setState(() {
-//                     _replyToMessage = message;
-//                   });
-//                   _messageFocusNode.requestFocus();
-//                 },
-//                 onEdit: isMe ? () => _editMessage(message) : null,
-//                 onDelete: isMe ? () => _deleteMessage(message) : null,
-//               ),
-//             ],
-//           );
-//         },
-//       ),
-//     );
-//   }
-//
-//   Widget _buildTypingIndicator() {
-//     return StreamBuilder<bool>(
-//       stream: _chatService.getTypingStatus(_conversationId, widget.otherUserId),
-//       builder: (context, snapshot) {
-//         if (snapshot.data != true) return const SizedBox.shrink();
-//
-//         return Container(
-//           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//           child: Row(
-//             children: [
-//               Text(
-//                 '${_otherUser?.username ?? "User"} is typing',
-//                 style: TextStyle(
-//                   color: AppColors.hintPurple,
-//                   fontSize: 12,
-//                   fontStyle: FontStyle.italic,
-//                 ),
-//               ),
-//               const SizedBox(width: 4),
-//               SizedBox(
-//                 width: 20,
-//                 child: Row(
-//                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//                   children: List.generate(3, (index) {
-//                     return AnimatedContainer(
-//                       duration: Duration(milliseconds: 300 + (index * 100)),
-//                       curve: Curves.easeInOut,
-//                       width: 4,
-//                       height: 4,
-//                       decoration: BoxDecoration(
-//                         color: AppColors.purplePrimary,
-//                         shape: BoxShape.circle,
-//                       ),
-//                     );
-//                   }),
-//                 ),
-//               ),
-//             ],
-//           ),
-//         );
-//       },
-//     );
-//   }
-//
-//   Widget _buildReplyPreview() {
-//     return Container(
-//       padding: const EdgeInsets.all(8),
-//       color: AppColors.inputBackground,
-//       child: Row(
-//         children: [
-//           Container(width: 4, height: 40, color: AppColors.purplePrimary),
-//           const SizedBox(width: 8),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 Text(
-//                   'Replying to ${_replyToMessage!.senderId == _chatService.currentUserId ? "yourself" : (_otherUser?.username ?? "User")}',
-//                   style: TextStyle(fontSize: 12, color: AppColors.purplePrimary, fontWeight: FontWeight.bold),
-//                 ),
-//                 Text(
-//                   _replyToMessage!.message,
-//                   maxLines: 1,
-//                   overflow: TextOverflow.ellipsis,
-//                   style: TextStyle(fontSize: 14, color: AppColors.hintPurple),
-//                 ),
-//               ],
-//             ),
-//           ),
-//           IconButton(
-//             icon: Icon(Icons.close, size: 20, color: AppColors.hintPurple),
-//             onPressed: () => setState(() => _replyToMessage = null),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildMessageInput() {
-//     return Container(
-//       padding: const EdgeInsets.all(8),
-//       decoration: BoxDecoration(
-//         color: AppColors.inputBackground,
-//         boxShadow: [
-//           BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, -2)),
-//         ],
-//       ),
-//       child: Row(
-//         children: [
-//           IconButton(
-//             icon: Icon(Icons.attach_file, color: AppColors.purplePrimary),
-//             onPressed: () {},
-//           ),
-//           Expanded(
-//             child: TextField(
-//               controller: _messageController,
-//               focusNode: _messageFocusNode,
-//               style: TextStyle(color: AppColors.inputTextWhite),
-//               maxLines: null,
-//               keyboardType: TextInputType.multiline,
-//               textInputAction: TextInputAction.newline,
-//               decoration: InputDecoration(
-//                 hintText: 'Type a message...',
-//                 hintStyle: TextStyle(color: AppColors.hintPurple),
-//                 filled: true,
-//                 fillColor: AppColors.inputBackground,
-//                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-//                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-//               ),
-//               onSubmitted: (_) => _sendMessage(),
-//             ),
-//           ),
-//           const SizedBox(width: 8),
-//           CircleAvatar(
-//             radius: 24,
-//             backgroundColor: AppColors.purplePrimary,
-//             child: IconButton(
-//               icon: Icon(_isSending ? Icons.hourglass_empty : Icons.send, color: Colors.white),
-//               onPressed: _isSending ? null : _sendMessage,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _buildDateSeparator(DateTime date) {
-//     final now = DateTime.now();
-//     final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
-//
-//     final yesterday = now.subtract(const Duration(days: 1));
-//     final isYesterday = date.year == yesterday.year && date.month == yesterday.month && date.day == yesterday.day;
-//
-//     String dateText;
-//     if (isToday) {
-//       dateText = 'Today';
-//     } else if (isYesterday) {
-//       dateText = 'Yesterday';
-//     } else {
-//       dateText = '${date.day}/${date.month}/${date.year}';
-//     }
-//
-//     return Container(
-//       margin: const EdgeInsets.symmetric(vertical: 16),
-//       child: Row(
-//         children: [
-//           Expanded(child: Divider(color: AppColors.hintPurple.withOpacity(0.3))),
-//           Padding(
-//             padding: const EdgeInsets.symmetric(horizontal: 16),
-//             child: Text(
-//               dateText,
-//               style: TextStyle(color: AppColors.hintPurple, fontSize: 12, fontWeight: FontWeight.w500),
-//             ),
-//           ),
-//           Expanded(child: Divider(color: AppColors.hintPurple.withOpacity(0.3))),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   bool _shouldShowDate(List<ChatMessage> messages, int index, DateTime currentDate) {
-//     if (index == messages.length - 1) return true;
-//     final previousDate = messages[index + 1].timestamp;
-//     return currentDate.day != previousDate.day ||
-//         currentDate.month != previousDate.month ||
-//         currentDate.year != previousDate.year;
-//   }
-//
-//   void _editMessage(ChatMessage message) {
-//     _messageController.text = message.message;
-//   }
-//
-//   void _deleteMessage(ChatMessage message) {
-//     showDialog(
-//       context: context,
-//       builder: (context) => AlertDialog(
-//         backgroundColor: AppColors.inputBackground,
-//         title: Text('Delete Message', style: TextStyle(color: AppColors.inputTextWhite)),
-//         content: Text('Are you sure you want to delete this message?', style: TextStyle(color: AppColors.hintPurple)),
-//         actions: [
-//           TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: AppColors.hintPurple))),
-//           TextButton(
-//             onPressed: () {
-//               _chatService.deleteMessage(_conversationId, message.id);
-//               Navigator.pop(context);
-//             },
-//             child: Text('Delete', style: TextStyle(color: AppColors.dangerRed)),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   void _clearChat() {
-//     showDialog(
-//       context: context,
-//       builder: (context) => AlertDialog(
-//         backgroundColor: AppColors.inputBackground,
-//         title: Text('Clear Chat', style: TextStyle(color: AppColors.inputTextWhite)),
-//         content: Text(
-//           'Are you sure you want to clear this chat? This action cannot be undone.',
-//           style: TextStyle(color: AppColors.hintPurple),
-//         ),
-//         actions: [
-//           TextButton(
-//             onPressed: () => Navigator.pop(context),
-//             child: Text('Cancel', style: TextStyle(color: AppColors.hintPurple)),
-//           ),
-//           TextButton(
-//             onPressed: () async {
-//               Navigator.pop(context);
-//
-//               // 1) call service (updates participantData.{uid}.clearedBefore)
-//               await _chatService.clearChat(_conversationId);
-//
-//               // 2) update local cutoff immediately so UI reflects clear
-//               setState(() {
-//                 _clearedBefore = DateTime.now();
-//                 _messages.clear();
-//                 _messageIds.clear();
-//                 _lastDoc = null;
-//                 _hasMore = true;
-//               });
-//
-//               // 3) reload the first page (will fetch only messages after clearedBefore)
-//               await _loadMoreMessages(initial: true);
-//
-//               _showSnackBar('Chat cleared');
-//             },
-//             child: Text('Clear', style: TextStyle(color: AppColors.dangerRed)),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   void _blockUser() {
-//     showDialog(
-//       context: context,
-//       builder: (context) => AlertDialog(
-//         backgroundColor: AppColors.inputBackground,
-//         title: Text('Block User', style: TextStyle(color: AppColors.inputTextWhite)),
-//         content: Text('Are you sure you want to block ${_otherUser?.username ?? "User"}?',
-//             style: TextStyle(color: AppColors.hintPurple)),
-//         actions: [
-//           TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: AppColors.hintPurple))),
-//           TextButton(
-//             onPressed: () {
-//               Navigator.pop(context);
-//               Navigator.pop(context);
-//               _showSnackBar('User blocked');
-//             },
-//             child: Text('Block', style: TextStyle(color: AppColors.dangerRed)),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   void _reportUser() {
-//     showDialog(
-//       context: context,
-//       builder: (context) => AlertDialog(
-//         backgroundColor: AppColors.inputBackground,
-//         title: Text('Report User', style: TextStyle(color: AppColors.inputTextWhite)),
-//         content: Column(
-//           mainAxisSize: MainAxisSize.min,
-//           children: [
-//             Text('Why are you reporting this user?', style: TextStyle(color: AppColors.hintPurple)),
-//             const SizedBox(height: 20),
-//           ],
-//         ),
-//         actions: [
-//           TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: AppColors.hintPurple))),
-//           TextButton(
-//             onPressed: () {
-//               Navigator.pop(context);
-//               _showSnackBar('User reported');
-//             },
-//             child: Text('Report', style: TextStyle(color: AppColors.dangerRed)),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-
-import 'package:flutter/material.dart';
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // Models
-import '../../models/chat_message_model.dart';
-import '../../models/user_model.dart';
 import '../../models/call_model.dart';
+import '../../models/chat_message_model.dart';
+import '../../models/conversation_model.dart';
+import '../../models/public_profile.dart';
+import '../../models/user_model.dart';
 
 // Services
-import '../../services/chat_service.dart';
+import '../../services/call/call_consent.dart';
 import '../../services/call/call_service.dart';
-import '../../services/notification/onesignal_sender.dart';
-
-import 'widgets/attachment_sheet.dart';
-import 'widgets/voice_recording_sheet.dart';
+import '../../services/chat_service.dart';
+import '../../services/discovery_feed_service.dart';
 import '../../services/media/chat_media_service.dart';
-
-
-
+import '../../services/notification/onesignal_sender.dart';
+import '../../services/safety_service.dart';
 
 // UI Components
 import '../../core/constants/app_colors.dart';
+import 'widgets/attachment_sheet.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/report_dialog.dart';
+import 'widgets/voice_recording_sheet.dart';
 
 // Call Screens
-import '../calls/video_call_screen.dart';
 import '../calls/audio_call_screen.dart';
+import '../calls/video_call_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String otherUserId;
   final String? conversationId;
 
-  const ChatScreen({
-    Key? key,
-    required this.otherUserId,
-    this.conversationId,
-  }) : super(key: key);
+  const ChatScreen({Key? key, required this.otherUserId, this.conversationId})
+    : super(key: key);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
+  static const int _pageSize = 30;
+  static const Duration _typingHeartbeat = Duration(seconds: 3);
+  static const Duration _typingIdle = Duration(seconds: 4);
+
   final ChatService _chatService = ChatService();
   final CallService _callService = CallService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  // Live stream for newest messages + de-dup with paged list
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesLiveSub;
-  final Set<String> _messageIds = {};
-
-  late String _conversationId;
-  UserModel? _otherUser;
-  bool _isLoading = true;
-  bool _isSending = false;
-  Timer? _typingTimer;
-  bool _isTyping = false;
-  ChatMessage? _replyToMessage;
   final FocusNode _messageFocusNode = FocusNode();
-  DateTime? _clearedBefore;
+
+  /// Null until resolved; nothing that needs it is built before then.
+  String? _conversationId;
+  String? _initError;
+  bool _isLoading = true;
+
+  /// Latest conversation doc (null while no message was ever sent).
+  Conversation? _conversation;
+  Map<String, dynamic>? _convData;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _convSub;
+
+  UserModel? _otherUser;
+  bool? _otherOnline;
+  bool _otherTyping = false;
+  bool _isBlocked = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _onlineSub;
+  StreamSubscription<bool>? _typingSub;
+  StreamSubscription<bool>? _blockedSub;
+
+  bool _isSending = false;
   bool _isUploadingMedia = false;
-
-  Timer? _readDebounce;
-  void _markReadDebounced() {
-    _readDebounce?.cancel();
-    _readDebounce = Timer(const Duration(milliseconds: 350), () {
-      _chatService.markMessagesAsRead(_conversationId, widget.otherUserId);
-    });
-  }
-
-  // Call state
   bool _isCallInProgress = false;
+  ChatMessage? _replyToMessage;
+  ChatMessage? _editingMessage;
 
-  // Pagination state
+  DateTime? _lastTypingBeat;
+  Timer? _typingStopTimer;
+
+  bool _isForeground = true;
+  Timer? _readDebounce;
+
+  // Messages, newest first. The live listener inserts new ones at the head,
+  // pagination appends older pages.
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _messagesLiveSub;
   final List<ChatMessage> _messages = [];
+  final Set<String> _messageIds = {};
+  final Map<String, GlobalKey> _itemKeys = {};
+  DateTime? _clearedBefore;
   bool _isLoadingMore = false;
   bool _hasMore = true;
-  DocumentSnapshot? _lastDoc; // oldest loaded (for startAfterDocument)
+  bool _pageError = false;
+  DocumentSnapshot? _lastDoc;
+
+  /// Bumped on every reset so late page results from an old cutoff are dropped.
+  int _listGeneration = 0;
+
+  String? _highlightedId;
+  Timer? _highlightTimer;
+
+  String get _myUid => _chatService.currentUserId;
+
+  bool get _isOtherDeleted =>
+      _conversation?.isDeletedUser(widget.otherUserId) ?? false;
+
+  bool get _canSend =>
+      _conversationId != null && !_isBlocked && !_isOtherDeleted;
+
+  String get _displayName =>
+      _isOtherDeleted ? 'Deleted user' : (_otherUser?.username ?? 'User');
+
+  String? get _otherAvatar {
+    final u = _otherUser;
+    if (u == null || _isOtherDeleted) return null;
+    if (u.profileImage.isNotEmpty) return u.profileImage;
+    final generated = u.avatarProperties?['avatarImageUrl'];
+    if (generated is String && generated.isNotEmpty) return generated;
+    final legacy = u.avatarString;
+    return (legacy != null && legacy.startsWith('http')) ? legacy : null;
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeChat();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _isForeground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _messageController.addListener(_onTypingChanged);
+    _initializeChat();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _typingTimer?.cancel();
-    _updateTypingStatus(false);
+    _stopTyping();
+    _cancelSubscriptions();
+    _readDebounce?.cancel();
+    _highlightTimer?.cancel();
     _messageController.removeListener(_onTypingChanged);
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
-    _messagesLiveSub?.cancel();
-    _readDebounce?.cancel(); // keep
-
     super.dispose();
+  }
+
+  void _cancelSubscriptions() {
+    _messagesLiveSub?.cancel();
+    _convSub?.cancel();
+    _onlineSub?.cancel();
+    _typingSub?.cancel();
+    _blockedSub?.cancel();
+    _messagesLiveSub = null;
+    _convSub = null;
+    _onlineSub = null;
+    _typingSub = null;
+    _blockedSub = null;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _updateTypingStatus(false);
+    _isForeground = state == AppLifecycleState.resumed;
+    if (_isForeground) {
+      _markReadDebounced();
+    } else {
+      _readDebounce?.cancel();
+      _stopTyping();
     }
   }
 
+  void _log(String where, Object e) {
+    if (kDebugMode) debugPrint('ChatScreen.$where: $e');
+  }
+
+  // ============= Init =============
   Future<void> _initializeChat() async {
-    try {
-      if (widget.conversationId != null) {
-        _conversationId = widget.conversationId!;
-      } else {
-        _conversationId =
-        await _chatService.getOrCreateConversation(widget.otherUserId);
-      }
-
-      final myUid = _chatService.currentUserId;
-      final convSnap = await FirebaseFirestore.instance
-          .collection('conversations')
-          .doc(_conversationId)
-          .get();
-
-      final data = convSnap.data() as Map<String, dynamic>? ?? {};
-      final pd = (data['participantData'] as Map?) ?? {};
-      final me = (pd[myUid] as Map?) ?? {};
-      final cbTs = me['clearedBefore'];
-      if (cbTs is Timestamp) _clearedBefore = cbTs.toDate();
-
-      _otherUser = await _chatService.getUserDetails(widget.otherUserId);
-
-      // Mark incoming as read once
-      await _chatService.markMessagesAsRead(
-        _conversationId,
-        widget.otherUserId,
-      );
-
-      // initial page
-      await _loadMoreMessages(initial: true);
-
-      // Build de-dup set from first page
-      _messageIds
-        ..clear()
-        ..addAll(_messages.map((m) => m.id));
-
-      // Start live stream (conversationId is ready)
-      _startLiveNewMessageListener();
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    final me = _myUid;
+    final other = widget.otherUserId;
+    if (me.isEmpty) {
+      _setInitError('You are signed out. Please sign in again.');
+      return;
     }
+    if (other.isEmpty || other == me) {
+      _setInitError('This chat is not available.');
+      return;
+    }
+
+    try {
+      final given = widget.conversationId;
+      final convId = (given != null && given.isNotEmpty)
+          ? given
+          : await _chatService.getOrCreateConversation(other);
+      if (!mounted) return;
+      if (convId.isEmpty) throw StateError('No conversation id');
+
+      final results = await Future.wait<Object?>([
+        FirebaseFirestore.instance
+            .collection('conversations')
+            .doc(convId)
+            .get(),
+        DiscoveryFeed.fetchProfile(other, myUid: me),
+      ]);
+      if (!mounted) return;
+
+      final snap = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      _conversationId = convId;
+      _applyConversation(snap);
+      _clearedBefore = _conversation?.clearedBeforeFor(me);
+      _otherUser = results[1] as UserModel?;
+
+      await _loadMoreMessages(initial: true);
+      if (!mounted) return;
+
+      _startLiveNewMessageListener();
+      _subscribe(convId);
+      _markReadDebounced();
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      _log('init', e);
+      _setInitError(
+        'Could not open this chat. Check your connection and try again.',
+      );
+    }
+  }
+
+  void _setInitError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _initError = message;
+      _isLoading = false;
+    });
+  }
+
+  void _retryInit() {
+    _cancelSubscriptions();
+    _listGeneration++;
+    setState(() {
+      _initError = null;
+      _isLoading = true;
+      _conversationId = null;
+      _messages.clear();
+      _messageIds.clear();
+      _itemKeys.clear();
+      _lastDoc = null;
+      _hasMore = true;
+      _isLoadingMore = false;
+      _pageError = false;
+    });
+    _initializeChat();
+  }
+
+  void _subscribe(String convId) {
+    final other = widget.otherUserId;
+
+    _convSub = FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(convId)
+        .snapshots()
+        .listen(_onConversation, onError: (Object e) => _log('conv', e));
+
+    _typingSub = _chatService.getTypingStatus(convId, other).listen((typing) {
+      if (mounted && typing != _otherTyping) {
+        setState(() => _otherTyping = typing);
+      }
+    });
+
+    _blockedSub = SafetyService.instance.watchIsBlockedBetween(other).listen((
+      blocked,
+    ) {
+      if (!mounted || blocked == _isBlocked) return;
+      setState(() {
+        _isBlocked = blocked;
+        if (blocked) {
+          _replyToMessage = null;
+          _editingMessage = null;
+        }
+      });
+      if (blocked) _stopTyping();
+    }, onError: (Object e) => _log('blocked', e));
+
+    _watchOnline();
+  }
+
+  /// Online dot from the public profile, or the users doc until the
+  /// public_profiles backfill has run.
+  Future<void> _watchOnline() async {
+    final db = FirebaseFirestore.instance;
+    final other = widget.otherUserId;
+    DocumentReference<Map<String, dynamic>> ref = db
+        .collection(PublicProfile.collection)
+        .doc(other);
+    try {
+      final snap = await ref.get();
+      if (!snap.exists) ref = db.collection('users').doc(other);
+    } catch (_) {
+      ref = db.collection('users').doc(other);
+    }
+    if (!mounted) return;
+    _onlineSub?.cancel();
+    _onlineSub = ref.snapshots().listen((snap) {
+      final online = snap.data()?['online'] == true;
+      if (mounted && online != _otherOnline) {
+        setState(() => _otherOnline = online);
+      }
+    }, onError: (Object e) => _log('online', e));
+  }
+
+  void _applyConversation(DocumentSnapshot<Map<String, dynamic>> snap) {
+    _convData = snap.data();
+    _conversation = snap.exists ? Conversation.fromFirestore(snap) : null;
+  }
+
+  void _onConversation(DocumentSnapshot<Map<String, dynamic>> snap) {
+    if (!mounted) return;
+    setState(() => _applyConversation(snap));
+
+    // Clear chat on this or another device: restart with the server cutoff.
+    final serverCutoff = _conversation?.clearedBeforeFor(_myUid);
+    if (serverCutoff != null &&
+        !snap.metadata.hasPendingWrites &&
+        serverCutoff != _clearedBefore) {
+      _resetMessages(serverCutoff);
+    }
+  }
+
+  // ============= Read receipts =============
+  void _markReadDebounced() {
+    _readDebounce?.cancel();
+    final convId = _conversationId;
+    if (convId == null || !_isForeground) return;
+    _readDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!_isForeground) return;
+      _chatService.markMessagesAsRead(convId, widget.otherUserId);
+    });
   }
 
   // ============= Typing =============
   void _onTypingChanged() {
-    if (_messageController.text.isNotEmpty && !_isTyping) {
-      _updateTypingStatus(true);
+    final convId = _conversationId;
+    if (convId == null || _conversation == null || !_canSend) return;
+    if (_editingMessage != null || _messageController.text.trim().isEmpty) {
+      _stopTyping();
+      return;
     }
 
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 3), () {
-      if (_isTyping) {
-        _updateTypingStatus(false);
-      }
-    });
+    final now = DateTime.now();
+    final last = _lastTypingBeat;
+    if (last == null || now.difference(last) >= _typingHeartbeat) {
+      _lastTypingBeat = now;
+      _chatService.updateTypingStatus(convId, true);
+    }
+    _typingStopTimer?.cancel();
+    _typingStopTimer = Timer(_typingIdle, _stopTyping);
   }
 
-  Future<void> _updateTypingStatus(bool typing) async {
-    if (_isTyping != typing) {
-      _isTyping = typing;
-      await _chatService.updateTypingStatus(_conversationId, typing);
-    }
+  void _stopTyping() {
+    _typingStopTimer?.cancel();
+    if (_lastTypingBeat == null) return;
+    _lastTypingBeat = null;
+    final convId = _conversationId;
+    if (convId != null) _chatService.updateTypingStatus(convId, false);
   }
 
   // ============= Pagination Loader =============
-  Future<void> _loadMoreMessages({bool initial = false}) async {
-    if (_isLoadingMore || !_hasMore) return;
+  Query<Map<String, dynamic>> _messagesQuery(String convId) {
+    Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true);
+    final cutoff = _clearedBefore;
+    if (cutoff != null) {
+      ref = ref.where('timestamp', isGreaterThan: Timestamp.fromDate(cutoff));
+    }
+    return ref;
+  }
 
-    setState(() {
-      _isLoadingMore = true;
-    });
+  /// Loads the next older page. With [initial], errors propagate to init.
+  Future<void> _loadMoreMessages({bool initial = false}) async {
+    final convId = _conversationId;
+    if (convId == null || _isLoadingMore || !_hasMore) return;
+    final gen = _listGeneration;
+
+    _isLoadingMore = true;
+    if (mounted && !initial) setState(() => _pageError = false);
 
     try {
-      // Query messages ordered desc by 'timestamp'
-      Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
-          .collection('conversations')
-          .doc(_conversationId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true);
-
-      if (_clearedBefore != null) {
-        ref = ref.where(
-          'timestamp',
-          isGreaterThan: Timestamp.fromDate(_clearedBefore!),
-        );
-      }
-
-      ref = ref.limit(30);
-
-      final QuerySnapshot<Map<String, dynamic>> snap = (_lastDoc == null)
-          ? await ref.get()
-          : await ref.startAfterDocument(_lastDoc!).get();
+      final ref = _messagesQuery(convId).limit(_pageSize);
+      final last = _lastDoc;
+      final snap = await (last == null
+          ? ref.get()
+          : ref.startAfterDocument(last).get());
+      if (!mounted || gen != _listGeneration) return;
 
       final docs = snap.docs;
-
-      if (docs.isEmpty) {
-        _hasMore = false;
-      } else {
-        // update lastDoc to last (oldest in this page since desc)
-        _lastDoc = docs.last;
-
-        final loaded =
-        docs.map((d) => ChatMessage.fromFirestore(d)).toList();
-
-        // Append
-        _messages.addAll(loaded);
-
-        // Track IDs
-        for (final m in loaded) {
-          _messageIds.add(m.id);
-        }
+      if (docs.length < _pageSize) _hasMore = false;
+      if (docs.isNotEmpty) _lastDoc = docs.last;
+      for (final d in docs) {
+        final m = ChatMessage.fromFirestore(d);
+        if (_messageIds.add(m.id)) _messages.add(m);
       }
     } catch (e) {
-      // ignore for now
+      if (initial) rethrow;
+      _log('loadMore', e);
+      if (gen == _listGeneration) _pageError = true;
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingMore = false;
-        });
+      if (gen == _listGeneration) {
+        _isLoadingMore = false;
+        if (mounted && !initial) setState(() {});
       }
     }
+  }
+
+  /// Drops the loaded list and reloads everything after [cutoff].
+  void _resetMessages(DateTime? cutoff) {
+    if (!mounted) return;
+    _listGeneration++;
+    setState(() {
+      _clearedBefore = cutoff;
+      _messages.clear();
+      _messageIds.clear();
+      _itemKeys.clear();
+      _lastDoc = null;
+      _hasMore = true;
+      _isLoadingMore = false;
+      _pageError = false;
+      _replyToMessage = null;
+    });
+    _startLiveNewMessageListener();
+    _loadMoreMessages();
   }
 
   // === Live listener for newest messages ===
   void _startLiveNewMessageListener() {
     _messagesLiveSub?.cancel();
-    if (_conversationId.isEmpty) return;
+    final convId = _conversationId;
+    if (convId == null) return;
+    final cutoff = _clearedBefore;
 
-    Query<Map<String, dynamic>> liveRef = FirebaseFirestore.instance
-        .collection('conversations')
-        .doc(_conversationId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true);
-
-    if (_clearedBefore != null) {
-      liveRef = liveRef.where(
-        'timestamp',
-        isGreaterThan: Timestamp.fromDate(_clearedBefore!),
-      );
-    }
-
-    liveRef = liveRef.limit(20); // listen to the head
-
-    _messagesLiveSub = liveRef.snapshots().listen((snap) {
+    _messagesLiveSub = _messagesQuery(convId).limit(20).snapshots().listen((
+      snap,
+    ) {
       if (!mounted) return;
 
-      final changes = snap.docChanges;
-      if (changes.isEmpty) return;
+      var listChanged = false;
+      var hasIncoming = false;
 
-      bool listChanged = false;
+      for (final c in snap.docChanges) {
+        // Leaving the head window is not a deletion.
+        if (c.type == DocumentChangeType.removed) continue;
+        if (c.doc.data() == null) continue;
 
-      for (final c in changes) {
-        final data = c.doc.data();
-        if (data == null) continue;
-
+        // Pending server timestamps read as "now" (local estimate).
         final msg = ChatMessage.fromFirestore(c.doc);
-        // If I am viewing this chat and the other user sent a new message, mark as read.
-        final isIncoming = msg.senderId == widget.otherUserId;
-        if (isIncoming) {
-          _markReadDebounced();
-        }
-        final id = msg.id;
+        if (cutoff != null && !msg.timestamp.isAfter(cutoff)) continue;
 
-        if (_messageIds.contains(id)) {
-          if (c.type == DocumentChangeType.modified) {
-            final idx = _messages.indexWhere((m) => m.id == id);
-            if (idx != -1) {
-              _messages[idx] = msg;
-              listChanged = true;
-            }
-          }
+        final idx = _messages.indexWhere((m) => m.id == msg.id);
+        if (idx != -1) {
+          _messages.removeAt(idx);
+          _insertSorted(msg);
+          listChanged = true;
           continue;
         }
+        if (c.type != DocumentChangeType.added) continue;
 
-        // New message: insert at top (reverse list)
-        _messages.insert(0, msg);
-        _messageIds.add(id);
+        _insertSorted(msg);
+        _messageIds.add(msg.id);
         listChanged = true;
+        if (msg.senderId == widget.otherUserId) hasIncoming = true;
       }
 
+      if (hasIncoming) {
+        if (_isForeground) {
+          _markReadDebounced();
+        } else {
+          _chatService.markDelivered(convId, widget.otherUserId);
+        }
+      }
       if (listChanged) setState(() {});
-    }, onError: (_) {});
+    }, onError: (Object e) => _log('live', e));
   }
 
-  // ============= Send message =============
+  /// Keeps [_messages] sorted newest first.
+  void _insertSorted(ChatMessage msg) {
+    var i = 0;
+    while (i < _messages.length &&
+        !_messages[i].timestamp.isBefore(msg.timestamp)) {
+      i++;
+    }
+    _messages.insert(i, msg);
+  }
+
+  void _scrollToLatest() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _notifyReceiver(String convId, String messageId) {
+    unawaited(
+      OneSignalSender.sendChatNotification(
+        conversationId: convId,
+        messageId: messageId,
+      ),
+    );
+  }
+
+  // ============= Send / edit message =============
   Future<void> _sendMessage() async {
-    final message = _messageController.text.trim();
-    if (message.isEmpty || _isSending) return;
+    final convId = _conversationId;
+    final text = _messageController.text.trim();
+    if (convId == null || text.isEmpty || _isSending || !_canSend) return;
+
+    final editing = _editingMessage;
+    final replyTo = _replyToMessage;
 
     setState(() => _isSending = true);
-
     _messageController.clear();
-    _updateTypingStatus(false);
+    _stopTyping();
 
     try {
+      if (editing != null) {
+        await _chatService.editMessage(convId, editing.id, text);
+        if (!mounted) return;
+        setState(() => _editingMessage = null);
+        return;
+      }
+
       final messageId = await _chatService.sendMessage(
-        conversationId: _conversationId,
+        conversationId: convId,
         receiverId: widget.otherUserId,
-        message: message,
-        replyToMessageId: _replyToMessage?.id,
+        message: text,
+        replyToMessageId: replyTo?.id,
+        replyTo: replyTo?.toReplySnapshot(),
       );
+      if (messageId == null) throw StateError('Message was not sent');
 
-      setState(() => _replyToMessage = null);
-
-      // ✅ OneSignal push trigger (non-blocking for UI)
-      if (messageId != null) {
-        await OneSignalSender.sendChatNotification(
-          conversationId: _conversationId,
-          messageId: messageId,
-        );
+      _notifyReceiver(convId, messageId);
+      if (!mounted) return;
+      if (identical(_replyToMessage, replyTo)) {
+        setState(() => _replyToMessage = null);
       }
-
-      // Scroll to top; live stream will insert the new message
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
+      _scrollToLatest();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to send message')),
+      _log('send', e);
+      if (!mounted) return;
+      // Give the text back unless the user already typed something new.
+      if (_messageController.text.isEmpty) {
+        _messageController.text = text;
+        _messageController.selection = TextSelection.collapsed(
+          offset: text.length,
+        );
+      }
+      _showSnackBar(
+        editing != null ? 'Failed to edit message' : 'Failed to send message',
       );
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
 
+  void _editMessage(ChatMessage message) {
+    if (!_canSend || message.isDeleted) return;
+    setState(() {
+      _editingMessage = message;
+      _replyToMessage = null;
+    });
+    _messageController.text = message.message;
+    _messageController.selection = TextSelection.collapsed(
+      offset: message.message.length,
+    );
+    _messageFocusNode.requestFocus();
+  }
+
+  void _cancelEdit() {
+    setState(() => _editingMessage = null);
+    _messageController.clear();
+  }
+
   // ============= CALL METHODS =============
+  bool _callAllowed(CallType type) {
+    final data = _convData;
+    return data != null &&
+        CallConsent.isAllowed(data, _myUid, widget.otherUserId, type);
+  }
+
+  bool _myCallEnabled(CallType type) {
+    final data = _convData;
+    return data != null && CallConsent.isEnabledFor(data, _myUid, type);
+  }
+
+  Future<void> _toggleCallEnabled(CallType type) async {
+    final convId = _conversationId;
+    if (convId == null || _conversation == null) {
+      _showSnackBar('Send a message first to enable calls.');
+      return;
+    }
+    final enable = !_myCallEnabled(type);
+    try {
+      await CallConsent.setCallEnabled(
+        conversationId: convId,
+        uid: _myUid,
+        type: type,
+        enabled: enable,
+      );
+      if (!mounted) return;
+      if (enable && !_callAllowed(type)) {
+        _showSnackBar(CallConsent.consentTooltip);
+      }
+    } catch (e) {
+      _log('setCallEnabled', e);
+      _showSnackBar('Could not update call permission. Try again.');
+    }
+  }
+
   Future<void> _startCall(CallType type) async {
-    if (_isCallInProgress) {
+    final convId = _conversationId;
+    if (convId == null || !_canSend) return;
+    if (_isCallInProgress || _callService.isBusy) {
       _showSnackBar('A call is already in progress');
       return;
     }
+    if (!_callAllowed(type)) {
+      _showSnackBar(CallConsent.consentTooltip);
+      return;
+    }
 
-    try {
-      final permissions = type == CallType.video
-          ? [Permission.camera, Permission.microphone]
-          : [Permission.microphone];
+    setState(() => _isCallInProgress = true);
+    final navigator = Navigator.of(context);
 
-      Map<Permission, PermissionStatus> statuses = {};
-      for (final permission in permissions) {
-        statuses[permission] = await permission.request();
-      }
-
-      bool allGranted = statuses.values.every((s) => s.isGranted);
-      if (!allGranted) {
-        final deniedPermission = statuses.entries
-            .firstWhere((e) => !e.value.isGranted)
-            .key;
-        _showSnackBar(
-          '${deniedPermission == Permission.camera ? 'Camera' : 'Microphone'} permission is required for calls',
-        );
-        return;
-      }
-
-      setState(() => _isCallInProgress = true);
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(
+    var dialogOpen = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Center(
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -1341,51 +651,87 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: AppColors.purplePrimary),
+                const CircularProgressIndicator(color: AppColors.purplePrimary),
                 const SizedBox(height: 15),
                 Text(
                   'Initiating ${type == CallType.video ? "video" : "voice"} call...',
-                  style: TextStyle(color: AppColors.inputTextWhite),
+                  style: const TextStyle(
+                    color: AppColors.inputTextWhite,
+                    fontSize: 14,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
               ],
             ),
           ),
         ),
-      );
+      ),
+    ).whenComplete(() => dialogOpen = false);
 
+    void closeDialog() {
+      if (!dialogOpen) return;
+      dialogOpen = false;
+      navigator.pop();
+    }
+
+    try {
       final callId = await _callService.startCall(
         receiverId: widget.otherUserId,
         type: type,
+        receiverName: _displayName,
+        receiverAvatar: _otherAvatar,
+        conversationId: convId,
       );
-
+      closeDialog();
       if (!mounted) return;
-      Navigator.pop(context);
 
-      await Navigator.push(
-        context,
+      // Call screens close themselves and show the end reason.
+      await navigator.push(
         MaterialPageRoute(
           builder: (context) => type == CallType.video
               ? VideoCallScreen(callId: callId, isOutgoing: true)
               : AudioCallScreen(callId: callId, isOutgoing: true),
         ),
       );
-
-      setState(() => _isCallInProgress = false);
+    } on CallNotAllowedException catch (e) {
+      closeDialog();
+      _showSnackBar(e.message);
+    } on CallPermissionDeniedException catch (e) {
+      closeDialog();
+      _showSnackBar(
+        e.message,
+        action: SnackBarAction(
+          label: 'Settings',
+          textColor: Colors.white,
+          onPressed: openAppSettings,
+        ),
+      );
+    } on StateError catch (e) {
+      closeDialog();
+      _log('startCall', e);
+      _showSnackBar(
+        _callService.isBusy
+            ? 'A call is already in progress'
+            : 'Failed to start call',
+      );
     } catch (e) {
-      setState(() => _isCallInProgress = false);
-      if (!mounted) return;
-      if (Navigator.canPop(context)) Navigator.pop(context);
+      closeDialog();
+      _log('startCall', e);
       _showSnackBar('Failed to start call');
+    } finally {
+      if (mounted) setState(() => _isCallInProgress = false);
     }
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {SnackBarAction? action}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: AppColors.purplePrimary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        action: action,
       ),
     );
   }
@@ -1393,8 +739,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // ============= UI BUILDERS =============
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
+    if (_initError != null) return _buildInitError();
+
+    if (_isLoading || _conversationId == null) {
+      return const Scaffold(
         backgroundColor: AppColors.appBackground,
         body: Center(
           child: CircularProgressIndicator(color: AppColors.purplePrimary),
@@ -1409,210 +757,309 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           Expanded(child: _buildMessagesList()),
           _buildTypingIndicator(),
-          if (_replyToMessage != null) _buildReplyPreview(),
-          _buildMessageInput(),
+          if (_canSend && _editingMessage != null)
+            _buildComposerBanner(
+              icon: Icons.edit,
+              title: 'Editing message',
+              text: _editingMessage!.message,
+              onClose: _cancelEdit,
+            )
+          else if (_canSend && _replyToMessage != null)
+            _buildComposerBanner(
+              icon: Icons.reply,
+              title:
+                  'Replying to ${_replyToMessage!.senderId == _myUid ? "yourself" : _displayName}',
+              text: _replyToMessage!.previewText,
+              onClose: () => setState(() => _replyToMessage = null),
+            ),
+          _canSend ? _buildMessageInput() : _buildUnavailableInput(),
         ],
       ),
     );
   }
 
+  Widget _buildInitError() {
+    return Scaffold(
+      backgroundColor: AppColors.appBackground,
+      appBar: AppBar(
+        backgroundColor: AppColors.purplePrimary,
+        title: const Text('Chat'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off,
+                color: AppColors.hintPurple,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _initError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.inputTextWhite),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.purplePrimary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _myUid.isEmpty ? null : _retryInit,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   AppBar _buildAppBar() {
-    final displayName = _otherUser?.username ?? 'User';
-    final avatarUrl = (() {
-      if (_otherUser?.profileImage != null &&
-          _otherUser!.profileImage.isNotEmpty) {
-        return _otherUser!.profileImage;
-      }
-      return _otherUser?.avatarString;
-    })();
+    final displayName = _displayName;
+    final avatarUrl = _otherAvatar;
+    final showOnline = _otherOnline != null && !_isBlocked && !_isOtherDeleted;
+    final isOnline = _otherOnline == true;
 
     return AppBar(
       backgroundColor: AppColors.purplePrimary,
-      title: InkWell(
-        onTap: () {},
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
-                  ? NetworkImage(avatarUrl)
-                  : null,
-              backgroundColor: AppColors.purpleSecondary,
-              child: (avatarUrl == null || avatarUrl.isEmpty)
-                  ? Text(
-                displayName.isNotEmpty
-                    ? displayName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(color: Colors.white),
-              )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(displayName, style: const TextStyle(fontSize: 16)),
-                  StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(widget.otherUserId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const SizedBox.shrink();
-                      }
-                      final data = snapshot.data?.data()
-                      as Map<String, dynamic>?;
-                      final isOnline = data?['online'] ?? false;
-
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: isOnline
-                                  ? Colors.greenAccent
-                                  : Colors.grey,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isOnline ? 'Online' : 'Offline',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color:
-                              isOnline ? Colors.greenAccent : Colors.white70,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+      title: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            backgroundColor: AppColors.purpleSecondary,
+            child: avatarUrl == null
+                ? Text(
+                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 16),
+                ),
+                if (showOnline)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: isOnline ? Colors.greenAccent : Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isOnline ? 'Online' : 'Offline',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isOnline ? Colors.greenAccent : Colors.white70,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       actions: [
-        StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('conversations')
-              .doc(_conversationId)
-              .snapshots(),
-          builder: (context, snap) {
-            final myUid = _chatService.currentUserId;
-            bool canCall = true;
-            bool isMuted = false;
-
-            if (snap.hasData && snap.data?.exists == true) {
-              final data =
-              snap.data!.data() as Map<String, dynamic>;
-
-              final statePerUser =
-                  (data['statePerUser'] as Map?)?.map(
-                        (k, v) => MapEntry(k.toString(), v.toString()),
-                  ) ??
-                      {};
-              final myState = statePerUser[myUid];
-              if (myState != null) canCall = myState == 'active';
-
-              if (myState == null) {
-                final pd = (data['participantData'] as Map?)?[myUid];
-                if (pd is Map) {
-                  final status = (pd['status'] ?? '').toString();
-                  final hasReplied =
-                      (pd['hasReplied'] ?? false) == true;
-                  canCall = (status == 'active') || hasReplied;
-                }
-              }
-
-              final m = data['muted'];
-              if (m is Map && m[myUid] is bool) {
-                isMuted = m[myUid] as bool;
-              }
-            }
-
-            final disabled = _isCallInProgress || !canCall;
-
-            return Row(
-              children: [
-                if (isMuted)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.volume_off,
-                      size: 18,
-                      color: Colors.white70,
-                    ),
-                  ),
-                IconButton(
-                  icon: Icon(
-                    Icons.videocam,
-                    color: disabled ? Colors.white38 : Colors.white,
-                  ),
-                  onPressed:
-                  disabled ? null : () => _startCall(CallType.video),
-                  tooltip: 'Video Call',
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.call,
-                    color: disabled ? Colors.white38 : Colors.white,
-                  ),
-                  onPressed:
-                  disabled ? null : () => _startCall(CallType.audio),
-                  tooltip: 'Voice Call',
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'clear':
-                        _clearChat();
-                        break;
-                      case 'block':
-                        _blockUser();
-                        break;
-                      case 'report':
-                        _reportUser();
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'clear',
-                      child: Text('Clear chat'),
-                    ),
-                    PopupMenuItem(
-                      value: 'block',
-                      child: Text('Block user'),
-                    ),
-                    PopupMenuItem(
-                      value: 'report',
-                      child: Text('Report user'),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
+        if (_conversation?.isMuted(_myUid) ?? false)
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Icon(Icons.volume_off, size: 18, color: Colors.white70),
+          ),
+        if (_canSend) ...[
+          _buildCallButton(CallType.video),
+          _buildCallButton(CallType.audio),
+        ],
+        _buildMenu(),
       ],
     );
   }
 
+  Widget _buildCallButton(CallType type) {
+    final isVideo = type == CallType.video;
+    final allowed = _callAllowed(type);
+    final enabled = allowed && !_isCallInProgress;
+    return IconButton(
+      icon: Icon(
+        isVideo ? Icons.videocam : Icons.call,
+        color: enabled ? Colors.white : Colors.white38,
+      ),
+      tooltip: allowed
+          ? (isVideo ? 'Video Call' : 'Voice Call')
+          : CallConsent.consentTooltip,
+      onPressed: _isCallInProgress
+          ? null
+          : (allowed
+                ? () => _startCall(type)
+                : () => _showSnackBar(CallConsent.consentTooltip)),
+    );
+  }
+
+  Widget _buildMenu() {
+    final hasConversation = _conversation != null;
+    final blockedByMe = SafetyService.instance.hasBlocked(widget.otherUserId);
+
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        switch (value) {
+          case 'audio':
+            _toggleCallEnabled(CallType.audio);
+            break;
+          case 'video':
+            _toggleCallEnabled(CallType.video);
+            break;
+          case 'clear':
+            _clearChat();
+            break;
+          case 'block':
+            _blockUser();
+            break;
+          case 'unblock':
+            _unblockUser();
+            break;
+          case 'report':
+            _reportUser();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        if (_canSend) ...[
+          CheckedPopupMenuItem<String>(
+            value: 'audio',
+            checked: _myCallEnabled(CallType.audio),
+            enabled: hasConversation,
+            child: const Text('Enable Audio'),
+          ),
+          CheckedPopupMenuItem<String>(
+            value: 'video',
+            checked: _myCallEnabled(CallType.video),
+            enabled: hasConversation,
+            child: const Text('Enable Video'),
+          ),
+          const PopupMenuItem<String>(
+            enabled: false,
+            height: 32,
+            child: Text(
+              CallConsent.consentTooltip,
+              style: TextStyle(fontSize: 12, color: AppColors.hintPurple),
+            ),
+          ),
+          const PopupMenuDivider(),
+        ],
+        PopupMenuItem<String>(
+          value: 'clear',
+          enabled: hasConversation,
+          child: const Text('Clear chat'),
+        ),
+        if (!_isOtherDeleted)
+          blockedByMe
+              ? const PopupMenuItem<String>(
+                  value: 'unblock',
+                  child: Text('Unblock user'),
+                )
+              : const PopupMenuItem<String>(
+                  value: 'block',
+                  child: Text('Block user'),
+                ),
+        if (!_isOtherDeleted)
+          const PopupMenuItem<String>(
+            value: 'report',
+            child: Text('Report user'),
+          ),
+      ],
+    );
+  }
+
+  ChatMessage? _findLoaded(String id) {
+    for (final m in _messages) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
+
+  GlobalKey _keyFor(String id) => _itemKeys.putIfAbsent(id, GlobalKey.new);
+
+  Future<void> _scrollToMessage(String id) async {
+    final ctx = _itemKeys[id]?.currentContext;
+    if (ctx != null) {
+      await Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.5,
+      );
+      _highlight(id);
+      return;
+    }
+
+    final index = _messages.indexWhere((m) => m.id == id);
+    if (index == -1 || !_scrollController.hasClients) {
+      _showSnackBar('The original message is no longer available');
+      return;
+    }
+
+    // Not built yet: jump close to it, then align once it is laid out.
+    final position = _scrollController.position;
+    final estimate = (index * 72.0).clamp(0.0, position.maxScrollExtent);
+    await _scrollController.animateTo(
+      estimate,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _itemKeys[id]?.currentContext;
+      if (c == null || !mounted) return;
+      Scrollable.ensureVisible(
+        c,
+        duration: const Duration(milliseconds: 200),
+        alignment: 0.5,
+      );
+      _highlight(id);
+    });
+  }
+
+  void _highlight(String id) {
+    if (!mounted) return;
+    _highlightTimer?.cancel();
+    setState(() => _highlightedId = id);
+    _highlightTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _highlightedId = null);
+    });
+  }
+
   // Messages list with infinite scroll
   Widget _buildMessagesList() {
+    if (_messages.isEmpty && !_hasMore && !_pageError) {
+      return Center(
+        child: Text(
+          _isOtherDeleted ? 'No messages' : 'No messages yet. Say hi!',
+          style: const TextStyle(color: AppColors.hintPurple),
+        ),
+      );
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
         if (n is ScrollEndNotification &&
             _scrollController.position.pixels >=
                 _scrollController.position.maxScrollExtent * 0.90 &&
             !_isLoadingMore &&
+            !_pageError &&
             _hasMore) {
           _loadMoreMessages();
         }
@@ -1621,146 +1068,160 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: ListView.builder(
         controller: _scrollController,
         reverse: true,
-        itemCount: _messages.length + (_hasMore ? 1 : 0),
+        itemCount: _messages.length + 1,
         itemBuilder: (context, index) {
-          if (index == _messages.length) {
-            return _isLoadingMore
-                ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.purplePrimary,
-                ),
-              ),
-            )
-                : const SizedBox.shrink();
-          }
+          if (index == _messages.length) return _buildListHead();
 
           final message = _messages[index];
-          final isMe =
-              message.senderId == _chatService.currentUserId;
+          final isMe = message.senderId == _myUid;
+          final showDate = _shouldShowDate(_messages, index, message.timestamp);
 
-          final showDate = (index == _messages.length - 1) ||
-              _shouldShowDate(
-                _messages,
-                index,
-                message.timestamp,
-              );
+          final legacyReplyId = message.replyTo == null
+              ? message.replyToMessageId
+              : null;
 
-          return Column(
-            children: [
-              if (showDate) _buildDateSeparator(message.timestamp),
-              MessageBubble(
-                message: message,
-                isMe: isMe,
-                otherUserName: _otherUser?.username ?? 'User',
-                otherUserAvatar: (() {
-                  if (_otherUser?.profileImage != null &&
-                      _otherUser!.profileImage.isNotEmpty) {
-                    return _otherUser!.profileImage;
-                  }
-                  return _otherUser?.avatarString;
-                })(),
-                onReply: () {
-                  setState(() {
-                    _replyToMessage = message;
-                  });
-                  _messageFocusNode.requestFocus();
-                },
-                onEdit: isMe ? () => _editMessage(message) : null,
-                onDelete: isMe ? () => _deleteMessage(message) : null,
-              ),
-            ],
+          return KeyedSubtree(
+            key: ValueKey(message.id),
+            child: Column(
+              key: _keyFor(message.id),
+              children: [
+                if (showDate) _buildDateSeparator(message.timestamp),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  color: _highlightedId == message.id
+                      ? AppColors.purplePrimary.withOpacity(0.15)
+                      : Colors.transparent,
+                  child: MessageBubble(
+                    message: message,
+                    isMe: isMe,
+                    otherUserName: _displayName,
+                    otherUserAvatar: _otherAvatar,
+                    repliedMessage: legacyReplyId == null
+                        ? null
+                        : _findLoaded(legacyReplyId),
+                    onReplyTap: _scrollToMessage,
+                    onReply: _canSend
+                        ? () {
+                            setState(() {
+                              _replyToMessage = message;
+                              _editingMessage = null;
+                            });
+                            _messageFocusNode.requestFocus();
+                          }
+                        : null,
+                    onEdit: isMe && _canSend
+                        ? () => _editMessage(message)
+                        : null,
+                    onDelete: isMe ? () => _deleteMessage(message) : null,
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildTypingIndicator() {
-    return StreamBuilder<bool>(
-      stream: _chatService.getTypingStatus(
-        _conversationId,
-        widget.otherUserId,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.data != true) {
-          return const SizedBox.shrink();
-        }
-
-        return Container(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Text(
-                '${_otherUser?.username ?? "User"} is typing',
-                style: TextStyle(
-                  color: AppColors.hintPurple,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 20,
-                child: Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.spaceEvenly,
-                  children: List.generate(3, (index) {
-                    return AnimatedContainer(
-                      duration: Duration(
-                        milliseconds: 300 + (index * 100),
-                      ),
-                      curve: Curves.easeInOut,
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.purplePrimary,
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ],
+  /// Oldest end of the list: page loader, retry, or nothing.
+  Widget _buildListHead() {
+    if (_pageError) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: TextButton.icon(
+            onPressed: _loadMoreMessages,
+            icon: const Icon(Icons.refresh, color: AppColors.purplePrimary),
+            label: const Text(
+              'Could not load messages. Retry',
+              style: TextStyle(color: AppColors.hintPurple),
+            ),
           ),
-        );
-      },
+        ),
+      );
+    }
+    if (_isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.purplePrimary),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildTypingIndicator() {
+    if (!_otherTyping || !_canSend) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            '$_displayName is typing',
+            style: const TextStyle(
+              color: AppColors.hintPurple,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(3, (index) {
+                return Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: AppColors.purplePrimary,
+                    shape: BoxShape.circle,
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildReplyPreview() {
+  /// Reply / edit banner above the input.
+  Widget _buildComposerBanner({
+    required IconData icon,
+    required String title,
+    required String text,
+    required VoidCallback onClose,
+  }) {
     return Container(
       padding: const EdgeInsets.all(8),
       color: AppColors.inputBackground,
       child: Row(
         children: [
-          Container(
-            width: 4,
-            height: 40,
-            color: AppColors.purplePrimary,
-          ),
+          Container(width: 4, height: 40, color: AppColors.purplePrimary),
+          const SizedBox(width: 8),
+          Icon(icon, size: 18, color: AppColors.purplePrimary),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Replying to ${_replyToMessage!.senderId == _chatService.currentUserId ? "yourself" : (_otherUser?.username ?? "User")}',
-                  style: TextStyle(
+                  title,
+                  style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.purplePrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  _replyToMessage!.message,
+                  text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.hintPurple,
                   ),
@@ -1769,20 +1230,63 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
           IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.close,
               size: 20,
               color: AppColors.hintPurple,
             ),
-            onPressed: () =>
-                setState(() => _replyToMessage = null),
+            tooltip: 'Cancel',
+            onPressed: onClose,
           ),
         ],
       ),
     );
   }
 
+  /// Shown instead of the input when the chat is blocked or the other
+  /// account was deleted.
+  Widget _buildUnavailableInput() {
+    final blockedByMe = SafetyService.instance.hasBlocked(widget.otherUserId);
+    final String text;
+    if (_isOtherDeleted) {
+      text = 'This account was deleted.';
+    } else if (blockedByMe) {
+      text = 'You blocked this user.';
+    } else {
+      text = "You can't reply to this conversation.";
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: AppColors.inputBackground,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(color: AppColors.hintPurple),
+              ),
+            ),
+            if (blockedByMe && !_isOtherDeleted)
+              TextButton(
+                onPressed: _unblockUser,
+                child: const Text(
+                  'Unblock',
+                  style: TextStyle(color: AppColors.purplePrimary),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageInput() {
+    final isEditing = _editingMessage != null;
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -1795,69 +1299,96 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // 🆕 Updated Attachment Button
-          IconButton(
-            icon: Icon(
-              Icons.attach_file,
-              color: _isUploadingMedia
-                  ? AppColors.purplePrimary.withOpacity(0.5)
-                  : AppColors.purplePrimary,
-            ),
-            onPressed: _isUploadingMedia ? null : _showAttachmentSheet,
-          ),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              focusNode: _messageFocusNode,
-              style: TextStyle(
-                color: AppColors.inputTextWhite,
-              ),
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                hintStyle: TextStyle(color: AppColors.hintPurple),
-                filled: true,
-                fillColor: AppColors.inputBackground,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-              ),
-              onSubmitted: (_) => _sendMessage(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Send button or upload indicator
-          _isUploadingMedia
-              ? Container(
-            width: 48,
-            height: 48,
-            padding: const EdgeInsets.all(12),
-            child: CircularProgressIndicator(
-              color: AppColors.purplePrimary,
-              strokeWidth: 2,
-            ),
-          )
-              : CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.purplePrimary,
-            child: IconButton(
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            IconButton(
               icon: Icon(
-                _isSending ? Icons.hourglass_empty : Icons.send,
-                color: Colors.white,
+                Icons.attach_file,
+                color: _isUploadingMedia || isEditing
+                    ? AppColors.purplePrimary.withOpacity(0.5)
+                    : AppColors.purplePrimary,
               ),
-              onPressed: _isSending ? null : _sendMessage,
+              tooltip: 'Attach',
+              onPressed: _isUploadingMedia || isEditing
+                  ? null
+                  : _showAttachmentSheet,
             ),
-          ),
-        ],
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                focusNode: _messageFocusNode,
+                style: const TextStyle(color: AppColors.inputTextWhite),
+                maxLines: 5,
+                minLines: 1,
+                maxLength: ChatMessage.maxLength,
+                buildCounter:
+                    (
+                      context, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) {
+                      // Only show the counter close to the limit.
+                      if (currentLength < ChatMessage.maxLength - 200) {
+                        return null;
+                      }
+                      return Text(
+                        '$currentLength/${ChatMessage.maxLength}',
+                        style: const TextStyle(
+                          color: AppColors.hintPurple,
+                          fontSize: 11,
+                        ),
+                      );
+                    },
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  hintStyle: const TextStyle(color: AppColors.hintPurple),
+                  filled: true,
+                  fillColor: AppColors.inputBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                ),
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Send button or upload indicator
+            _isUploadingMedia
+                ? Container(
+                    width: 48,
+                    height: 48,
+                    padding: const EdgeInsets.all(12),
+                    child: const CircularProgressIndicator(
+                      color: AppColors.purplePrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.purplePrimary,
+                    child: IconButton(
+                      icon: Icon(
+                        _isSending
+                            ? Icons.hourglass_empty
+                            : (isEditing ? Icons.check : Icons.send),
+                        color: Colors.white,
+                      ),
+                      tooltip: isEditing ? 'Save' : 'Send',
+                      onPressed: _isSending ? null : _sendMessage,
+                    ),
+                  ),
+          ],
+        ),
       ),
     );
   }
@@ -1865,16 +1396,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget _buildDateSeparator(DateTime date) {
     final now = DateTime.now();
     final isToday =
-        date.year == now.year &&
-            date.month == now.month &&
-            date.day == now.day;
+        date.year == now.year && date.month == now.month && date.day == now.day;
 
-    final yesterday =
-    now.subtract(const Duration(days: 1));
+    final yesterday = now.subtract(const Duration(days: 1));
     final isYesterday =
         date.year == yesterday.year &&
-            date.month == yesterday.month &&
-            date.day == yesterday.day;
+        date.month == yesterday.month &&
+        date.day == yesterday.day;
 
     String dateText;
     if (isToday) {
@@ -1890,18 +1418,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: Row(
         children: [
           Expanded(
-            child: Divider(
-              color:
-              AppColors.hintPurple.withOpacity(0.3),
-            ),
+            child: Divider(color: AppColors.hintPurple.withOpacity(0.3)),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               dateText,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.hintPurple,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -1909,10 +1432,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ),
           ),
           Expanded(
-            child: Divider(
-              color:
-              AppColors.hintPurple.withOpacity(0.3),
-            ),
+            child: Divider(color: AppColors.hintPurple.withOpacity(0.3)),
           ),
         ],
       ),
@@ -1920,31 +1440,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   bool _shouldShowDate(
-      List<ChatMessage> messages,
-      int index,
-      DateTime currentDate,
-      ) {
-    if (index == messages.length - 1) return true;
+    List<ChatMessage> messages,
+    int index,
+    DateTime currentDate,
+  ) {
+    // The oldest loaded message only gets a separator once nothing older exists.
+    if (index == messages.length - 1) return !_hasMore;
     final previousDate = messages[index + 1].timestamp;
     return currentDate.day != previousDate.day ||
         currentDate.month != previousDate.month ||
         currentDate.year != previousDate.year;
   }
 
-  void _editMessage(ChatMessage message) {
-    _messageController.text = message.message;
-  }
-
-
-  // 🆕 Add these new methods
-
+  // ============= Media =============
   void _showAttachmentSheet() {
+    if (!_canSend) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => AttachmentSheet(
-        onSelected: _handleAttachmentSelected,
-      ),
+      builder: (context) =>
+          AttachmentSheet(onSelected: _handleAttachmentSelected),
     );
   }
 
@@ -1957,293 +1472,248 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         await _pickAndSendImage(fromCamera: false);
         break;
       case AttachmentType.audio:
-        _showVoiceRecordingSheet();
+        await _showVoiceRecordingSheet();
         break;
     }
   }
 
   Future<void> _pickAndSendImage({required bool fromCamera}) async {
+    final convId = _conversationId;
+    if (convId == null || !_canSend || _isUploadingMedia) return;
+
+    final file = fromCamera
+        ? await ChatMediaService.captureImageFromCamera()
+        : await ChatMediaService.pickImageFromGallery();
+    if (file == null || !mounted) return;
+
+    final error = await ChatMediaService.validateChatImage(file);
+    if (!mounted) return;
+    if (error != null) {
+      _showSnackBar(error);
+      return;
+    }
+
+    final replyTo = _replyToMessage;
+    setState(() => _isUploadingMedia = true);
+
     try {
-      final file = fromCamera
-          ? await ChatMediaService.captureImageFromCamera()
-          : await ChatMediaService.pickImageFromGallery();
-
-      if (file == null) return;
-
-      setState(() => _isUploadingMedia = true);
-
-      // Get file size before compression
       final size = await ChatMediaService.getFileSize(file);
-
-      // Upload to Cloudinary
       final url = await ChatMediaService.uploadChatImage(
-        conversationId: _conversationId,
+        conversationId: convId,
         file: file,
       );
+      if (url == null) throw StateError('Upload failed');
 
-      if (url == null) {
-        throw Exception('Upload failed');
-      }
-
-      // Send message
-      await _chatService.sendImageMessage(
-        conversationId: _conversationId,
+      final messageId = await _chatService.sendImageMessage(
+        conversationId: convId,
         receiverId: widget.otherUserId,
         imageUrl: url,
         fileSize: size,
-        replyToMessageId: _replyToMessage?.id,
+        replyToMessageId: replyTo?.id,
+        replyTo: replyTo?.toReplySnapshot(),
       );
+      if (messageId == null) throw StateError('Image was not sent');
 
-      // Clear reply
-      setState(() => _replyToMessage = null);
-
-      // Scroll to bottom
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
+      _notifyReceiver(convId, messageId);
+      if (!mounted) return;
+      if (identical(_replyToMessage, replyTo)) {
+        setState(() => _replyToMessage = null);
       }
-
-      _showSnackBar('Image sent');
+      _scrollToLatest();
     } catch (e) {
+      _log('sendImage', e);
       _showSnackBar('Failed to send image');
-      debugPrint('Image send error: $e');
     } finally {
       if (mounted) setState(() => _isUploadingMedia = false);
     }
   }
 
-  void _showVoiceRecordingSheet() {
-    showModalBottomSheet(
+  Future<void> _showVoiceRecordingSheet() async {
+    if (!_canSend || _isUploadingMedia) return;
+    final result = await showModalBottomSheet<VoiceRecordingResult>(
       context: context,
       backgroundColor: Colors.transparent,
       isDismissible: false,
       enableDrag: false,
-      builder: (context) => VoiceRecordingSheet(
-        onSend: _sendVoiceMessage,
-        onCancel: () => Navigator.pop(context),
-      ),
+      builder: (_) => const VoiceRecordingSheet(),
     );
+    if (result == null || !mounted) return;
+    await _sendVoiceMessage(result.path, result.durationSeconds);
   }
 
   Future<void> _sendVoiceMessage(String path, int durationSeconds) async {
-    Navigator.pop(context); // Close sheet
+    final convId = _conversationId;
+    if (convId == null || !_canSend || path.isEmpty) return;
 
-    if (path.isEmpty || durationSeconds < 1) return;
+    final error = await ChatMediaService.validateVoiceMessage(
+      path,
+      durationSeconds,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      _showSnackBar(error);
+      return;
+    }
 
+    final replyTo = _replyToMessage;
     setState(() => _isUploadingMedia = true);
 
     try {
-      // Upload to Cloudinary
       final url = await ChatMediaService.uploadVoiceMessage(
-        conversationId: _conversationId,
+        conversationId: convId,
         localPath: path,
         durationSeconds: durationSeconds,
       );
+      if (url == null) throw StateError('Upload failed');
 
-      if (url == null) {
-        throw Exception('Upload failed');
-      }
-
-      // Send message
-      await _chatService.sendVoiceMessage(
-        conversationId: _conversationId,
+      final messageId = await _chatService.sendVoiceMessage(
+        conversationId: convId,
         receiverId: widget.otherUserId,
         audioUrl: url,
         durationSeconds: durationSeconds,
-        replyToMessageId: _replyToMessage?.id,
+        replyToMessageId: replyTo?.id,
+        replyTo: replyTo?.toReplySnapshot(),
       );
+      if (messageId == null) throw StateError('Voice message was not sent');
 
-      // Clear reply
-      setState(() => _replyToMessage = null);
-
-      // Scroll to bottom
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
+      _notifyReceiver(convId, messageId);
+      if (!mounted) return;
+      if (identical(_replyToMessage, replyTo)) {
+        setState(() => _replyToMessage = null);
       }
-
-      _showSnackBar('Voice message sent');
+      _scrollToLatest();
     } catch (e) {
+      _log('sendVoice', e);
       _showSnackBar('Failed to send voice message');
-      debugPrint('Voice send error: $e');
     } finally {
       if (mounted) setState(() => _isUploadingMedia = false);
     }
   }
 
-  void _deleteMessage(ChatMessage message) {
-    showDialog(
+  // ============= Message / chat actions =============
+  Future<bool> _confirm({
+    required String title,
+    required String message,
+    required String action,
+  }) async {
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.inputBackground,
         title: Text(
-          'Delete Message',
-          style: TextStyle(color: AppColors.inputTextWhite),
+          title,
+          style: const TextStyle(color: AppColors.inputTextWhite),
         ),
         content: Text(
-          'Are you sure you want to delete this message?',
-          style: TextStyle(color: AppColors.hintPurple),
+          message,
+          style: const TextStyle(color: AppColors.hintPurple),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
               'Cancel',
               style: TextStyle(color: AppColors.hintPurple),
             ),
           ),
           TextButton(
-            onPressed: () {
-              _chatService.deleteMessage(
-                _conversationId,
-                message.id,
-              );
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              'Delete',
-              style: TextStyle(color: AppColors.dangerRed),
+              action,
+              style: const TextStyle(color: AppColors.dangerRed),
             ),
           ),
         ],
       ),
     );
+    return result == true;
   }
 
-  void _clearChat() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.inputBackground,
-        title: Text(
-          'Clear Chat',
-          style: TextStyle(color: AppColors.inputTextWhite),
-        ),
-        content: Text(
+  Future<void> _deleteMessage(ChatMessage message) async {
+    final convId = _conversationId;
+    if (convId == null) return;
+    final confirmed = await _confirm(
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message?',
+      action: 'Delete',
+    );
+    if (!confirmed || !mounted) return;
+
+    if (_editingMessage?.id == message.id) _cancelEdit();
+    try {
+      await _chatService.deleteMessage(convId, message.id);
+    } catch (e) {
+      _log('delete', e);
+      _showSnackBar('Failed to delete message');
+    }
+  }
+
+  Future<void> _clearChat() async {
+    final convId = _conversationId;
+    if (convId == null || _conversation == null) return;
+    final confirmed = await _confirm(
+      title: 'Clear Chat',
+      message:
           'Are you sure you want to clear this chat? This action cannot be undone.',
-          style: TextStyle(color: AppColors.hintPurple),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.hintPurple),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              // 1) call service (updates participantData.{uid}.clearedBefore)
-              await _chatService.clearChat(_conversationId);
-
-              // 2) update local cutoff immediately so UI reflects clear
-              setState(() {
-                _clearedBefore = DateTime.now();
-                _messages.clear();
-                _messageIds.clear();
-                _lastDoc = null;
-                _hasMore = true;
-              });
-
-              // 3) reload the first page (will fetch only messages after clearedBefore)
-              await _loadMoreMessages(initial: true);
-
-              _showSnackBar('Chat cleared');
-            },
-            child: Text(
-              'Clear',
-              style: TextStyle(color: AppColors.dangerRed),
-            ),
-          ),
-        ],
-      ),
+      action: 'Clear',
     );
+    if (!confirmed || !mounted) return;
+
+    final before = _clearedBefore;
+    try {
+      await _chatService.clearChat(convId, myUid: _myUid);
+    } catch (e) {
+      _log('clear', e);
+      _showSnackBar('Failed to clear chat');
+      return;
+    }
+    if (!mounted) return;
+
+    // Provisional local cutoff; the conversation listener replaces it with
+    // the server value (unless that already happened).
+    if (_clearedBefore == before) _resetMessages(DateTime.now());
+    _showSnackBar('Chat cleared');
   }
 
-  void _blockUser() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.inputBackground,
-        title: Text(
-          'Block User',
-          style: TextStyle(color: AppColors.inputTextWhite),
-        ),
-        content: Text(
-          'Are you sure you want to block ${_otherUser?.username ?? "User"}?',
-          style: TextStyle(color: AppColors.hintPurple),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.hintPurple),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-              _showSnackBar('User blocked');
-            },
-            child: Text(
-              'Block',
-              style: TextStyle(color: AppColors.dangerRed),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _blockUser() async {
+    final blocked = await confirmAndBlockUser(
+      context,
+      otherUid: widget.otherUserId,
+      displayName: _displayName,
+      avatarUrl: _otherAvatar,
     );
+    if (blocked && mounted) Navigator.of(context).pop();
   }
 
-  void _reportUser() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.inputBackground,
-        title: Text(
-          'Report User',
-          style: TextStyle(color: AppColors.inputTextWhite),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Why are you reporting this user?',
-              style: TextStyle(color: AppColors.hintPurple),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.hintPurple),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSnackBar('User reported');
-            },
-            child: Text(
-              'Report',
-              style: TextStyle(color: AppColors.dangerRed),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _unblockUser() async {
+    try {
+      await SafetyService.instance.unblock(widget.otherUserId);
+      _showSnackBar('Unblocked $_displayName');
+    } catch (e) {
+      _log('unblock', e);
+      _showSnackBar('Could not unblock. Check your connection and try again.');
+    }
+  }
+
+  Future<void> _reportUser() async {
+    // Attach the other user's latest messages as evidence for review.
+    final evidence = _messages
+        .where(
+          (m) =>
+              m.senderId == widget.otherUserId &&
+              !m.isDeleted &&
+              !MessageBubble.isCallEvent(m),
+        )
+        .take(20)
+        .map((m) => m.id)
+        .toList();
+
+    await ReportDialog.show(
+      context,
+      reportedUserId: widget.otherUserId,
+      reportedName: _isOtherDeleted ? null : _otherUser?.username,
+      conversationId: _conversation != null ? _conversationId : null,
+      messageIds: evidence,
     );
   }
 }
