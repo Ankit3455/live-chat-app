@@ -1,126 +1,13 @@
-// // lib/feature/games/game_list_screen.dart
-// import 'package:flutter/material.dart';
-// import '../carrom/carrom_lobby_screen.dart';
-// import '../love_physics/love_physics_game.dart';
-// import 'game_screen.dart';
-//
-// class GameListScreen extends StatelessWidget {
-//   const GameListScreen({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text("Games"),
-//         backgroundColor: const Color(0xFF2D1B4E),
-//       ),
-//       backgroundColor: const Color(0xFF1A0E2E),
-//       body: ListView(
-//         padding: const EdgeInsets.all(16),
-//         children: [
-//           _gameTile(
-//             title: "Contra",
-//             subtitle: "Classic Runner Style",
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(builder: (_) => const CarromLobbyScreen()),
-//               );
-//             },
-//           ),
-//           _gameTile(
-//             title: "Map Runner",
-//             subtitle: "Swipe Left/Right Lane Runner",
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(builder: (_) => const MapRunnerScreen()),
-//               );
-//             },
-//           ),
-//           const SizedBox(height: 12),
-//           _gameTile(
-//             title: "Love Physics",
-//             subtitle: "Draw bridges to bring players together",
-//             onTap: () {
-//               Navigator.push(
-//                 context,
-//                 MaterialPageRoute(builder: (_) => const LovePhysicsScreen()),
-//               );
-//             },
-//           ),
-//           const SizedBox(height: 12),
-//
-//           // Placeholder for future games
-//           _gameTile(
-//             title: "Coming Soon...",
-//             subtitle: "More exciting games",
-//             onTap: () {},
-//             disabled: true,
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _gameTile({
-//     required String title,
-//     required String subtitle,
-//     required VoidCallback onTap,
-//     bool disabled = false,
-//   }) {
-//     return Opacity(
-//       opacity: disabled ? 0.4 : 1,
-//       child: GestureDetector(
-//         onTap: disabled ? null : onTap,
-//         child: Container(
-//           padding: const EdgeInsets.all(16),
-//           decoration: BoxDecoration(
-//             color: const Color(0xFF2D1B4E),
-//             borderRadius: BorderRadius.circular(16),
-//             border: Border.all(color: const Color(0xFF7B2CBF)),
-//           ),
-//           child: Row(
-//             children: [
-//               const Icon(Icons.sports_esports, color: Colors.white, size: 32),
-//               const SizedBox(width: 12),
-//               Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text(title,
-//                       style: const TextStyle(
-//                           color: Colors.white,
-//                           fontSize: 18,
-//                           fontWeight: FontWeight.bold)),
-//                   Text(subtitle,
-//                       style: TextStyle(
-//                         color: Colors.white.withOpacity(0.7),
-//                         fontSize: 13,
-//                       )),
-//                 ],
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
-
-
 // lib/feature/games/game_list_screen.dart
-// STATUS: UPDATED WITH STATS ✅
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'carrom/carrom_lobby_screen.dart';
-import 'carrom/carrom_result_screen.dart';
+import 'carrom/common/game_leaderboard_screen.dart';
 import 'carrom/services/carrom_stats_service.dart';
+import 'love_physics/love_physics_game.dart' show LovePhysicsScreen;
 import 'ludo/ludo_lobby_screen.dart';
-import 'ludo/main_screen.dart';
-
-
 
 class GameListScreen extends StatefulWidget {
   const GameListScreen({super.key});
@@ -141,7 +28,15 @@ class _GameListScreenState extends State<GameListScreen> {
 
   Future<void> _loadStats() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      if (mounted) {
+        setState(() {
+          _myStats = null;
+          _loadingStats = false;
+        });
+      }
+      return;
+    }
 
     final stats = await CarromStatsService.getUserStats(uid);
     if (mounted) {
@@ -150,6 +45,15 @@ class _GameListScreenState extends State<GameListScreen> {
         _loadingStats = false;
       });
     }
+  }
+
+  // Stats can change while a game screen is open, so reload on return.
+  Future<void> _open(Widget screen) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    if (mounted) _loadStats();
   }
 
   @override
@@ -201,18 +105,10 @@ class _GameListScreenState extends State<GameListScreen> {
                         ],
                         borderColor: Colors.orange.withOpacity(0.5),
                         isAvailable: true,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CarromLobbyScreen(),
-                            ),
-                          );
-                        },
+                        onTap: () => _open(const CarromLobbyScreen()),
                       ),
                       const SizedBox(height: 12),
 
-                      // inside GameListScreen where Ludo GameCard is defined
                       _GameCard(
                         title: 'Ludo',
                         subtitle: 'Classic Ludo • 2-4 Players',
@@ -224,15 +120,26 @@ class _GameListScreenState extends State<GameListScreen> {
                         ],
                         borderColor: Colors.blue.withOpacity(0.4),
                         isAvailable: true,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const LudoLobbyScreen()),
-                          );
-                        },
+                        onTap: () => _open(const LudoLobbyScreen()),
                       ),
+                      const SizedBox(height: 12),
 
-                      // Coming Soon Games
+                      _GameCard(
+                        title: 'Love Physics',
+                        subtitle: 'Draw bridges to bring two hearts together • Solo',
+                        icon: Icons.favorite,
+                        iconColor: Colors.pinkAccent,
+                        gradientColors: [
+                          Colors.pinkAccent.withOpacity(0.25),
+                          const Color(0xFF2D1B4E),
+                        ],
+                        borderColor: Colors.pinkAccent.withOpacity(0.4),
+                        isAvailable: true,
+                        onTap: () => _open(const LovePhysicsScreen()),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Not implemented yet: shown disabled, no tap action.
                       _GameCard(
                         title: 'Chess',
                         subtitle: 'Coming Soon',
@@ -244,7 +151,6 @@ class _GameListScreenState extends State<GameListScreen> {
                         ],
                         borderColor: Colors.brown.withOpacity(0.3),
                         isAvailable: false,
-                        onTap: () {},
                       ),
                     ],
                   ),
@@ -303,14 +209,8 @@ class _GameListScreenState extends State<GameListScreen> {
             ),
             child: IconButton(
               icon: const Icon(Icons.leaderboard, color: Colors.orange),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const CarromLeaderboardScreen(),
-                  ),
-                );
-              },
+              tooltip: 'Carrom leaderboard',
+              onPressed: () => _open(const CarromLeaderboardScreen()),
             ),
           ),
         ],
@@ -450,7 +350,7 @@ class _GameCard extends StatelessWidget {
   final List<Color> gradientColors;
   final Color borderColor;
   final bool isAvailable;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _GameCard({
     required this.title,
@@ -461,7 +361,7 @@ class _GameCard extends StatelessWidget {
     required this.gradientColors,
     required this.borderColor,
     required this.isAvailable,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
