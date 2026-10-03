@@ -10,6 +10,30 @@ enum CallStatus {
   busy,
   missed,
   ongoing,
+  failed,
+}
+
+/// Lifecycle of the single call this device can be in.
+enum CallPhase {
+  idle,
+  outgoingRinging,
+  incomingRinging,
+  connecting,
+  active,
+  reconnecting,
+  ended,
+}
+
+/// Why the last call ended; drives "Declined" / "No answer" / "User is busy".
+enum CallEndReason {
+  hangup,
+  remoteHangup,
+  cancelled,
+  declined,
+  busy,
+  noAnswer,
+  failed,
+  connectionLost,
 }
 
 class CallModel {
@@ -85,7 +109,24 @@ class CallModel {
     };
   }
 
+  bool isOutgoingFor(String uid) => callerId == uid;
+
+  /// Name of the other party from [myUid]'s point of view ('' counts as missing).
+  String otherNameFor(String myUid, {String fallback = 'User'}) {
+    final name = isOutgoingFor(myUid) ? receiverName : callerName;
+    return name.trim().isEmpty ? fallback : name;
+  }
+
+  String? otherAvatarFor(String myUid) {
+    final avatar = isOutgoingFor(myUid) ? receiverAvatar : callerAvatar;
+    return (avatar == null || avatar.trim().isEmpty) ? null : avatar;
+  }
+
   CallModel copyWith({
+    String? callerName,
+    String? callerAvatar,
+    String? receiverName,
+    String? receiverAvatar,
     CallStatus? status,
     int? duration,
     Map<String, dynamic>? offer,
@@ -94,11 +135,11 @@ class CallModel {
     return CallModel(
       id: id,
       callerId: callerId,
-      callerName: callerName,
-      callerAvatar: callerAvatar,
+      callerName: callerName ?? this.callerName,
+      callerAvatar: callerAvatar ?? this.callerAvatar,
       receiverId: receiverId,
-      receiverName: receiverName,
-      receiverAvatar: receiverAvatar,
+      receiverName: receiverName ?? this.receiverName,
+      receiverAvatar: receiverAvatar ?? this.receiverAvatar,
       type: type,
       status: status ?? this.status,
       timestamp: timestamp,
@@ -133,6 +174,8 @@ class CallModel {
         return CallStatus.missed;
       case 'ongoing':
         return CallStatus.ongoing;
+      case 'failed':
+        return CallStatus.failed;
       default:
         return CallStatus.ringing;
     }
@@ -154,6 +197,8 @@ class CallModel {
         return 'missed';
       case CallStatus.ongoing:
         return 'ongoing';
+      case CallStatus.failed:
+        return 'failed';
     }
   }
 }
