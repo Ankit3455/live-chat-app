@@ -336,16 +336,16 @@ import 'package:flutter/services.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'tour_prefs.dart';
 
+/// Tour target keys. Owned by a HomeScreen instance so two mounted
+/// HomeScreens never share a GlobalKey (DEST-057).
+class HomeTourKeys {
+  final GlobalKey bubbles = GlobalKey(debugLabel: 'tourBubbles');
+  final GlobalKey firstGridItem = GlobalKey(debugLabel: 'tourFirstGrid');
+  final GlobalKey secondGridItem = GlobalKey(debugLabel: 'tourSecondGrid');
+}
+
 class HomeOnboarding {
   HomeOnboarding._();
-
-  // ===========================================================================
-  // Global Keys
-  // ===========================================================================
-
-  static final GlobalKey bubblesKey = GlobalKey(debugLabel: 'bubbles');
-  static final GlobalKey firstGridItemKey = GlobalKey(debugLabel: 'firstGrid');
-  static final GlobalKey secondGridItemKey = GlobalKey(debugLabel: 'secondGrid');
 
   // ===========================================================================
   // Private State
@@ -353,12 +353,42 @@ class HomeOnboarding {
 
   static TutorialCoachMark? _tutorialCoachMark;
   static bool _isShowing = false;
+  static HomeTourKeys? _attachedKeys;
+  static HomeTourKeys? _showingKeys;
+  static VoidCallback? _attachedReplay;
 
   // ===========================================================================
   // Public API
   // ===========================================================================
 
-  static Future<void> tryShow(BuildContext context) async {
+  /// Registers the live HomeScreen. [keys] are used when [showManually] is
+  /// called without explicit keys; [onReplay] runs on [requestReplay].
+  static void attach(HomeTourKeys keys, {VoidCallback? onReplay}) {
+    _attachedKeys = keys;
+    _attachedReplay = onReplay;
+  }
+
+  /// Call from HomeScreen.dispose. Removes a running tour that targets
+  /// the disposed screen without marking it completed.
+  static void detach(HomeTourKeys keys) {
+    if (identical(_showingKeys, keys)) dismiss();
+    if (identical(_attachedKeys, keys)) {
+      _attachedKeys = null;
+      _attachedReplay = null;
+    }
+  }
+
+  /// Asks the live HomeScreen to replay the tour on its own context.
+  /// For screens outside Home (e.g. Settings) after they pop back to Home.
+  static bool requestReplay() {
+    final replay = _attachedReplay;
+    if (replay == null) return false;
+    replay();
+    return true;
+  }
+
+  /// Automatic first-run tour. Call once the discovery grid has data.
+  static Future<void> tryShow(BuildContext context, HomeTourKeys keys) async {
     if (_isShowing) {
       debugPrint('🚫 HomeOnboarding: Already showing');
       return;
@@ -372,36 +402,24 @@ class HomeOnboarding {
       return;
     }
 
-    if (!forceShow) {
-      final shouldShow = await TourPrefs.shouldShowAfterSkip();
-      if (!shouldShow) {
-        debugPrint('🚫 HomeOnboarding: Skip cooldown active');
+    // Give the first frame with data a moment to lay out.
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!context.mounted) return;
+      if (_isShowing) return;
+      if (_validateKeys(keys)) {
+        debugPrint('✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
+        _show(context, keys);
         return;
       }
     }
-
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    if (!context.mounted) {
-      debugPrint('⚠️ HomeOnboarding: Context not mounted');
-      return;
-    }
-
-    if (!_validateKeys()) {
-      debugPrint('⚠️ HomeOnboarding: Keys not ready, retrying...');
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (!_validateKeys()) {
-        debugPrint('❌ HomeOnboarding: Keys still not ready, aborting');
-        return;
-      }
-    }
-
-    debugPrint('✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
-    _show(context);
+    debugPrint('❌ HomeOnboarding: Keys not ready, will retry on next data load');
   }
 
-  static Future<void> showManually(BuildContext context) async {
+  static Future<void> showManually(
+    BuildContext context, {
+    HomeTourKeys? keys,
+  }) async {
     if (_isShowing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -412,26 +430,32 @@ class HomeOnboarding {
       return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Let a closing drawer, sheet or popped route finish animating.
+    await Future.delayed(const Duration(milliseconds: 400));
 
     if (!context.mounted) return;
 
-    if (!_validateKeys()) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    final targetKeys = keys ?? _attachedKeys;
+    if (targetKeys == null || !_validateKeys(targetKeys)) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
-          content: Text('Please wait for the screen to load'),
+          content: Text('Please wait for profiles to load'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    _show(context);
+    _show(context, targetKeys);
   }
 
+  /// Removes the overlay without recording completion.
   static void dismiss() {
-    _tutorialCoachMark?.finish();
+    final coachMark = _tutorialCoachMark;
     _cleanup();
+    if (coachMark != null && coachMark.isShowing) {
+      coachMark.removeOverlayEntry();
+    }
   }
 
   static Future<void> reset() async {
@@ -446,12 +470,13 @@ class HomeOnboarding {
   // Private Methods
   // ===========================================================================
 
-  static void _show(BuildContext context) {
+  static void _show(BuildContext context, HomeTourKeys keys) {
     _isShowing = true;
+    _showingKeys = keys;
 
     HapticFeedback.mediumImpact();
 
-    final targets = _createTargets(context);
+    final targets = _createTargets(context, keys);
 
     _tutorialCoachMark = TutorialCoachMark(
       targets: targets,
@@ -488,8 +513,17 @@ class HomeOnboarding {
     _tutorialCoachMark!.show(context: context);
   }
 
-  static List<TargetFocus> _createTargets(BuildContext context) {
+  static List<TargetFocus> _createTargets(
+    BuildContext context,
+    HomeTourKeys keys,
+  ) {
     final List<TargetFocus> targets = [];
+    final bubblesKey = keys.bubbles;
+    final firstGridItemKey = keys.firstGridItem;
+    final secondGridItemKey = keys.secondGridItem;
+    final hasBubbles = bubblesKey.currentContext != null;
+    final totalSteps = hasBubbles ? 3 : 2;
+    final stepOffset = hasBubbles ? 0 : -1;
 
     // Get screen dimensions for smart positioning
     final screenHeight = MediaQuery.of(context).size.height;
@@ -498,7 +532,7 @@ class HomeOnboarding {
     // =========================================================================
     // Step 1: Top Matches (Bubbles) - Tooltip BELOW the bubbles
     // =========================================================================
-    if (bubblesKey.currentContext != null) {
+    if (hasBubbles) {
       targets.add(
         TargetFocus(
           identify: "step_1_bubbles",
@@ -516,7 +550,7 @@ class HomeOnboarding {
                 return _buildTooltipCard(
                   context: context,
                   stepNumber: 1,
-                  totalSteps: 3,
+                  totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
                   iconColor: const Color(0xFFFFD700),
                   title: "Your Top Matches ✨",
@@ -567,8 +601,8 @@ class HomeOnboarding {
               builder: (context, controller) {
                 return _buildTooltipCard(
                   context: context,
-                  stepNumber: 2,
-                  totalSteps: 3,
+                  stepNumber: 2 + stepOffset,
+                  totalSteps: totalSteps,
                   icon: Icons.touch_app_rounded,
                   iconColor: const Color(0xFF00E676),
                   title: "Tap to Start Chatting 💬",
@@ -627,8 +661,8 @@ class HomeOnboarding {
               builder: (context, controller) {
                 return _buildTooltipCard(
                   context: context,
-                  stepNumber: 3,
-                  totalSteps: 3,
+                  stepNumber: 3 + stepOffset,
+                  totalSteps: totalSteps,
                   icon: Icons.pan_tool_rounded,
                   iconColor: const Color(0xFFFF6B6B),
                   title: "Hold for More Details 📋",
@@ -864,53 +898,52 @@ class HomeOnboarding {
     );
   }
 
-  static bool _validateKeys() {
-    final bubblesOk = bubblesKey.currentContext != null;
-    final firstGridOk = firstGridItemKey.currentContext != null;
+  // Bubbles are optional (hidden when there are no top matches);
+  // the first grid card is required.
+  static bool _validateKeys(HomeTourKeys keys) {
+    final bubblesOk = keys.bubbles.currentContext != null;
+    final firstGridOk = keys.firstGridItem.currentContext != null;
 
     debugPrint('🔍 Keys: bubbles=$bubblesOk, firstGrid=$firstGridOk');
 
-    return bubblesOk && firstGridOk;
+    return firstGridOk;
   }
 
   static void _cleanup() {
     _tutorialCoachMark = null;
+    _showingKeys = null;
     _isShowing = false;
   }
 
   static Future<void> _onTourCompleted(BuildContext context) async {
     _cleanup();
     await TourPrefs.setHomeTourCompleted(true);
-    await TourPrefs.setForceShowAfterSignup(false);
 
     if (context.mounted) {
       _showCompletionCelebration(context);
     }
   }
 
+  // Skip ends the tour permanently (DEST-098); it can be replayed manually.
   static Future<void> _onTourSkipped(BuildContext context) async {
     _cleanup();
-    await TourPrefs.incrementSkipCount();
-    await TourPrefs.setForceShowAfterSignup(false);
+    await TourPrefs.setHomeTourCompleted(true);
 
     if (context.mounted) {
-      final skipCount = await TourPrefs.getSkipCount();
-      if (skipCount < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'You can view the tutorial anytime from the menu',
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFF2D1B4E),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            duration: const Duration(seconds: 3),
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'You can replay the tutorial anytime from Settings',
+            style: TextStyle(color: Colors.white),
           ),
-        );
-      }
+          backgroundColor: const Color(0xFF2D1B4E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -937,6 +970,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool _closed = false;
 
   @override
   void initState() {
@@ -952,10 +986,16 @@ class _CompletionDialogState extends State<_CompletionDialog>
 
     _controller.forward();
 
-    // Auto close after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) Navigator.of(context).pop();
-    });
+    // Auto close after 3 seconds, unless the user already closed it.
+    Future.delayed(const Duration(seconds: 3), _close);
+  }
+
+  void _close() {
+    if (_closed || !mounted) return;
+    // Barrier tap may already have popped this route.
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    _closed = true;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -1033,7 +1073,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
 
               // Button
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: _close,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 28,

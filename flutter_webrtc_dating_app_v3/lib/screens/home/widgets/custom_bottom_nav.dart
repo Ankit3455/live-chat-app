@@ -6,18 +6,21 @@ class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
 
+  /// Optional per-tab keys (e.g. onboarding targets), indexed like the tabs.
+  /// Owned by the parent State so keys are never shared between instances.
+  final List<GlobalKey>? itemKeys;
+
   const CustomBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.itemKeys,
   });
 
-  // Global Keys for Onboarding
-  static final GlobalKey discoverTabKey = GlobalKey(debugLabel: 'discoverTab');
-  static final GlobalKey chatsTabKey = GlobalKey(debugLabel: 'chatsTab');
-  static final GlobalKey gamesTabKey = GlobalKey(debugLabel: 'gamesTab');
-  static final GlobalKey settingsTabKey = GlobalKey(debugLabel: 'settingsTab');
-  static final GlobalKey profileTabKey = GlobalKey(debugLabel: 'profileTab');
+  GlobalKey? _keyAt(int index) {
+    final keys = itemKeys;
+    return (keys != null && index < keys.length) ? keys[index] : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +55,7 @@ class CustomBottomNav extends StatelessWidget {
             icon: Icons.explore,
             label: 'Discover',
             isSelected: currentIndex == 0,
-            itemKey: discoverTabKey,
+            itemKey: _keyAt(0),
             onTap: () => onTap(0),
           ),
           _NavItem(
@@ -60,28 +63,28 @@ class CustomBottomNav extends StatelessWidget {
             label: 'Chats',
             isSelected: currentIndex == 1,
             badgeCount: unread,
-            itemKey: chatsTabKey,
+            itemKey: _keyAt(1),
             onTap: () => onTap(1),
           ),
           _NavItem(
             icon: Icons.games,
             label: 'Games',
             isSelected: currentIndex == 2,
-            itemKey: gamesTabKey,
+            itemKey: _keyAt(2),
             onTap: () => onTap(2),
           ),
           _NavItem(
             icon: Icons.tune,
             label: 'Filters',
             isSelected: currentIndex == 3,
-            itemKey: settingsTabKey,
+            itemKey: _keyAt(3),
             onTap: () => onTap(3),
           ),
           _NavItem(
             icon: Icons.person,
             label: 'Profile',
             isSelected: currentIndex == 4,
-            itemKey: profileTabKey,
+            itemKey: _keyAt(4),
             onTap: () => onTap(4),
           ),
         ],

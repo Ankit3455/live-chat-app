@@ -1496,6 +1496,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late final HomeController _controller;
   final _searchController = TextEditingController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final HomeTourKeys _tourKeys = HomeTourKeys();
+  bool _autoTourRequested = false;
 
   // ===========================================================================
   // Lifecycle
@@ -1510,14 +1512,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _searchController.addListener(_onSearchChanged);
 
-    // Trigger onboarding
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _triggerOnboarding();
-    });
+    HomeOnboarding.attach(_tourKeys, onReplay: _showTutorial);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartAutoTour());
   }
 
   @override
   void dispose() {
+    HomeOnboarding.detach(_tourKeys);
     _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     _searchController.dispose();
@@ -1525,17 +1526,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onControllerUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _maybeStartAutoTour();
   }
 
   // ===========================================================================
   // Onboarding
   // ===========================================================================
 
-  Future<void> _triggerOnboarding() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted || _controller.displayedUsers.isEmpty) return;
-    await HomeOnboarding.tryShow(context);
+  /// First-run tour starts once the grid first has profiles to point at.
+  void _maybeStartAutoTour() {
+    if (_autoTourRequested || !mounted) return;
+    if (_controller.isLoading || _controller.displayedUsers.isEmpty) return;
+    _autoTourRequested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Don't cover a screen pushed on top; try again on the next update.
+      if (ModalRoute.of(context)?.isCurrent == false) {
+        _autoTourRequested = false;
+        return;
+      }
+      HomeOnboarding.tryShow(context, _tourKeys);
+    });
+  }
+
+  /// Manual replay from the drawer, Help sheet or Settings.
+  void _showTutorial() {
+    if (!mounted) return;
+    HomeOnboarding.showManually(context, keys: _tourKeys);
   }
 
   // ===========================================================================
@@ -1675,6 +1694,7 @@ class _HomeScreenState extends State<HomeScreen> {
         currentUser: _controller.currentUser,
         onSignOut: _handleSignOut,
         onAstrologyTap: _navigateToAstrology,
+        onShowTutorial: _showTutorial,
       ),
       body: Stack(
         children: [
@@ -1935,7 +1955,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (topUsers.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      key: HomeOnboarding.bubblesKey,
+      key: _tourKeys.bubbles,
       height: 120,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -1979,12 +1999,12 @@ class _HomeScreenState extends State<HomeScreen> {
         // Onboarding keys
         if (index == 0) {
           return Container(
-            key: HomeOnboarding.firstGridItemKey,
+            key: _tourKeys.firstGridItem,
             child: profileCard,
           );
         } else if (index == 1) {
           return Container(
-            key: HomeOnboarding.secondGridItemKey,
+            key: _tourKeys.secondGridItem,
             child: profileCard,
           );
         }

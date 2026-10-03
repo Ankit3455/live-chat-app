@@ -157,6 +157,7 @@
 
 
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../features/onboarding/home_onboarding.dart';
 import '../../../features/onboarding/tour_prefs.dart';
@@ -170,11 +171,16 @@ class CustomDrawer extends StatelessWidget {
   final VoidCallback onSignOut;
   final VoidCallback onAstrologyTap;
 
+  /// Starts the home tour. Runs on HomeScreen's context, which outlives
+  /// the drawer and the help sheet.
+  final VoidCallback onShowTutorial;
+
   const CustomDrawer({
     Key? key,
     required this.currentUser,
     required this.onSignOut,
     required this.onAstrologyTap,
+    required this.onShowTutorial,
   }) : super(key: key);
 
   @override
@@ -311,12 +317,13 @@ class CustomDrawer extends StatelessWidget {
                       'Settings',
                       style: TextStyle(color: Colors.white),
                     ),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      Navigator.push(
+                      final result = await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SettingsScreen()),
                       );
+                      if (result == 'showTutorial') onShowTutorial();
                     },
                   ),
 
@@ -385,43 +392,42 @@ class CustomDrawer extends StatelessWidget {
                     },
                   ),
 
-                  // ============================================================
-                  // 🔧 DEBUG ONLY - Reset Tutorial (Remove in Production)
-                  // ============================================================
-                  const SizedBox(height: 20),
-                  const Divider(color: Colors.grey, thickness: 0.3),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      'Developer Options',
-                      style: TextStyle(
-                        color: Colors.grey.withOpacity(0.5),
-                        fontSize: 12,
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 20),
+                    const Divider(color: Colors.grey, thickness: 0.3),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'Developer Options',
+                        style: TextStyle(
+                          color: Colors.grey.withOpacity(0.5),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.refresh,
-                      color: Colors.grey.withOpacity(0.5),
+                    ListTile(
+                      leading: Icon(
+                        Icons.refresh,
+                        color: Colors.grey.withOpacity(0.5),
+                      ),
+                      title: Text(
+                        'Reset Tutorial',
+                        style: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                      ),
+                      onTap: () => _resetTutorial(context),
                     ),
-                    title: Text(
-                      'Reset Tutorial',
-                      style: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                    ListTile(
+                      leading: Icon(
+                        Icons.bug_report,
+                        color: Colors.grey.withOpacity(0.5),
+                      ),
+                      title: Text(
+                        'Debug Tour Info',
+                        style: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                      ),
+                      onTap: () => _showDebugInfo(context),
                     ),
-                    onTap: () => _resetTutorial(context),
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.bug_report,
-                      color: Colors.grey.withOpacity(0.5),
-                    ),
-                    title: Text(
-                      'Debug Tour Info',
-                      style: TextStyle(color: Colors.grey.withOpacity(0.5)),
-                    ),
-                    onTap: () => _showDebugInfo(context),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -447,49 +453,41 @@ class CustomDrawer extends StatelessWidget {
   // Tutorial Methods
   // ===========================================================================
 
-  /// Show tutorial from drawer
+  /// Close the drawer, then let HomeScreen start the tour.
   void _showTutorial(BuildContext context) {
-    Navigator.pop(context); // Close drawer first
-
-    // Small delay to let drawer close
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (context.mounted) {
-        HomeOnboarding.showManually(context);
-      }
-    });
+    Navigator.pop(context);
+    onShowTutorial();
   }
 
-  /// Reset tutorial (for testing)
+  /// Reset tutorial (debug builds only)
   Future<void> _resetTutorial(BuildContext context) async {
+    // Drawer context is gone after the await; capture the messenger first.
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
 
     await HomeOnboarding.reset();
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Text('Tutorial reset! It will show again.'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF7B2CBF),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          action: SnackBarAction(
-            label: 'SHOW NOW',
-            textColor: Colors.white,
-            onPressed: () {
-              HomeOnboarding.showManually(context);
-            },
-          ),
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: const [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 12),
+            Text('Tutorial reset! It will show again.'),
+          ],
         ),
-      );
-    }
+        backgroundColor: const Color(0xFF7B2CBF),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        action: SnackBarAction(
+          label: 'SHOW NOW',
+          textColor: Colors.white,
+          onPressed: onShowTutorial,
+        ),
+      ),
+    );
   }
 
   /// Show debug info (for development)
@@ -590,8 +588,9 @@ class CustomDrawer extends StatelessWidget {
               title: 'Watch App Tutorial',
               subtitle: 'Learn how to use AvailChat',
               onTap: () {
+                // Close only the sheet; the drawer is already closed.
                 Navigator.pop(context);
-                _showTutorial(context);
+                onShowTutorial();
               },
             ),
             _buildHelpOption(
