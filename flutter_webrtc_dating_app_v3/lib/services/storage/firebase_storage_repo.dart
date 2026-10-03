@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'storage_repo.dart';
 
@@ -46,10 +47,20 @@ class FirebaseStorageRepo implements StorageRepo {
     required File file,
     String folder = 'profile_photos',
   }) async {
+    // Owner folder + contentType so storage.rules can check type and owner.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final ext = file.path.split('.').last.toLowerCase();
+    final contentType = ext == 'png'
+        ? 'image/png'
+        : ext == 'webp'
+        ? 'image/webp'
+        : 'image/jpeg';
+    final name = contentType == 'image/jpeg' ? '$ts.jpg' : '$ts.$ext';
     final ref = FirebaseStorage.instance
-        .ref('$folder/${DateTime.now().millisecondsSinceEpoch}.jpg');
+        .ref(uid == null ? '$folder/$ts.jpg' : '$folder/$uid/$name');
 
-    await ref.putFile(file);
+    await ref.putFile(file, SettableMetadata(contentType: contentType));
     return await ref.getDownloadURL();
   }
 

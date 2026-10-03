@@ -214,8 +214,11 @@ class DiscoveryFeed {
     final cached = _publicReady;
     if (cached != null) return cached;
     try {
-      final snap =
-          await _db.collection(PublicProfile.collection).limit(1).get();
+      final snap = await _db
+          .collection(PublicProfile.collection)
+          .where('discoveryEnabled', isEqualTo: true)
+          .limit(1)
+          .get();
       _publicReady = snap.docs.isNotEmpty;
     } catch (e) {
       if (kDebugMode) debugPrint('public_profiles unavailable: $e');

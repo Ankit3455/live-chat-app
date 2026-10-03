@@ -12,8 +12,8 @@ rules_version = '2';
 //    (checked against Firestore). Blocks are enforced on the message write;
 //    an upload alone is not visible to the other user.
 //  - Legacy flat profile_photos/{timestamp}.jpg: create-only (no overwrite).
-//    Still used by FirebaseStorageRepo.uploadImageFile (no uid folder, no
-//    contentType); drop it once that writes profile_photos/{uid}/.
+//    Only older app builds still write there (no uid folder, no contentType);
+//    current builds write profile_photos/{uid}/. Drop it after a min-version gate.
 //
 // Client writes checked: firebase_storage_repo (uploadVoice/deleteVoice,
 // uploadBytes for avatars, uploadImageFile, uploadChatImage, uploadChatAudio).

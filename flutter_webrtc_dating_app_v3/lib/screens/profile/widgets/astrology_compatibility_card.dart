@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:availchat/models/public_profile.dart';
 import 'package:availchat/models/user_model.dart';
 
 class AstrologyCompatibilityCard extends StatelessWidget {
@@ -10,8 +12,10 @@ class AstrologyCompatibilityCard extends StatelessWidget {
 
   Future<Map<String, dynamic>?> _getAstrologyData() async {
     try {
+      // Own doc for me; other users only expose public_profiles.
+      final isMe = user.uid == FirebaseAuth.instance.currentUser?.uid;
       final doc = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(isMe ? 'users' : PublicProfile.collection)
           .doc(user.uid)
           .get();
 

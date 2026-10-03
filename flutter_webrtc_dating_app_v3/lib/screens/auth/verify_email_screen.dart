@@ -38,6 +38,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           FirebaseAuth.instance.currentUser?.emailVerified ?? false;
       if (!mounted) return;
       if (verified) {
+        // Refresh the ID token so the email_verified claim is current.
+        await FirebaseAuth.instance.currentUser?.getIdToken(true);
+        if (!mounted) return;
         await AuthRouter.routeCurrentUser(context);
       } else {
         _showMessage('Your email is not verified yet.', error: true);

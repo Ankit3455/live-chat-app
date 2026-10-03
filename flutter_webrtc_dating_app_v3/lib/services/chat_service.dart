@@ -7,6 +7,7 @@ import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
 import '../models/user_model.dart';
 import 'conversations_repository.dart';
+import 'discovery_feed_service.dart';
 
 /// Chat data layer. Conversation schema is documented on [Conversation].
 ///
@@ -598,14 +599,9 @@ class ChatService {
   // --------------------------------------------
   // User helpers
   // --------------------------------------------
-  Future<UserModel?> getUserDetails(String userId) async {
-    try {
-      final d = await _firestore.collection('users').doc(userId).get();
-      if (d.exists) return UserModel.fromFirestore(d);
-    } catch (e) {
-      _log('getUserDetails', e);
-    }
-    return null;
+  /// Other users come from public_profiles; users/{uid} is owner-only.
+  Future<UserModel?> getUserDetails(String userId) {
+    return DiscoveryFeed.fetchProfile(userId, myUid: currentUserId);
   }
 
   // --------------------------------------------
