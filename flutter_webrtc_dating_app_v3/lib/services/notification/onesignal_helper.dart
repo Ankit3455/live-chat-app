@@ -1,27 +1,13 @@
 // lib/services/notification/onesignal_helper.dart
-import 'package:flutter/foundation.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
+import '../session_service.dart';
 
+/// Push identity is bound/unbound by SessionService on auth changes.
+/// Kept as a forwarder for older call sites.
 class OneSignalHelper {
-  /// App me user login hua → OneSignal ko userId batao
-  static Future<void> setUser(String userId) async {
-    try {
-      await OneSignal.login(userId);
-      debugPrint("✅ OneSignal user set: $userId");
-    } catch (e, st) {
-      debugPrint("❌ OneSignal login failed: $e");
-      debugPrint("$st");
-    }
-  }
+  @Deprecated('SessionService binds the push identity on sign-in')
+  static Future<void> setUser(String userId) =>
+      SessionService.instance.bindPushIdentity(userId);
 
-  /// App se logout → OneSignal se bhi nikal do
-  static Future<void> logout() async {
-    try {
-      await OneSignal.logout();
-      debugPrint("✅ OneSignal user logged out");
-    } catch (e, st) {
-      debugPrint("❌ OneSignal logout failed: $e");
-      debugPrint("$st");
-    }
-  }
+  @Deprecated('Use AuthService.signOut / SessionService.signOut')
+  static Future<void> logout() => SessionService.instance.unbindPushIdentity();
 }

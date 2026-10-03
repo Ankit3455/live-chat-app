@@ -220,6 +220,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/auth_validators.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -247,15 +248,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
-  String? _validateNew(String? v) {
-    final val = v?.trim() ?? '';
-    if (val.isEmpty) return AppStrings.passwordRequired;
-    if (val.length < 8) return AppStrings.passwordTooShort;
-    if (!RegExp(r'[A-Za-z]').hasMatch(val) || !RegExp(r'\d').hasMatch(val)) {
-      return AppStrings.passwordWeak;
-    }
-    return null;
-  }
+  String? _validateNew(String? v) => AuthValidators.newPassword(v);
 
   void _showSnackBar(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -282,12 +275,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final current = _currentCtl.text.trim();
-    final newPass = _newCtl.text.trim();
-    final confirm = _confirmCtl.text.trim();
+    final current = _currentCtl.text;
+    final newPass = _newCtl.text;
+    final confirm = _confirmCtl.text;
 
     if (newPass == current) {
-      _showSnackBar('New password must be different from current');
+      _showSnackBar(AppStrings.newPasswordMustDiffer);
       return;
     }
 
@@ -296,91 +289,31 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
 
-    // Ask user whether to logout other devices
-    final logoutAll = await _showLogoutDialog();
-
     setState(() => _isLoading = true);
 
     try {
       await context.read<AuthService>().changePassword(
         currentPassword: current,
         newPassword: newPass,
-        logoutAllDevices: logoutAll,
       );
 
       if (!mounted) return;
-      _showSnackBar(AppStrings.passwordChangedSuccess, isError: false);
+      _showSnackBar(
+        '${AppStrings.passwordChangedSuccess}. Other devices will be signed out.',
+        isError: false,
+      );
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      String message = AppStrings.genericAuthError;
-      if (e.code == 'wrong-password') message = AppStrings.currentPasswordWrong;
-      if (e.code == 'requires-recent-login') message = AppStrings.requiresRecentLogin;
-      if (e.code == 'weak-password') message = AppStrings.passwordWeak;
-      if (e.code == 'network-request-failed') message = AppStrings.networkError;
+      final message =
+          (e.code == 'wrong-password' || e.code == 'invalid-credential')
+              ? AppStrings.currentPasswordWrong
+              : AuthValidators.messageFor(e);
       _showSnackBar(message);
     } catch (_) {
       _showSnackBar(AppStrings.somethingWentWrong);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<bool> _showLogoutDialog() async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF9333EA).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.devices,
-                color: Color(0xFF9333EA),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                AppStrings.logoutAllTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          AppStrings.logoutAllMessage,
-          style: TextStyle(
-            color: Colors.grey.shade300,
-            fontSize: 14,
-          ),
-        ),
-        actions: [
-          CustomButton(
-            text: AppStrings.noKeepDevices,
-            type: ButtonType.text,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.pop(ctx, false),
-          ),
-          CustomButton(
-            text: AppStrings.yesLogoutAll,
-            size: ButtonSize.small,
-            width: 140,
-            onPressed: () => Navigator.pop(ctx, true),
-          ),
-        ],
-      ),
-    ) ?? false;
   }
 
   @override

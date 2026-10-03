@@ -3,15 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-
-// ✅ Notification imports
-import 'package:availchat/services/notification/push_token_service.dart';
-import 'package:availchat/services/notification/onesignal_helper.dart';
 
 import '../../services/auth_service.dart';
 import '../../core/constants/app_strings.dart';
-import '../home/home_screen.dart';
+import '../../core/utils/auth_validators.dart';
+import '../../widgets/custom_button.dart';
+import 'auth_router.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -25,7 +22,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _db = FirebaseFirestore.instance;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -38,40 +37,24 @@ class _LoginScreenState extends State<LoginScreen> {
   // Email/Password Login
   // ----------------------------------------------------------
   Future<void> _handleEmailLogin() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    if (_isLoading) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showError(AppStrings.passwordRequired);
-      return;
-    }
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
     setState(() => _isLoading = true);
 
     try {
       final auth = context.read<AuthService>();
-      await auth.signIn(email, password);
+      final cred = await auth.signIn(email, password);
 
-      // ✅ Firebase FCM token sync
-      await PushTokenService.syncToken();
+      final uid = cred.user?.uid;
+      if (uid != null) await _initializeNotificationSettings(uid);
 
-      // ✅ Save tokens
-      final uid = auth.currentUser?.uid;
-      if (uid != null) {
-        await _saveFcmToken(uid);
-        await _initializeNotificationSettings(uid);
-
-        // ✅ OneSignal user link
-        await OneSignalHelper.setUser(uid);
-      }
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
+      if (mounted) await AuthRouter.routeCurrentUser(context);
     } on FirebaseAuthException catch (e) {
-      _showError(e.message ?? AppStrings.genericAuthError);
+      _showError(AuthValidators.messageFor(e));
     } catch (e) {
       _showError(AppStrings.genericAuthError);
     } finally {
@@ -83,54 +66,26 @@ class _LoginScreenState extends State<LoginScreen> {
   // Google Login
   // ----------------------------------------------------------
   Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
     setState(() => _isLoading = true);
 
     try {
       final auth = context.read<AuthService>();
       final cred = await auth.signInWithGoogle();
 
+      // Picker cancelled.
       if (cred == null) return;
 
-      // ✅ Firebase token sync
-      await PushTokenService.syncToken();
+      final uid = cred.user?.uid;
+      if (uid != null) await _initializeNotificationSettings(uid);
 
-      final uid = cred.user?.uid ?? auth.currentUser?.uid;
-      if (uid != null) {
-        await _saveFcmToken(uid);
-        await _initializeNotificationSettings(uid);
-
-        // ✅ OneSignal bind user
-        await OneSignalHelper.setUser(uid);
-      }
-
-      if (mounted) {
-        _showSuccess('Welcome ${cred.user?.displayName ?? ''}!');
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
+      if (mounted) await AuthRouter.routeCurrentUser(context);
     } on FirebaseAuthException catch (e) {
-      _showError(e.message ?? AppStrings.genericAuthError);
+      _showError(AuthValidators.messageFor(e));
     } catch (e) {
       _showError('Google Sign-In failed');
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // ----------------------------------------------------------
-  // Save FCM token
-  // ----------------------------------------------------------
-  Future<void> _saveFcmToken(String userId) async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null) return;
-
-      await _db.collection('users').doc(userId).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('Failed to save FCM token: $e');
     }
   }
 
@@ -171,12 +126,17 @@ class _LoginScreenState extends State<LoginScreen> {
       _showError(AppStrings.enterEmailForReset);
       return;
     }
+    final emailError = AuthValidators.email(email);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
 
     try {
       await context.read<AuthService>().sendResetLink(email);
       _showSuccess(AppStrings.resetEmailSent);
     } on FirebaseAuthException catch (e) {
-      _showError(e.message ?? AppStrings.genericAuthError);
+      _showError(AuthValidators.messageFor(e));
     } catch (e) {
       _showError(AppStrings.genericAuthError);
     }
@@ -196,6 +156,25 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData icon,
+    Widget? suffix,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
+      filled: true,
+      fillColor: const Color(0xFF2D1B4E),
+      prefixIcon: Icon(icon, color: Colors.white),
+      suffixIcon: suffix,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
     );
   }
 
@@ -237,40 +216,57 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 32),
 
-              // Email
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Email or username',
-                  hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
-                  filled: true,
-                  fillColor: const Color(0xFF2D1B4E),
-                  prefixIcon: const Icon(Icons.mail, color: Colors.white),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
+              Form(
+                key: _formKey,
+                child: AutofillGroup(
+                  child: Column(
+                    children: [
+                      // Email
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        autocorrect: false,
+                        validator: AuthValidators.email,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _inputDecoration(
+                          hint: 'Email',
+                          icon: Icons.mail,
+                        ),
+                      ),
 
-              const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-              // Password
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Password',
-                  hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
-                  filled: true,
-                  fillColor: const Color(0xFF2D1B4E),
-                  prefixIcon: const Icon(Icons.lock, color: Colors.white),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                      // Password
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.password],
+                        onFieldSubmitted: (_) => _handleEmailLogin(),
+                        validator: AuthValidators.loginPassword,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _inputDecoration(
+                          hint: 'Password',
+                          icon: Icons.lock,
+                          suffix: IconButton(
+                            tooltip: _obscurePassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: const Color(0xFFB39DDB),
+                            ),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -290,21 +286,13 @@ class _LoginScreenState extends State<LoginScreen> {
               if (_isLoading)
                 const CircularProgressIndicator(color: Color(0xFF7B2CBF))
               else ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _handleEmailLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Login',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+                CustomButton(
+                  text: 'Login',
+                  gradientColors: const [
+                    AppColors.purplePrimary,
+                    AppColors.purpleSecondary,
+                  ],
+                  onPressed: _handleEmailLogin,
                 ),
 
                 const SizedBox(height: 16),

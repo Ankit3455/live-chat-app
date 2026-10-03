@@ -1,84 +1,145 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Online/lastSeen for the signed-in user. Started and stopped by
+/// SessionService; caches the uid so the offline write on sign-out still
+/// targets the right user.
 class PresenceService with WidgetsBindingObserver {
-  StreamSubscription<User?>? _authSub;
-  bool _attached = false;
+  PresenceService._();
+  static final PresenceService instance = PresenceService._();
 
-  void init() {
-    if (_attached) return;
-    WidgetsBinding.instance.addObserver(this);
-    _attached = true;
+  /// Kept for existing `Provider<PresenceService>` wiring; returns the singleton.
+  factory PresenceService() => instance;
 
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) async {
-      if (user != null) {
-        print('🟢 User logged in: ${user.uid}'); // ✅ DEBUG
-        await _setOnline(true);
-      } else {
-        print('🔴 User logged out'); // ✅ DEBUG
+  static const Duration _writeTimeout = Duration(seconds: 4);
+
+  String? _uid;
+  bool _observing = false;
+  StreamSubscription<DatabaseEvent>? _connectedSub;
+
+  String? get uid => _uid;
+
+  /// Legacy entry point; SessionService.start() drives presence now.
+  void init() {}
+
+  Future<void> start(String uid) async {
+    if (_uid == uid) return;
+    if (_uid != null) await stop();
+    _uid = uid;
+
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    }
+
+    _listenConnection(uid);
+    await _setOnline(true);
+  }
+
+  /// Marks the cached user offline and stops tracking. Must run while the
+  /// user is still signed in (rules need auth).
+  Future<void> stop({bool markOffline = true}) async {
+    final uid = _uid;
+    await _connectedSub?.cancel();
+    _connectedSub = null;
+
+    if (uid != null) {
+      final statusRef = FirebaseDatabase.instance.ref('presence/$uid');
+      if (markOffline) {
         await _setOnline(false);
+        try {
+          await statusRef
+              .set({'state': 'offline', 'lastChanged': ServerValue.timestamp})
+              .timeout(_writeTimeout);
+        } catch (_) {}
       }
-    });
+      try {
+        await statusRef.onDisconnect().cancel().timeout(_writeTimeout);
+      } catch (_) {}
+    }
 
-    print('✅ PresenceService initialized'); // ✅ DEBUG
+    if (_observing) {
+      WidgetsBinding.instance.removeObserver(this);
+      _observing = false;
+    }
+    _uid = null;
+  }
+
+  // RTDB `.info/connected` + onDisconnect so a killed app still goes offline.
+  // Mirroring presence/{uid} into Firestore is done server-side.
+  void _listenConnection(String uid) {
+    final statusRef = FirebaseDatabase.instance.ref('presence/$uid');
+    _connectedSub = FirebaseDatabase.instance
+        .ref('.info/connected')
+        .onValue
+        .listen(
+          (event) async {
+            if (event.snapshot.value != true || _uid != uid) return;
+            try {
+              await statusRef.onDisconnect().set({
+                'state': 'offline',
+                'lastChanged': ServerValue.timestamp,
+              });
+              await statusRef.set({
+                'state': 'online',
+                'lastChanged': ServerValue.timestamp,
+              });
+            } catch (e) {
+              if (kDebugMode) debugPrint('Presence RTDB error: $e');
+            }
+          },
+          onError: (Object e) {
+            if (kDebugMode) debugPrint('Presence connection error: $e');
+          },
+        );
   }
 
   Future<void> _setOnline(bool online) async {
+    final uid = _uid;
+    if (uid == null) return;
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) {
-        print('⚠️ Cannot update presence - No user logged in'); // ✅ DEBUG
-        return;
-      }
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        {
-          'online': online,
-          'lastSeen': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      print('✅ User $uid is now: ${online ? "ONLINE ✓" : "OFFLINE ✗"}'); // ✅ DEBUG
+      // Offline writes never resolve without a server ack, so bound the wait.
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({
+            'online': online,
+            'lastSeen': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(_writeTimeout);
     } catch (e) {
-      print('❌ Error updating presence: $e'); // ✅ DEBUG
+      if (kDebugMode) debugPrint('Presence update failed: $e');
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (_uid == null) return;
 
-    // Mark online true when app is foreground, false when background
     switch (state) {
       case AppLifecycleState.resumed:
-        print('📱 App RESUMED - Setting ONLINE'); // ✅ DEBUG
         _setOnline(true);
         break;
-
-      case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-      case AppLifecycleState.hidden: // ✅ FIXED - No more crash!
-        print('📱 App PAUSED/HIDDEN - Setting OFFLINE'); // ✅ DEBUG
+      case AppLifecycleState.hidden:
         _setOnline(false);
+        break;
+      case AppLifecycleState.inactive:
+        // Transient (dialogs, app switcher); ignoring it avoids on/off flapping.
         break;
     }
   }
 
   void dispose() {
-    print('🧹 PresenceService disposing...'); // ✅ DEBUG
-
-    // ✅ Set user offline before disposing
-    _setOnline(false);
-
-    if (_attached) {
+    if (_observing) {
       WidgetsBinding.instance.removeObserver(this);
-      _attached = false;
+      _observing = false;
     }
-    _authSub?.cancel();
+    _connectedSub?.cancel();
+    _connectedSub = null;
   }
 }

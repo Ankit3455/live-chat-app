@@ -2,9 +2,8 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import '../bottom_navigation/managers/firestore_manager.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'session_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,12 +17,9 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Sign in with email and password
-  Future<UserCredential> signIn(String email, String password) async {
-    try {
-      return await _auth.signInWithEmailAndPassword(email: email, password: password);
-    } catch (e) {
-      throw Exception('Sign in failed: $e');
-    }
+  /// Throws FirebaseAuthException; callers map codes with AuthValidators.
+  Future<UserCredential> signIn(String email, String password) {
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
   // Single source for reset link
@@ -34,12 +30,12 @@ class AuthService {
   // (Optional backward-compat) forwarder
   Future<void> sendPasswordResetEmail(String email) => sendResetLink(email);
 
-  /// Change password with optional multi-device logout.
-  /// logoutAllDevices=true => write `passwordChangedAt` so other devices sign out.
+  /// Changes the password. Firebase revokes every other session's refresh
+  /// token on a password change, so other devices are signed out within the
+  /// hour; `revokeSessions` makes it immediate and unlinks their push identity.
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
-    required bool logoutAllDevices,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -55,7 +51,6 @@ class AuthService {
       );
     }
 
-    // Guard: email is required for reauth
     final email = user.email;
     if (email == null || email.isEmpty) {
       throw FirebaseAuthException(
@@ -64,109 +59,173 @@ class AuthService {
       );
     }
 
-    // Reauthenticate
-    final cred = EmailAuthProvider.credential(email: email, password: currentPassword);
-    await user.reauthenticateWithCredential(cred);
-
-    // Update password
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: email, password: currentPassword),
+    );
     await user.updatePassword(newPassword);
 
-    // Refresh local auth state (optionally force fresh token if needed)
-    await user.reload();
-    // await user.getIdToken(true); // optional
-
-    if (logoutAllDevices) {
-      final uid = user.uid;
-      final ts = await FirestoreManager.instance.markPasswordChanged(uid);
-
-      // Store local resolved timestamp so THIS device won't sign itself out
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('passwordChangedAt_epoch_ms', ts.millisecondsSinceEpoch);
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('revokeSessions')
+          .call()
+          .timeout(const Duration(seconds: 10));
+      // Revocation also covers this device; re-auth to get fresh tokens.
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: newPassword),
+      );
+    } catch (_) {
+      // Function not deployed or offline: Firebase's own revocation still applies.
     }
+
+    await user.reload();
   }
 
-  // Sign up with email and password
+  /// Creates the Auth account and the profile doc together. If the profile
+  /// write fails it is retried once, then the new Auth user is deleted so the
+  /// email can be used again. If an earlier attempt left an account without a
+  /// profile, signing up again with the same password recovers it.
   Future<UserCredential> signUp({
     required String email,
     required String password,
-    String? username,
+    required Map<String, dynamic> profile,
   }) async {
+    UserCredential cred;
+    var created = false;
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      cred = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-
-      final user = userCredential.user;
-      if (user != null) {
-        await _firestore.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'email': email,
-          'username': username ?? email.split('@').first,
-          'createdAt': FieldValue.serverTimestamp(),
-          'online': true,
-        }, SetOptions(merge: true));
+      created = true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'email-already-in-use') rethrow;
+      try {
+        cred = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException {
+        throw e;
       }
-
-      return userCredential;
-    } catch (e) {
-      throw Exception('Sign up failed: $e');
     }
-  }
 
-  // Sign in with Google
-  Future<UserCredential?> signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        throw Exception('Google sign in aborted');
+    final user = cred.user;
+    if (user == null) {
+      throw FirebaseAuthException(code: 'internal-error');
+    }
+
+    final ref = _firestore.collection('users').doc(user.uid);
+    if (!created) {
+      final existing = await ref.get();
+      // A real profile (not just a presence write): normal login from signup.
+      if (existing.data()?['createdAt'] != null) return cred;
+    }
+
+    final data = <String, dynamic>{
+      ...profile,
+      'uid': user.uid,
+      'email': email,
+      'createdAt': FieldValue.serverTimestamp(),
+      'online': true,
+      'lastSeen': FieldValue.serverTimestamp(),
+      'emailVerificationRequired': true,
+      'signupCompleted': false,
+      'mandatoryCompleted': false,
+      'discoveryEnabled': false,
+      'discoveryPendingOnboarding': true,
+    };
+
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await ref
+            .set(data, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 10));
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
       }
+    }
 
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+    if (lastError != null) {
+      if (created) {
+        try {
+          await user.delete();
+        } catch (_) {
+          // Splash routes a signed-in user without a profile to setup.
+        }
+      }
+      throw FirebaseAuthException(
+        code: 'profile-write-failed',
+        message: 'Could not save your profile. Please try again.',
       );
-
-      final userCredential = await _auth.signInWithCredential(credential);
-
-      final user = userCredential.user;
-      if (user != null) {
-        await _firestore.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'email': user.email,
-          'username': user.displayName ?? 'User',
-          'profileImage': user.photoURL ?? '',
-          'createdAt': FieldValue.serverTimestamp(),
-          'online': true,
-        }, SetOptions(merge: true));
-      }
-
-      return userCredential;
-    } catch (e) {
-      throw Exception('Google sign in failed: $e');
     }
-  }
 
-  // Sign out
-  Future<void> signOut() async {
     try {
-      final uid = _auth.currentUser?.uid;
-      if (uid != null) {
-        await _firestore.collection('users').doc(uid).set({
-          'online': false,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+      await user.sendEmailVerification();
+    } catch (_) {}
 
-      await Future.wait([
-        _auth.signOut(),
-        _googleSignIn.signOut(),
-      ]);
-    } catch (e) {
-      throw Exception('Sign out failed: $e');
-    }
+    return cred;
   }
+
+  /// Returns null when the user cancels the account picker. First login (or a
+  /// missing profile doc) writes onboarding defaults; later logins only touch
+  /// online/lastSeen so username, avatar and createdAt are preserved.
+  Future<UserCredential?> signInWithGoogle() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCredential = await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
+    if (user == null) return userCredential;
+
+    final ref = _firestore.collection('users').doc(user.uid);
+    var needsDefaults = userCredential.additionalUserInfo?.isNewUser ?? false;
+    if (!needsDefaults) {
+      try {
+        // Presence may already have created a bare doc; createdAt marks a
+        // real profile.
+        needsDefaults = (await ref.get()).data()?['createdAt'] == null;
+      } catch (_) {
+        // Unknown: splash/router handles a missing doc.
+      }
+    }
+
+    // Best-effort: a failed write must not fail an already successful
+    // sign-in; the start router sends a user without a profile to setup.
+    try {
+      if (needsDefaults) {
+        await ref.set({
+        'uid': user.uid,
+        'email': user.email,
+        'createdAt': FieldValue.serverTimestamp(),
+        'online': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+        'signupCompleted': false,
+        'mandatoryCompleted': false,
+        'discoveryEnabled': false,
+        'discoveryPendingOnboarding': true,
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
+      } else {
+        await ref.set({
+          'online': true,
+          'lastSeen': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
+      }
+    } catch (_) {}
+
+    return userCredential;
+  }
+
+  /// Every sign-out entry point goes through here.
+  Future<void> signOut() => SessionService.instance.signOut();
 
   // Update user profile
   Future<void> updateProfile({String? displayName, String? photoURL}) async {
@@ -175,21 +234,6 @@ class AuthService {
       await _auth.currentUser?.updatePhotoURL(photoURL);
     } catch (e) {
       throw Exception('Update profile failed: $e');
-    }
-  }
-
-  // Get FCM token and save to Firestore (robust if doc missing)
-  Future<void> saveFCMToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      final uid = _auth.currentUser?.uid;
-      if (token == null || uid == null) return;
-
-      await _firestore.collection('users').doc(uid).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      throw Exception('Failed to save FCM token: $e');
     }
   }
 }
