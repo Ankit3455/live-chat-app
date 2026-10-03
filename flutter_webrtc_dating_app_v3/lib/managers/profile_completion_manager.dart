@@ -6,7 +6,8 @@ import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dar
 import 'package:availchat/models/question_model.dart';
 
 class ProfileCompletionManager {
-  // ===== Banner UX keys (preserved) =====
+  // Banner prefs are per account so one user's dismissal does not hide the
+  // banner for the next account on the same device.
   static const String _keyBannerDismissed = 'banner_dismissed';
   static const String _keyBannerLastShown = 'banner_last_shown';
   static const int _bannerReappearDays = 3;
@@ -21,14 +22,26 @@ class ProfileCompletionManager {
   List<String> get _signupFields =>
       _fieldNames(QuestionnaireHelper.getSignupQuestions());
 
+  List<String> get _mandatoryFields =>
+      _fieldNames(QuestionnaireHelper.getMandatoryQuestions());
+
   List<String> get _lifestyleFields =>
       _fieldNames(QuestionnaireHelper.getLifestyleQuestions());
 
   List<String> get _personalityFields =>
       _fieldNames(QuestionnaireHelper.getPersonalityQuestions());
 
-  List<String> get _allFields =>
-      [..._signupFields, ..._lifestyleFields, ..._personalityFields];
+  List<String> get _allFields => [
+        ..._signupFields,
+        ..._mandatoryFields,
+        ..._lifestyleFields,
+        ..._personalityFields,
+      ];
+
+  String _prefKey(String base) {
+    final uid = _auth.currentUser?.uid;
+    return uid == null ? base : '${base}_$uid';
+  }
 
   bool _isAnswered(dynamic v) {
     if (v == null) return false;
@@ -50,7 +63,7 @@ class ProfileCompletionManager {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return {};
     final snap = await _firestore.collection('users').doc(uid).get();
-    return (snap.data() ?? {}) as Map<String, dynamic>;
+    return snap.data() ?? <String, dynamic>{};
   }
 
   Future<void> _writePercent(int percent) async {
@@ -65,7 +78,7 @@ class ProfileCompletionManager {
 
   // ========== PUBLIC API (names preserved) ==========
 
-  /// ✅ Authoritative recompute from Firestore answers. Also writes back.
+  /// Authoritative recompute from Firestore answers. Also writes back.
   Future<int> getCompletionPercentage() async {
     final data = await _userData();
     final total = _allFields.length;
@@ -154,10 +167,10 @@ class ProfileCompletionManager {
 
   Future<bool> shouldShowBanner() async {
     final prefs = await SharedPreferences.getInstance();
-    final dismissed = prefs.getBool(_keyBannerDismissed) ?? false;
+    final dismissed = prefs.getBool(_prefKey(_keyBannerDismissed)) ?? false;
     if (!dismissed) return true;
 
-    final lastMs = prefs.getInt(_keyBannerLastShown);
+    final lastMs = prefs.getInt(_prefKey(_keyBannerLastShown));
     if (lastMs == null) return true;
 
     final last = DateTime.fromMillisecondsSinceEpoch(lastMs);
@@ -170,9 +183,9 @@ class ProfileCompletionManager {
 
   Future<void> markBannerShown() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyBannerDismissed, true);
+    await prefs.setBool(_prefKey(_keyBannerDismissed), true);
     await prefs.setInt(
-      _keyBannerLastShown,
+      _prefKey(_keyBannerLastShown),
       DateTime.now().millisecondsSinceEpoch,
     );
   }
@@ -200,8 +213,8 @@ class ProfileCompletionManager {
   // Keep a reset method (compat) — only resets local banner state.
   Future<void> reset() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyBannerDismissed);
-    await prefs.remove(_keyBannerLastShown);
+    await prefs.remove(_prefKey(_keyBannerDismissed));
+    await prefs.remove(_prefKey(_keyBannerLastShown));
     // NOTE: We intentionally do NOT clear Firestore user data here.
   }
 }

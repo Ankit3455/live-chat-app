@@ -23,40 +23,12 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   int _completionPercentage = 60;
 
   @override
-void initState() {
-  super.initState();
-  
-  // ✅ ADD THIS DEBUG CODE
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  print('🔍 DEBUG: Profile Completion Screen');
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  print('📦 Sections count: ${_sections.length}');
-  print('📝 Lifestyle questions: ${_lifestyleQuestions.length}');
-  print('📝 Personality questions: ${_personalityQuestions.length}');
-  
-  // Print section details
-  for (var i = 0; i < _sections.length; i++) {
-    final section = _sections[i];
-    print('Section $i: "${section.title}"');
-    print('  - Questions in section: ${section.questions.length}');
-    
-    final questionsFromHelper = _getQuestionsForSection(section.title);
-    print('  - Questions from helper: ${questionsFromHelper.length}');
+  void initState() {
+    super.initState();
+    _loadExistingData();
+    _loadCompletionPercentage();
+    _checkCompletedSections();
   }
-  
-  // Print first question details
-  if (_lifestyleQuestions.isNotEmpty) {
-    print('\n📋 First Lifestyle Question:');
-    print('  - Text: ${_lifestyleQuestions[0].text}');
-    print('  - FieldName: ${_lifestyleQuestions[0].fieldName}');
-    print('  - Type: ${_lifestyleQuestions[0].inputType}');
-  }
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-  
-  _loadExistingData();
-  _loadCompletionPercentage();
-  _checkCompletedSections();
-}
 
   /// Load existing user data from Firestore
   Future<void> _loadExistingData() async {
@@ -70,8 +42,9 @@ void initState() {
           .get();
 
       if (doc.exists && mounted) {
+        // Don't overwrite answers the user changed while this was loading.
         setState(() {
-          _answers.addAll(doc.data() ?? {});
+          (doc.data() ?? {}).forEach((k, v) => _answers.putIfAbsent(k, () => v));
         });
       }
     } catch (e) {
@@ -81,28 +54,28 @@ void initState() {
 
   /// Load current completion percentage
   Future<void> _loadCompletionPercentage() async {
-    final percentage = await ProfileCompletionManager().getCompletionPercentage();
-    if (mounted) {
-      setState(() {
-        _completionPercentage = percentage;
-      });
+    try {
+      final percentage =
+          await ProfileCompletionManager().getCompletionPercentage();
+      if (mounted) setState(() => _completionPercentage = percentage);
+    } catch (e) {
+      debugPrint('Error loading completion: $e');
     }
   }
 
   /// Check which sections are already completed
   Future<void> _checkCompletedSections() async {
     final manager = ProfileCompletionManager();
-    
-    if (await manager.isLifestyleComplete()) {
+    try {
+      final lifestyle = await manager.isLifestyleComplete();
+      final personality = await manager.isPersonalityComplete();
+      if (!mounted) return;
       setState(() {
-        _completedSections.add('Lifestyle Preferences');
+        if (lifestyle) _completedSections.add('Lifestyle Preferences');
+        if (personality) _completedSections.add('Personality & Views');
       });
-    }
-    
-    if (await manager.isPersonalityComplete()) {
-      setState(() {
-        _completedSections.add('Personality & Views');
-      });
+    } catch (e) {
+      debugPrint('Error checking sections: $e');
     }
   }
 
@@ -125,7 +98,7 @@ void initState() {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        throw Exception('User not authenticated');
+        throw const _SectionError('Please sign in again.');
       }
 
       // ✅ Step 1: Collect ONLY answered questions for this section
@@ -156,14 +129,15 @@ void initState() {
 
       // ✅ Step 2: Check if minimum answers provided
       if (sectionData.isEmpty) {
-        throw Exception('Please answer at least one question in this section');
+        throw const _SectionError(
+            'Please answer at least one question in this section');
       }
 
       final minimumRequired = (questions.length * 0.5).ceil(); // 50% threshold
       
       if (sectionData.length < minimumRequired) {
-        throw Exception(
-          'Please answer at least $minimumRequired questions (currently answered: ${sectionData.length})'
+        throw _SectionError(
+          'Please answer at least $minimumRequired questions (currently answered: ${sectionData.length})',
         );
       }
 
@@ -176,24 +150,16 @@ void initState() {
       // ✅ Step 4: Mark section as complete ONLY if minimum met
       if (sectionTitle == 'Lifestyle Preferences') {
         await ProfileCompletionManager().markLifestyleComplete();
-        setState(() {
-          _completedSections.add('Lifestyle Preferences');
-        });
       } else if (sectionTitle == 'Personality & Views') {
         await ProfileCompletionManager().markPersonalityComplete();
-        setState(() {
-          _completedSections.add('Personality & Views');
-        });
       }
 
-      // ✅ Step 5: Update completion percentage
-      final percentage = await ProfileCompletionManager().getCompletionPercentage();
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({'profileCompletionPercentage': percentage});
-
+      // ✅ Step 5: Update completion percentage (also written back)
+      final percentage =
+          await ProfileCompletionManager().getCompletionPercentage();
+      if (!mounted) return;
       setState(() {
+        _completedSections.add(sectionTitle);
         _completionPercentage = percentage;
       });
 
@@ -212,10 +178,13 @@ void initState() {
         );
       }
     } catch (e) {
+      debugPrint('Save section failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text(e is _SectionError
+                ? e.message
+                : 'Could not save. Check your connection and try again.'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
           ),
@@ -473,4 +442,9 @@ void initState() {
       ),
     );
   }
+}
+
+class _SectionError implements Exception {
+  final String message;
+  const _SectionError(this.message);
 }
