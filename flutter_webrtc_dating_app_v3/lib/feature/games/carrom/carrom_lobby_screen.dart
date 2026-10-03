@@ -206,6 +206,8 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   static const Duration _searchTimeout = Duration(seconds: 45);
   static const Duration _queueTtl = Duration(seconds: 60);
   static const Duration _recheckEvery = Duration(seconds: 3);
+  // Tolerates clock skew between this device and the match creator.
+  static const Duration _matchCreatedSlack = Duration(seconds: 30);
 
   /// Pairs via `carrom_queue/{uid}`. The waiting player keeps re-checking the
   /// queue and also listens to its own entry: whoever pairs first writes the
@@ -229,7 +231,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     _myQueueDocId = uid;
 
     final claimed = Completer<String>();
+    var entryGone = false;
     final claimSub = myQueueRef.snapshots().listen((snap) {
+      if (!snap.exists) entryGone = true;
       final matchId = snap.data()?['matchId'] as String?;
       if (matchId != null && !claimed.isCompleted) claimed.complete(matchId);
     }, onError: (Object e) => debugPrint('Carrom queue listener error: $e'));
@@ -244,6 +248,14 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
         if (paired != null) {
           _myQueueDocId = null;
           return paired;
+        }
+        if (claimed.isCompleted) break;
+
+        // Entry gone without a claim we saw (deleted or expired): the match
+        // may still exist, so look it up once instead of scanning forever.
+        if (entryGone) {
+          _myQueueDocId = null;
+          return _findMatchCreatedSince(uid, searchStart);
         }
 
         await Future.any([claimed.future, Future.delayed(_recheckEvery)]);
@@ -265,6 +277,26 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     return null;
   }
 
+  /// Our newest match created during this search (indexed on
+  /// playerUids + createdAt).
+  Future<DocumentReference<Map<String, dynamic>>?> _findMatchCreatedSince(
+      String uid,
+      DateTime searchStart,
+      ) async {
+    final since = searchStart.subtract(_matchCreatedSlack);
+    final snap = await _firestore
+        .collection('carrom_matches')
+        .where('playerUids', arrayContains: uid)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    final data = snap.docs.first.data();
+    if (data['status'] != 'ready' && data['status'] != 'started') return null;
+    return snap.docs.first.reference;
+  }
+
   /// Claims the oldest live entry in one transaction: creates the match,
   /// writes its id into the opponent's entry and removes our own entry.
   Future<DocumentReference<Map<String, dynamic>>?> _tryClaimOpponent(
@@ -273,10 +305,12 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
       String? avatar,
       ) async {
     final now = DateTime.now();
+    // Only live entries are read; expiresAt order follows join order.
     final snap = await _firestore
         .collection('carrom_queue')
-        .orderBy('createdAt')
-        .limit(20)
+        .where('expiresAt', isGreaterThan: Timestamp.fromDate(now))
+        .orderBy('expiresAt')
+        .limit(10)
         .get();
 
     final candidates = snap.docs.where((d) {

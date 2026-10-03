@@ -28,14 +28,6 @@
       "collectionGroup": "ludo_matches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "maxPlayers", "order": "ASCENDING" },
-        { "fieldPath": "state", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "ludo_matches",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "playerUids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
@@ -49,11 +41,12 @@
       ]
     },
     {
-      "collectionGroup": "carrom_queue",
+      "collectionGroup": "ludo_matches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "uid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
+        { "fieldPath": "playerUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
