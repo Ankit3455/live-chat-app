@@ -5,6 +5,13 @@
   "engines": {
     "node": "20"
   },
+  "scripts": {
+    "test": "node --test test/",
+    "check": "for f in *.js; do node --check \"$f\" || exit 1; done",
+    "serve": "firebase emulators:start --only functions,firestore,database",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
   "dependencies": {
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.1.0"

@@ -1,5 +1,4 @@
-// Account deletion (DEST-011). Exported from index.js:
-//   Object.assign(exports, require('./account'));
+// Account deletion (DEST-011). Exported from index.js.
 //
 // Decision: delete profile, photos, auth account and push identity. Messages
 // already sent stay in the other person's chat; the conversation marks the
@@ -8,20 +7,17 @@
 // compare it with the current uid.
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) admin.initializeApp();
 
-// Public app id (same as index.js); the REST key is a Secret Manager secret.
-const ONESIGNAL_APP_ID = 'f4489084-4880-4e7f-aa6d-a3b0cfb8beb4';
-const oneSignalRestApiKey = defineSecret('ONESIGNAL_REST_API_KEY');
+const config = require('./config');
+const { STORAGE_HOST, CLOUDINARY_HOST, storagePath } = require('./media_utils');
+const { oneSignalRestApiKey } = config;
 
 const RECENT_AUTH_SECONDS = 5 * 60;
 const GAMES = ['carrom', 'ludo'];
 const STORAGE_PREFIXES = (uid) => [`voices/${uid}/`, `profile_photos/${uid}/`, `avatars/${uid}_avatar_`];
-const STORAGE_HOST = 'firebasestorage.googleapis.com';
-const CLOUDINARY_HOST = 'res.cloudinary.com';
 
 const db = () => admin.firestore();
 
@@ -44,18 +40,6 @@ function mediaUrls(profile) {
   };
   visit(profile, 0);
   return [...urls];
-}
-
-// Firebase Storage download URL -> object path, or null.
-function storagePath(url) {
-  try {
-    const u = new URL(url);
-    if (u.host !== STORAGE_HOST) return null;
-    const m = u.pathname.match(/^\/v0\/b\/[^/]+\/o\/(.+)$/);
-    return m ? decodeURIComponent(m[1]) : null;
-  } catch (_) {
-    return null;
-  }
 }
 
 async function deleteStorage(uid, urls) {
@@ -157,7 +141,7 @@ async function deleteRealtime(uid) {
 
 async function deleteOneSignalUser(uid) {
   const response = await fetch(
-    `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/users/by/external_id/${encodeURIComponent(uid)}`,
+    `https://api.onesignal.com/apps/${config.oneSignalAppId.value()}/users/by/external_id/${encodeURIComponent(uid)}`,
     { method: 'DELETE', headers: { Authorization: `Basic ${oneSignalRestApiKey.value()}` } },
   );
   if (!response.ok && response.status !== 404) {
@@ -176,7 +160,7 @@ async function step(uid, name, fn, failed) {
 }
 
 exports.deleteAccount = onCall(
-  { secrets: [oneSignalRestApiKey], timeoutSeconds: 300, memory: '512MiB' },
+  config.callable({ secrets: [oneSignalRestApiKey], timeoutSeconds: 300, memory: '512MiB' }),
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
