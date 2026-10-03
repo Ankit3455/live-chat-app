@@ -5,11 +5,15 @@ class AstrologyProgressHeader extends StatelessWidget {
   final int totalSteps;
   final VoidCallback? onSkip;
 
+  /// Defaults to popping the route.
+  final VoidCallback? onBack;
+
   const AstrologyProgressHeader({
     Key? key,
     required this.currentStep,
-    this.totalSteps = 8,
+    required this.totalSteps,
     this.onSkip,
+    this.onBack,
   }) : super(key: key);
 
   @override
@@ -22,7 +26,7 @@ class AstrologyProgressHeader extends StatelessWidget {
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              onPressed: onBack ?? () => Navigator.maybePop(context),
             ),
             if (onSkip != null)
               TextButton(

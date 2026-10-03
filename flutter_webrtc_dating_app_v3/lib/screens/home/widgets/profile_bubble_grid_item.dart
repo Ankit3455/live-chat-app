@@ -266,6 +266,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
 import '../../../models/user_model.dart';
+import '../../astrology/widgets/compatibility_chip.dart';
 import 'profile_quick_sheet.dart'; // same folder
 
 class ProfileBubbleGridItem extends StatelessWidget {
@@ -273,10 +274,12 @@ class ProfileBubbleGridItem extends StatelessWidget {
     Key? key,
     required this.user,
     required this.onTap,
+    this.currentUser,
   }) : super(key: key);
 
   final UserModel user;
   final VoidCallback onTap;
+  final UserModel? currentUser;
 
   // --- helpers preserved for compatibility ---
   ImageProvider? _avatarImage() {
@@ -309,8 +312,9 @@ class ProfileBubbleGridItem extends StatelessWidget {
           barrierColor: Colors.black54,
           backgroundColor: Colors.transparent,
           builder: (_) => ProfileQuickSheet(
-            currentUser: null,
+            currentUser: currentUser,
             user: user,
+            onMessage: onTap,
           ),
         );
       },
@@ -454,6 +458,12 @@ class ProfileBubbleGridItem extends StatelessWidget {
                 ),
               ),
 
+              Positioned(
+                top: hasVoice ? 46 : 10,
+                left: 10,
+                child: CompatibilityChip(currentUser: currentUser, user: user),
+              ),
+
               // ✅ NEW: VOICE badge (visible only if voice intro exists)
               if (hasVoice)
                 Positioned(
@@ -495,12 +505,17 @@ class ProfileBubbleGridItem extends StatelessWidget {
           ),
         ),
       ),
-    )
-    // gentle float animation (kept from your original)
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .moveY(begin: -4, end: 4, duration: 1200.ms, curve: Curves.easeInOut);
+    );
 
-    return card;
+    // Gentle float, skipped when the system asks for reduced motion.
+    if (MediaQuery.of(context).disableAnimations) {
+      return RepaintBoundary(child: card);
+    }
+    return RepaintBoundary(
+      child: card
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .moveY(begin: -4, end: 4, duration: 1200.ms, curve: Curves.easeInOut),
+    );
   }
 }
 

@@ -1,21 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-import '../../../core/constants/app_colors.dart'; // safe to keep (not dynamically accessed)
+import '../../../core/utils/astrology_utils.dart';
+import '../../../core/utils/compatibility_utils.dart';
 import '../../../models/user_model.dart';
 import '../../../services/audio_manager_service.dart';
+import '../../../widgets/custom_button.dart';
+import '../../astrology/widgets/compatibility_chip.dart';
 
 class ProfileQuickSheet extends StatelessWidget {
   const ProfileQuickSheet({
     Key? key,
     required this.currentUser,
     required this.user,
+    this.onMessage,
   }) : super(key: key);
 
   final UserModel? currentUser; // nullable allowed
   final UserModel user;
+
+  /// Shows a Message button that closes the sheet and runs this.
+  final VoidCallback? onMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +62,19 @@ class ProfileQuickSheet extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   _profileHeader(),
+
+                  if (onMessage != null) ...[
+                    const SizedBox(height: 16),
+                    CustomButton(
+                      text: 'Message',
+                      leftIcon: Icons.chat_bubble_outline,
+                      width: double.infinity,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onMessage!();
+                      },
+                    ),
+                  ],
 
                   // ✅ Voice intro mini-player (only if present)
                   if (user.voiceIntroUrl != null && user.voiceIntroUrl!.trim().isNotEmpty) ...[
@@ -154,22 +175,18 @@ class ProfileQuickSheet extends StatelessWidget {
                         if (user.preferredSigns.isNotEmpty)
                           ...user.preferredSigns
                               .where((e) => e.trim().isNotEmpty)
-                              .map((e) => e.trim()),
+                              .map((e) =>
+                                  AstrologyUtils.normalizeSign(e) ?? e.trim()),
                       ],
                     ),
                     const SizedBox(height: 18),
                   ],
 
                   // ===== OTHER (no 'Online' here) =====
-                  if (user.discoveryEnabled || user.matchPercentage != null) ...[
+                  if (user.discoveryEnabled) ...[
                     _sectionTitle("Other"),
                     const SizedBox(height: 6),
-                    _chipWrap(
-                      items: [
-                        if (user.discoveryEnabled) "Discoverable",
-                        if (user.matchPercentage != null) "Match ${user.matchPercentage}%",
-                      ],
-                    ),
+                    _chipWrap(items: const ["Discoverable"]),
                   ],
                 ],
               ),
@@ -195,17 +212,9 @@ class ProfileQuickSheet extends StatelessWidget {
             width: 110,
             height: 110,
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialAvatar(initial),
           )
-              : Container(
-            width: 110,
-            height: 110,
-            alignment: Alignment.center,
-            color: Colors.white12,
-            child: Text(
-              initial,
-              style: const TextStyle(fontSize: 45, fontWeight: FontWeight.w700),
-            ),
-          ),
+              : _initialAvatar(initial),
         ),
         const SizedBox(height: 14),
 
@@ -234,27 +243,31 @@ class ProfileQuickSheet extends StatelessWidget {
                 "Online",
                 style: TextStyle(color: Colors.greenAccent, fontSize: 14),
               ),
-            if (user.online && user.matchPercentage != null) const SizedBox(width: 10),
-            if (user.matchPercentage != null)
-              AnimatedTextKit(
-                repeatForever: false,
-                animatedTexts: [
-                  FadeAnimatedText(
-                    "${user.matchPercentage} %",
-                    textStyle: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    duration: Duration(milliseconds: 900),
-                  ),
-                ],
-              ),
+            if (user.online && _hasScore) const SizedBox(width: 10),
+            CompatibilityChip(
+              currentUser: currentUser,
+              user: user,
+              dense: false,
+            ),
           ],
         ),
       ],
     );
   }
+
+  bool get _hasScore =>
+      CompatibilityService.compatibilityScore(currentUser, user) != null;
+
+  Widget _initialAvatar(String initial) => Container(
+        width: 110,
+        height: 110,
+        alignment: Alignment.center,
+        color: Colors.white12,
+        child: Text(
+          initial,
+          style: const TextStyle(fontSize: 45, fontWeight: FontWeight.w700),
+        ),
+      );
 
   // ---------- Section Title ----------
   Widget _sectionTitle(String t) => Text(
@@ -390,6 +403,7 @@ class _VoiceIntroPlayer extends StatefulWidget {
 
 class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
   final AudioPlayer _player = AudioPlayer();
+  final List<StreamSubscription<dynamic>> _subs = [];
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   bool _isLoading = false;
@@ -399,16 +413,16 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
   void initState() {
     super.initState();
 
-    _player.onDurationChanged.listen((d) {
-      setState(() => _duration = d);
-    });
-    _player.onPositionChanged.listen((p) {
-      setState(() => _position = p);
-    });
-    _player.onPlayerComplete.listen((_) async {
-      setState(() => _position = Duration.zero);
+    _subs.add(_player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    }));
+    _subs.add(_player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    }));
+    _subs.add(_player.onPlayerComplete.listen((_) async {
+      if (mounted) setState(() => _position = Duration.zero);
       await AudioManagerService.setSpeakerphone(false);
-    });
+    }));
 
     // Preload duration if provided
     if (widget.totalSeconds != null && widget.totalSeconds! > 0) {
@@ -418,6 +432,9 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
 
   @override
   void dispose() {
+    for (final sub in _subs) {
+      sub.cancel();
+    }
     _player.stop();
     _player.dispose();
     AudioManagerService.setSpeakerphone(false);
@@ -441,7 +458,7 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
         await _player.play(UrlSource(widget.url));
       }
     } catch (e) {
-      _hasError = true;
+      if (mounted) setState(() => _hasError = true);
       await AudioManagerService.setSpeakerphone(false);
     } finally {
       if (mounted) setState(() => _isLoading = false);

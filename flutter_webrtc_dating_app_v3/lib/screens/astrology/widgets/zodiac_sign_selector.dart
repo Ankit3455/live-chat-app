@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
+import '../../../core/utils/astrology_utils.dart';
+
+/// Multi-select grid of the 12 signs. Values are canonical names ('Aries').
 class ZodiacSignSelector extends StatelessWidget {
   final List<String> selectedSigns;
   final Function(String) onToggle;
@@ -10,21 +13,6 @@ class ZodiacSignSelector extends StatelessWidget {
     required this.selectedSigns,
     required this.onToggle,
   }) : super(key: key);
-
-  static const List<Map<String, String>> zodiacSigns = [
-    {'name': 'Aries', 'emoji': '♈', 'value': 'aries'},
-    {'name': 'Taurus', 'emoji': '♉', 'value': 'taurus'},
-    {'name': 'Gemini', 'emoji': '♊', 'value': 'gemini'},
-    {'name': 'Cancer', 'emoji': '♋', 'value': 'cancer'},
-    {'name': 'Leo', 'emoji': '♌', 'value': 'leo'},
-    {'name': 'Virgo', 'emoji': '♍', 'value': 'virgo'},
-    {'name': 'Libra', 'emoji': '♎', 'value': 'libra'},
-    {'name': 'Scorpio', 'emoji': '♏', 'value': 'scorpio'},
-    {'name': 'Sagittarius', 'emoji': '♐', 'value': 'sagittarius'},
-    {'name': 'Capricorn', 'emoji': '♑', 'value': 'capricorn'},
-    {'name': 'Aquarius', 'emoji': '♒', 'value': 'aquarius'},
-    {'name': 'Pisces', 'emoji': '♓', 'value': 'pisces'},
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +44,13 @@ class ZodiacSignSelector extends StatelessWidget {
             mainAxisSpacing: 12,
             childAspectRatio: 1.1,
           ),
-          itemCount: zodiacSigns.length,
+          itemCount: AstrologyUtils.zodiacSigns.length,
           itemBuilder: (context, index) {
-            final sign = zodiacSigns[index];
-            final isSelected = selectedSigns.contains(sign['value']);
+            final sign = AstrologyUtils.zodiacSigns[index];
+            final isSelected = selectedSigns.contains(sign);
 
             return GestureDetector(
-              onTap: () => onToggle(sign['value']!),
+              onTap: () => onToggle(sign),
               child: Container(
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFF7B2CBF) : const Color(0xFF2D1B4E),
@@ -78,12 +66,12 @@ class ZodiacSignSelector extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      sign['emoji']!,
+                      AstrologyUtils.zodiacEmoji[sign] ?? '',
                       style: const TextStyle(fontSize: 32),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      sign['name']!,
+                      sign,
                       style: TextStyle(
                         color: isSelected
                             ? Colors.white
