@@ -210,7 +210,12 @@ class ChatMessage {
   Map<String, dynamic> toReplySnapshot() => {
         'id': id,
         'senderId': senderId,
-        'text': isDeleted ? '' : message,
+        // Legacy messages may exceed the rules' 2000-char replyTo.text cap.
+        'text': isDeleted
+            ? ''
+            : (message.length > maxLength
+                ? message.substring(0, maxLength)
+                : message),
         'type': type.name,
       };
 
