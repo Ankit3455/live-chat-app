@@ -7,7 +7,10 @@ class CarromStatsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ===== SAVE GAME RESULT =====
-  static Future<void> saveGameResult({
+  /// Writes stats, history and leaderboards in one transaction. Returns false
+  /// (and writes nothing) if `carrom_history/{matchId}` already exists, so the
+  /// result is counted once even if called twice.
+  static Future<bool> saveGameResult({
     required String odZ,
     required String odZName,
     required String? odZAvatar,
@@ -17,142 +20,94 @@ class CarromStatsService {
     required int opponentScore,
     required String matchId,
     int? gameDurationSeconds,
-  }) async {
-    final bool won = myScore > opponentScore;
-    final bool isDraw = myScore == opponentScore;
+    bool? won,
+    bool? isDraw,
+  }) {
+    final bool didWin = won ?? myScore > opponentScore;
+    final bool draw = isDraw ?? (won == null && myScore == opponentScore);
 
-    final batch = _firestore.batch();
+    final userRef = _firestore.collection('user_game_stats').doc(odZ);
+    final statsRef = userRef.collection('games').doc('carrom');
+    final historyRef = userRef.collection('carrom_history').doc(matchId);
+    final leaderboardRefs = _leaderboardRefs(odZ, DateTime.now());
 
-    // 1. Update User Stats
-    final statsRef = _firestore
-        .collection('user_game_stats')
-        .doc(odZ)
-        .collection('games')
-        .doc('carrom');
+    return _firestore.runTransaction<bool>((tx) async {
+      final history = await tx.get(historyRef);
+      if (history.exists) return false;
 
-    final statsSnap = await statsRef.get();
-    final currentStats = statsSnap.data() ?? {};
+      final statsSnap = await tx.get(statsRef);
+      final current = statsSnap.data() ?? {};
+      int read(String key) => (current[key] as num?)?.toInt() ?? 0;
 
-    final int currentWinStreak = currentStats['winStreak'] ?? 0;
-    final int bestWinStreak = currentStats['bestWinStreak'] ?? 0;
-    final int newWinStreak = won ? currentWinStreak + 1 : 0;
-    final int newBestStreak = newWinStreak > bestWinStreak ? newWinStreak : bestWinStreak;
+      final int newWinStreak = didWin ? read('winStreak') + 1 : 0;
+      final int bestWinStreak = read('bestWinStreak');
+      final int totalGames = read('totalGames') + 1;
+      final int wins = read('wins') + (didWin ? 1 : 0);
+      final int totalScore = read('totalScore') + myScore;
+      final int highScore =
+          myScore > read('highScore') ? myScore : read('highScore');
 
-    final int totalGames = (currentStats['totalGames'] ?? 0) + 1;
-    final int totalScore = (currentStats['totalScore'] ?? 0) + myScore;
-    final int highScore = myScore > (currentStats['highScore'] ?? 0)
-        ? myScore
-        : (currentStats['highScore'] ?? 0);
+      // 1. User Stats
+      tx.set(
+        statsRef,
+        {
+          'totalGames': totalGames,
+          'wins': wins,
+          'losses': read('losses') + (!didWin && !draw ? 1 : 0),
+          'draws': read('draws') + (draw ? 1 : 0),
+          'winStreak': newWinStreak,
+          'bestWinStreak':
+              newWinStreak > bestWinStreak ? newWinStreak : bestWinStreak,
+          'highScore': highScore,
+          'totalScore': totalScore,
+          'averageScore': (totalScore / totalGames).round(),
+          'lastPlayed': FieldValue.serverTimestamp(),
+          'rank': _calculateRank(totalGames, wins),
+        },
+        SetOptions(merge: true),
+      );
 
-    batch.set(statsRef, {
-      'totalGames': totalGames,
-      'wins': FieldValue.increment(won ? 1 : 0),
-      'losses': FieldValue.increment(!won && !isDraw ? 1 : 0),
-      'draws': FieldValue.increment(isDraw ? 1 : 0),
-      'winStreak': newWinStreak,
-      'bestWinStreak': newBestStreak,
-      'highScore': highScore,
-      'totalScore': totalScore,
-      'averageScore': (totalScore / totalGames).round(),
-      'lastPlayed': FieldValue.serverTimestamp(),
-      'rank': _calculateRank(totalGames, (currentStats['wins'] ?? 0) + (won ? 1 : 0)),
-    }, SetOptions(merge: true));
+      // 2. Match History (also the idempotency marker)
+      tx.set(historyRef, {
+        'opponentUid': opponentUid,
+        'opponentName': opponentName,
+        'myScore': myScore,
+        'opponentScore': opponentScore,
+        'won': didWin,
+        'isDraw': draw,
+        'duration': gameDurationSeconds ?? 0,
+        'playedAt': FieldValue.serverTimestamp(),
+      });
 
-    // 2. Save Match History
-    final historyRef = _firestore
-        .collection('user_game_stats')
-        .doc(odZ)
-        .collection('carrom_history')
-        .doc(matchId);
-
-    batch.set(historyRef, {
-      'opponentUid': opponentUid,
-      'opponentName': opponentName,
-      'myScore': myScore,
-      'opponentScore': opponentScore,
-      'won': won,
-      'isDraw': isDraw,
-      'duration': gameDurationSeconds ?? 0,
-      'playedAt': FieldValue.serverTimestamp(),
+      // 3. Leaderboards (daily, weekly, all-time)
+      final leaderboardData = {
+        'odZ': odZ,
+        'displayName': odZName,
+        'avatar': odZAvatar ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'score': FieldValue.increment(myScore),
+        'wins': FieldValue.increment(didWin ? 1 : 0),
+        'gamesPlayed': FieldValue.increment(1),
+      };
+      for (final ref in leaderboardRefs) {
+        tx.set(ref, leaderboardData, SetOptions(merge: true));
+      }
+      return true;
     });
-
-    // 3. Update Leaderboards
-    await _updateLeaderboards(
-      odZ: odZ,
-      displayName: odZName,
-      avatar: odZAvatar,
-      score: myScore,
-      won: won,
-    );
-
-    // Commit batch
-    await batch.commit();
   }
 
-  // ===== UPDATE LEADERBOARDS =====
-  static Future<void> _updateLeaderboards({
-    required String odZ,
-    required String displayName,
-    required String? avatar,
-    required int score,
-    required bool won,
-  }) async {
-    final now = DateTime.now();
+  static List<DocumentReference<Map<String, dynamic>>> _leaderboardRefs(
+    String odZ,
+    DateTime now,
+  ) {
     final dailyKey = '${now.year}-${now.month}-${now.day}';
     final weeklyKey = '${now.year}-W${_getWeekNumber(now)}';
-
-    final leaderboardData = {
-      'odZ': odZ,
-      'displayName': displayName,
-      'avatar': avatar ?? '',
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    // Daily Leaderboard
-    final dailyRef = _firestore
-        .collection('leaderboards')
-        .doc('carrom')
-        .collection('daily')
-        .doc(dailyKey)
-        .collection('users')
-        .doc(odZ);
-
-    await dailyRef.set({
-      ...leaderboardData,
-      'score': FieldValue.increment(score),
-      'wins': FieldValue.increment(won ? 1 : 0),
-      'gamesPlayed': FieldValue.increment(1),
-    }, SetOptions(merge: true));
-
-    // Weekly Leaderboard
-    final weeklyRef = _firestore
-        .collection('leaderboards')
-        .doc('carrom')
-        .collection('weekly')
-        .doc(weeklyKey)
-        .collection('users')
-        .doc(odZ);
-
-    await weeklyRef.set({
-      ...leaderboardData,
-      'score': FieldValue.increment(score),
-      'wins': FieldValue.increment(won ? 1 : 0),
-      'gamesPlayed': FieldValue.increment(1),
-    }, SetOptions(merge: true));
-
-    // All-Time Leaderboard
-    final allTimeRef = _firestore
-        .collection('leaderboards')
-        .doc('carrom')
-        .collection('allTime')
-        .doc(odZ);
-
-    await allTimeRef.set({
-      ...leaderboardData,
-      'score': FieldValue.increment(score),
-      'wins': FieldValue.increment(won ? 1 : 0),
-      'gamesPlayed': FieldValue.increment(1),
-    }, SetOptions(merge: true));
+    final root = _firestore.collection('leaderboards').doc('carrom');
+    return [
+      root.collection('daily').doc(dailyKey).collection('users').doc(odZ),
+      root.collection('weekly').doc(weeklyKey).collection('users').doc(odZ),
+      root.collection('allTime').doc(odZ),
+    ];
   }
 
   // ===== GET USER STATS =====

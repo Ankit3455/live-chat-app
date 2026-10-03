@@ -1,12 +1,20 @@
 // lib/feature/games/carrom/carrom_result_screen.dart
 // STATUS: UPDATED WITH STATS SAVING ✅
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../screens/chat/chat_screen.dart';
 import 'carrom_lobby_screen.dart';
+import 'carrom_match_screen.dart';
+import 'common/game_leaderboard_screen.dart';
 import 'services/carrom_stats_service.dart';
 import 'services/carrom_audio_service.dart';
+
+// Kept so existing imports of this file still resolve the leaderboard.
+export 'common/game_leaderboard_screen.dart' show CarromLeaderboardScreen;
 
 class CarromResultScreen extends StatefulWidget {
   final String matchId;
@@ -16,6 +24,13 @@ class CarromResultScreen extends StatefulWidget {
   final String opponentName;
   final int? gameDurationSeconds;
 
+  /// Set when the match has a decided winner (cleared board, forfeit or
+  /// timeout). Null falls back to comparing scores.
+  final String? winnerUid;
+
+  /// 'cleared', 'forfeit' or 'timeout'.
+  final String? finishReason;
+
   const CarromResultScreen({
     Key? key,
     required this.matchId,
@@ -24,6 +39,8 @@ class CarromResultScreen extends StatefulWidget {
     required this.opponentUid,
     required this.opponentName,
     this.gameDurationSeconds,
+    this.winnerUid,
+    this.finishReason,
   }) : super(key: key);
 
   @override
@@ -41,20 +58,42 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
 
-  bool get isWinner => widget.myScore > widget.opponentScore;
-  bool get isDraw => widget.myScore == widget.opponentScore;
+  bool get isWinner => widget.winnerUid != null
+      ? widget.winnerUid == _auth.currentUser?.uid
+      : widget.myScore > widget.opponentScore;
+  bool get isDraw =>
+      widget.winnerUid == null && widget.myScore == widget.opponentScore;
 
   bool _statsSaved = false;
   CarromStats? _myStats;
   bool _loadingStats = true;
+
+  // Rematch: both players must agree on the finished match doc.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _matchSub;
+  bool _rematchRequested = false;
+  bool _opponentWantsRematch = false;
+  bool _rematchCreating = false;
+  bool _rematchOpened = false;
+
+  DocumentReference<Map<String, dynamic>> get _matchRef => FirebaseFirestore
+      .instance
+      .collection('carrom_matches')
+      .doc(widget.matchId);
+
+  bool get _hasOpponent => widget.opponentUid.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _initAnimations();
     _playResultSound();
-    _saveStats();
-    _loadMyStats();
+    _saveThenLoadStats();
+    if (_hasOpponent) _listenRematch();
+  }
+
+  Future<void> _saveThenLoadStats() async {
+    await _saveStats();
+    await _loadMyStats();
   }
 
   void _initAnimations() {
@@ -103,7 +142,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     if (user == null) return;
 
     try {
-      await CarromStatsService.saveGameResult(
+      final saved = await CarromStatsService.saveGameResult(
         odZ: user.uid,
         odZName: user.displayName ?? 'Player',
         odZAvatar: user.photoURL,
@@ -113,11 +152,103 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         opponentScore: widget.opponentScore,
         matchId: widget.matchId,
         gameDurationSeconds: widget.gameDurationSeconds,
+        won: isWinner,
+        isDraw: isDraw,
       );
-      print('✅ Stats saved successfully');
+      if (!saved) debugPrint('Carrom stats already recorded for this match');
     } catch (e) {
-      print('❌ Error saving stats: $e');
+      debugPrint('Error saving Carrom stats: $e');
     }
+  }
+
+  void _listenRematch() {
+    final me = _auth.currentUser?.uid;
+    _matchSub = _matchRef.snapshots().listen((snap) {
+      final d = snap.data();
+      if (d == null || !mounted) return;
+      final rematch = Map<String, dynamic>.from(d['rematch'] ?? {});
+      setState(() {
+        _rematchRequested = rematch[me] == true;
+        _opponentWantsRematch = rematch[widget.opponentUid] == true;
+      });
+      final newId = d['rematchMatchId'] as String?;
+      if (newId != null) {
+        if (_rematchRequested) _openRematch(newId);
+      } else if (_rematchRequested && _opponentWantsRematch) {
+        _createRematch();
+      }
+    }, onError: (Object e) => debugPrint('Carrom rematch listener error: $e'));
+  }
+
+  Future<void> _requestRematch() async {
+    final me = _auth.currentUser?.uid;
+    if (me == null || _rematchRequested) return;
+    setState(() => _rematchRequested = true);
+    try {
+      await _matchRef.update({'rematch.$me': true});
+    } catch (e) {
+      debugPrint('Carrom rematch request failed: $e');
+      if (!mounted) return;
+      setState(() => _rematchRequested = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not send rematch request')),
+      );
+    }
+  }
+
+  /// Either client may create the new match; the transaction makes sure only
+  /// one is created. Colours swap: the previous guest hosts (white).
+  Future<void> _createRematch() async {
+    if (_rematchCreating) return;
+    _rematchCreating = true;
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final d = (await tx.get(_matchRef)).data();
+        if (d == null || d['rematchMatchId'] != null) return;
+        final rematch = Map<String, dynamic>.from(d['rematch'] ?? {});
+        final players = Map<String, dynamic>.from(d['players'] ?? {});
+        if (players.length < 2 ||
+            !players.keys.every((u) => rematch[u] == true)) {
+          return;
+        }
+        final oldHost = d['host'] as String?;
+        final newHost = players.keys.firstWhere(
+          (u) => u != oldHost,
+          orElse: () => players.keys.first,
+        );
+        final newRef =
+            FirebaseFirestore.instance.collection('carrom_matches').doc();
+        tx.set(newRef, {
+          'players': players,
+          'playerUids': players.keys.toList(),
+          'status': 'ready',
+          'host': newHost,
+          'turn': newHost,
+          'joined': <String, bool>{},
+          'createdAt': FieldValue.serverTimestamp(),
+          'boardState': null,
+          'lastMove': null,
+          'scores': {for (final u in players.keys) u: 0},
+          'moveSeq': 0,
+          'turnSeq': 0,
+          'rematchOf': widget.matchId,
+        });
+        tx.update(_matchRef, {'rematchMatchId': newRef.id});
+      });
+    } catch (e) {
+      debugPrint('Carrom rematch creation failed: $e');
+    } finally {
+      _rematchCreating = false;
+    }
+  }
+
+  void _openRematch(String matchId) {
+    if (_rematchOpened || !mounted) return;
+    _rematchOpened = true;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => CarromMatchScreen(matchId: matchId)),
+    );
   }
 
   Future<void> _loadMyStats() async {
@@ -141,6 +272,12 @@ class _CarromResultScreenState extends State<CarromResultScreen>
 
   @override
   void dispose() {
+    _matchSub?.cancel();
+    // Withdraw an unanswered rematch request when leaving.
+    final me = _auth.currentUser?.uid;
+    if (_rematchRequested && !_rematchOpened && me != null) {
+      _matchRef.update({'rematch.$me': false}).catchError((_) {});
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -159,10 +296,10 @@ class _CarromResultScreenState extends State<CarromResultScreen>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        _goToGameList();
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goToGameList();
       },
       child: Scaffold(
         body: Container(
@@ -518,34 +655,58 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: [
-            // Play Again
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _playAgain,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: _primaryColor,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+            // Rematch (needs both players) or a new opponent
+            if (_hasOpponent) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _rematchRequested ? null : _requestRematch,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: _primaryColor,
+                    disabledBackgroundColor: Colors.white.withOpacity(0.6),
+                    disabledForegroundColor: _primaryColor,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.replay, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        _rematchLabel(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.replay, size: 22),
-                    SizedBox(width: 10),
-                    Text(
-                      'PLAY AGAIN',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: _playAgain,
+                icon: const Icon(Icons.search, size: 20),
+                label: const Text(
+                  'NEW OPPONENT',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -559,7 +720,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
                   child: SizedBox(
                     height: 52,
                     child: OutlinedButton.icon(
-                      onPressed: _openChat,
+                      onPressed: _hasOpponent ? _openChat : null,
                       icon: const Icon(Icons.chat_bubble_outline, size: 20),
                       label: const Text(
                         'CHAT',
@@ -625,7 +786,21 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     );
   }
 
+  String _rematchLabel() {
+    if (_rematchRequested) return 'WAITING FOR OPPONENT...';
+    if (_opponentWantsRematch) return 'ACCEPT REMATCH';
+    return 'REMATCH';
+  }
+
   String _getSubtitle() {
+    if (widget.finishReason == 'forfeit') {
+      return isWinner ? 'Your opponent left the match.' : 'You left the match.';
+    }
+    if (widget.finishReason == 'timeout') {
+      return isWinner
+          ? 'Your opponent missed too many turns.'
+          : 'You missed too many turns.';
+    }
     if (isWinner) return 'Congratulations! Well played! 🎉';
     if (isDraw) return 'Great match! It\'s a tie! 🤝';
     return 'Better luck next time! 💪';
@@ -645,23 +820,11 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   }
 
   void _openChat() {
-    // TODO: Navigate to your chat screen
-    // Navigator.push(context, MaterialPageRoute(
-    //   builder: (_) => ChatScreen(userId: widget.opponentUid),
-    // ));
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.chat, color: Colors.white),
-            const SizedBox(width: 12),
-            Text('Opening chat with ${widget.opponentName}...'),
-          ],
-        ),
-        backgroundColor: Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    if (widget.opponentUid.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(otherUserId: widget.opponentUid),
       ),
     );
   }
@@ -675,21 +838,9 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     );
   }
 
+  // Lobby, match and game were replaced along the way, so the route below
+  // this one is the game list.
   void _goToGameList() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-}
-
-// Import this at top if not present:
-// Create this file in Step 3
-class CarromLeaderboardScreen extends StatelessWidget {
-  const CarromLeaderboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    // Placeholder - will be replaced in Step 3
-    return const Scaffold(
-      body: Center(child: Text('Leaderboard')),
-    );
+    Navigator.of(context).pop();
   }
 }
