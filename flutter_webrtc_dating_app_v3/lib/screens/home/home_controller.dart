@@ -29,6 +29,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _isLoading = true;
   bool _isLoadingMore = false;
+  DateTime? _loadMoreFailedAt;
   String? _error;
 
   // Bumped on every reload so a late page from an older load is dropped.
@@ -188,6 +189,11 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> loadMore() async {
     final feed = _feed;
     if (feed == null || _isLoading || _isLoadingMore || !feed.hasMore) return;
+    final failedAt = _loadMoreFailedAt;
+    if (failedAt != null &&
+        DateTime.now().difference(failedAt) < const Duration(seconds: 5)) {
+      return;
+    }
     final generation = _loadGeneration;
     _isLoadingMore = true;
     _notify();
@@ -199,8 +205,10 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
       );
       if (_disposed || generation != _loadGeneration) return;
       _allUsers = [..._allUsers, ...page];
+      _loadMoreFailedAt = null;
     } catch (e) {
       debugPrint('Discovery load more error: $e');
+      _loadMoreFailedAt = DateTime.now();
     }
     if (_disposed || generation != _loadGeneration) return;
     _isLoadingMore = false;

@@ -69,6 +69,13 @@ class IceServers {
     return buildConfiguration(servers, relayOnly: relayOnly);
   }
 
+  /// Drops cached TURN credentials (call on sign-out).
+  static void clearCache() {
+    _cachedServers = null;
+    _cachedUntil = null;
+    _lastFailureAt = null;
+  }
+
   static Future<List<Map<String, dynamic>>?> _remoteServers() async {
     final now = DateTime.now();
     if (_cachedServers != null &&

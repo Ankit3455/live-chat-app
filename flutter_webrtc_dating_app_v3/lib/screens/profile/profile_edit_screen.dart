@@ -27,6 +27,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late TextEditingController _locationController;
 
   bool _isSaving = false;
+  Stream<DocumentSnapshot>? _voiceDocStream;
 
   @override
   void initState() {
@@ -232,10 +233,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return VoiceIntroSection(user: base);
     }
 
-    final docRef = FirebaseFirestore.instance.collection('users').doc(base.uid);
+    _voiceDocStream ??=
+        FirebaseFirestore.instance.collection('users').doc(base.uid).snapshots();
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: docRef.snapshots(),
+      stream: _voiceDocStream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Padding(

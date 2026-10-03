@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/utils/auth_validators.dart';
 import 'notification/push_token_service.dart';
+import 'call/webrtc/ice_servers.dart';
 import 'presence_service.dart';
 
 /// Where a signed-in (or signed-out) user should land on app start.
@@ -85,6 +86,7 @@ class SessionService {
   Future<void> _endLocalSession({required bool markOffline}) async {
     await PresenceService.instance.stop(markOffline: markOffline);
     await unbindPushIdentity();
+    IceServers.clearCache();
     _uid = null;
   }
 

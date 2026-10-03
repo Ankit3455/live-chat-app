@@ -296,8 +296,9 @@ class CallService {
       }
       _mutualByCall[call.id] = consent.mutual;
     } catch (e) {
-      // Lookup failure (offline): let it ring; rules/server still apply.
+      // Consent can't be confirmed (e.g. offline): don't ring.
       debugPrint('CallService: consent check failed: $e');
+      return null;
     }
 
     if (isBusy) {
