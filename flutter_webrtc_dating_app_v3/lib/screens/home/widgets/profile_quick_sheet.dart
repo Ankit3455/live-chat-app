@@ -11,6 +11,7 @@ import '../../../models/user_model.dart';
 import '../../../services/audio_manager_service.dart';
 import '../../../widgets/custom_button.dart';
 import '../../astrology/widgets/compatibility_chip.dart';
+import '../../../core/constants/app_colors.dart';
 
 class ProfileQuickSheet extends StatelessWidget {
   const ProfileQuickSheet({
@@ -29,7 +30,7 @@ class ProfileQuickSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Solid fallback to avoid runtime lookup on AppColors
-    final Color sheetColor = const Color(0xFF1C1033);
+    final Color sheetColor = AppColors.surfaceRaised;
 
     return Material(
       color: Colors.transparent,

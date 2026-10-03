@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'tour_prefs.dart';
+import '../../core/constants/app_colors.dart';
 
 /// Tour target keys. Owned by a HomeScreen instance so two mounted
 /// HomeScreens never share a GlobalKey (DEST-057).
@@ -147,7 +148,7 @@ class HomeOnboarding {
 
     _tutorialCoachMark = TutorialCoachMark(
       targets: targets,
-      colorShadow: const Color(0xFF0D0221),
+      colorShadow: AppColors.backgroundDarkest,
       paddingFocus: 10,
       opacityShadow: 0.9,
       hideSkip: false,
@@ -219,7 +220,7 @@ class HomeOnboarding {
                   stepNumber: 1,
                   totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
-                  iconColor: const Color(0xFFFFD700),
+                  iconColor: AppColors.gold,
                   title: "Your Top Matches ✨",
                   description:
                   "These are your best matches based on compatibility! Scroll horizontally to discover amazing people.",
@@ -271,7 +272,7 @@ class HomeOnboarding {
                   stepNumber: 2 + stepOffset,
                   totalSteps: totalSteps,
                   icon: Icons.touch_app_rounded,
-                  iconColor: const Color(0xFF00E676),
+                  iconColor: AppColors.online,
                   title: "Tap to Start Chatting 💬",
                   description:
                   "Single tap on any profile to instantly open a chat. Break the ice and say hello!",
@@ -378,18 +379,18 @@ class HomeOnboarding {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2D1B4E),
-            Color(0xFF1A0E2E),
+            AppColors.surfaceCard,
+            AppColors.backgroundDeep,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.4),
+          color: AppColors.brandPurple.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.25),
+            color: AppColors.brandPurple.withOpacity(0.25),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -420,12 +421,12 @@ class HomeOnboarding {
                     decoration: BoxDecoration(
                       gradient: isCompleted
                           ? const LinearGradient(
-                        colors: [Color(0xFF7B2CBF), Color(0xFF9C27B0)],
+                        colors: [AppColors.brandPurple, AppColors.brandMagenta],
                       )
                           : null,
                       color: isCompleted
                           ? null
-                          : const Color(0xFF7B2CBF).withOpacity(0.25),
+                          : AppColors.brandPurple.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
@@ -436,13 +437,13 @@ class HomeOnboarding {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                  color: AppColors.brandPurple.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   "$stepNumber/$totalSteps",
                   style: const TextStyle(
-                    color: Color(0xFFB39DDB),
+                    color: AppColors.lavender,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -496,12 +497,14 @@ class HomeOnboarding {
               if (onSkipTap != null)
                 GestureDetector(
                   onTap: onSkipTap,
+                  behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 8),
                     child: Text(
                       "Skip",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -520,15 +523,15 @@ class HomeOnboarding {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isLastStep
-                          ? [const Color(0xFF00E676), const Color(0xFF00C853)]
-                          : [const Color(0xFF7B2CBF), const Color(0xFF9C27B0)],
+                          ? [AppColors.online, AppColors.onlineDeep]
+                          : [AppColors.brandPurple, AppColors.brandMagenta],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
                         color: (isLastStep
-                            ? const Color(0xFF00E676)
-                            : const Color(0xFF7B2CBF))
+                            ? AppColors.online
+                            : AppColors.brandPurple)
                             .withOpacity(0.4),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
@@ -603,7 +606,7 @@ class HomeOnboarding {
             'You can replay the tutorial anytime from Settings',
             style: TextStyle(color: Colors.white),
           ),
-          backgroundColor: const Color(0xFF2D1B4E),
+          backgroundColor: AppColors.surfaceCard,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -683,16 +686,16 @@ class _CompletionDialogState extends State<_CompletionDialog>
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF2D1B4E), Color(0xFF1A0E2E)],
+              colors: [AppColors.surfaceCard, AppColors.backgroundDeep],
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF00E676).withOpacity(0.5),
+              color: AppColors.online.withOpacity(0.5),
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E676).withOpacity(0.3),
+                color: AppColors.online.withOpacity(0.3),
                 blurRadius: 25,
                 spreadRadius: 3,
               ),
@@ -705,12 +708,12 @@ class _CompletionDialogState extends State<_CompletionDialog>
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E676).withOpacity(0.15),
+                  color: AppColors.online.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.celebration_rounded,
-                  color: Color(0xFF00E676),
+                  color: AppColors.online,
                   size: 40,
                 ),
               ),
@@ -748,12 +751,12 @@ class _CompletionDialogState extends State<_CompletionDialog>
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF00E676), Color(0xFF00C853)],
+                      colors: [AppColors.online, AppColors.onlineDeep],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF00E676).withOpacity(0.4),
+                        color: AppColors.online.withOpacity(0.4),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),

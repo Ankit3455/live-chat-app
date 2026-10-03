@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:availchat/models/user_model.dart';
+import '../../../core/constants/app_colors.dart';
 
 class ProfileStatsRow extends StatelessWidget {
   final UserModel user;
@@ -11,7 +12,7 @@ class ProfileStatsRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D1B4E),
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -51,7 +52,7 @@ class ProfileStatsRow extends StatelessWidget {
   }) {
     return Column(
       children: [
-        Icon(icon, color: const Color(0xFF7B2CBF), size: 28),
+        Icon(icon, color: AppColors.brandPurpleLight, size: 28),
         const SizedBox(height: 8),
         Text(
           value,
@@ -65,7 +66,7 @@ class ProfileStatsRow extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFFB39DDB),
+            color: AppColors.lavender,
             fontSize: 12,
           ),
         ),
@@ -77,7 +78,7 @@ class ProfileStatsRow extends StatelessWidget {
     return Container(
       width: 1,
       height: 50,
-      color: const Color(0xFF7B2CBF).withOpacity(0.3),
+      color: AppColors.brandPurple.withOpacity(0.3),
     );
   }
 }

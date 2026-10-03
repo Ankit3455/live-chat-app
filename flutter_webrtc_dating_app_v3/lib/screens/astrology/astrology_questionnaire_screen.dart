@@ -7,11 +7,13 @@ import 'package:availchat/core/utils/astrology_view_model.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
 import 'package:availchat/screens/astrology/widgets/astrology_progress_header.dart';
 import 'package:availchat/screens/astrology/widgets/zodiac_sign_selector.dart';
+import '../../core/constants/app_colors.dart';
 
-const _bg = Color(0xFF1A0E2E);
-const _card = Color(0xFF2D1B4E);
-const _accent = Color(0xFF7B2CBF);
-const _muted = Color(0xFFB39DDB);
+const _bg = AppColors.backgroundDeep;
+const _card = AppColors.surfaceCard;
+const _accent = AppColors.brandPurple;
+const _accentText = AppColors.brandPurpleLight;
+const _muted = AppColors.lavender;
 
 /// Astrology profile: intro + 2 questions in one PageView (DEST-100).
 /// Skip saves what was answered and closes; Save pops back to the caller
@@ -178,7 +180,7 @@ class _AstrologyQuestionnaireScreenState
           Text(
             'Discover Your Cosmic Match',
             style: theme.headlineMedium?.copyWith(
-              color: _accent,
+              color: _accentText,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
@@ -317,20 +319,20 @@ class _AstrologyQuestionnaireScreenState
             ),
             child: Row(
               children: [
-                Icon(icon, color: selected ? _accent : _muted, size: 28),
+                Icon(icon, color: selected ? _accentText : _muted, size: 28),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     label,
                     style: TextStyle(
-                      color: selected ? _accent : Colors.white,
+                      color: selected ? _accentText : Colors.white,
                       fontSize: 18,
                       fontWeight:
                           selected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
-                if (selected) const Icon(Icons.check_circle, color: _accent),
+                if (selected) const Icon(Icons.check_circle, color: _accentText),
               ],
             ),
           ),

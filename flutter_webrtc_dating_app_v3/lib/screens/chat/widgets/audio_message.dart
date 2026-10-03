@@ -150,11 +150,17 @@ class _AudioMessageState extends State<AudioMessage> {
       child: Row(
         children: [
           // Play/Pause Button
-          GestureDetector(
+          Semantics(
+            button: true,
+            enabled: playable,
+            label: !playable
+                ? 'Voice message unavailable'
+                : (_isPlaying ? 'Pause voice message' : 'Play voice message'),
+            child: GestureDetector(
             onTap: playable ? _togglePlay : null,
             child: Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: playable
                     ? AppColors.purplePrimary
@@ -179,6 +185,7 @@ class _AudioMessageState extends State<AudioMessage> {
                 size: 26,
               ),
             ),
+          ),
           ),
 
           const SizedBox(width: 10),
@@ -233,7 +240,7 @@ class _AudioMessageState extends State<AudioMessage> {
           // Mic icon
           Icon(
             Icons.mic_rounded,
-            color: AppColors.purplePrimary.withOpacity(0.6),
+            color: AppColors.brandPurpleLight.withOpacity(0.6),
             size: 18,
           ),
         ],

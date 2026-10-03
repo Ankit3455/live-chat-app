@@ -250,12 +250,12 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             side: const BorderSide(
-                              color: AppColors.purpleSecondary,
+                              color: AppColors.brandPurpleLight,
                             ),
                           ),
                           child: const Text(
                             'Back',
-                            style: TextStyle(color: AppColors.purpleSecondary),
+                            style: TextStyle(color: AppColors.brandPurpleLight),
                           ),
                         ),
                       ),

@@ -1,3 +1,4 @@
+import '../core/constants/app_colors.dart';
   // lib/widgets/user_avatar.dart
   import 'package:flutter/material.dart';
   import 'package:cached_network_image/cached_network_image.dart';
@@ -79,7 +80,7 @@
           height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: const Color(0xFF7B2CBF), width: 2),
+            border: Border.all(color: AppColors.brandPurple, width: 2),
           ),
           child: content,
         ),
@@ -91,7 +92,7 @@
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: Center(
@@ -112,7 +113,7 @@
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: const Center(

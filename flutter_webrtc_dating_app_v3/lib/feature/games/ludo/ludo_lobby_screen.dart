@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'services/ludo_game_service.dart';
 import 'ludo_wrapper_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class LudoLobbyScreen extends StatefulWidget {
   const LudoLobbyScreen({Key? key}) : super(key: key);
@@ -296,7 +297,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A0E2E), Color(0xFF2D1B4E)],
+            colors: [AppColors.backgroundDeep, AppColors.surfaceCard],
           ),
         ),
         child: SafeArea(
@@ -324,6 +325,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () {
                 _cancelSearch();
@@ -511,7 +513,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                       style: TextStyle(
                         color: _selectedPlayerCount == 2
                             ? Colors.white70
-                            : Colors.white38,
+                            : Colors.white60,
                         fontSize: 12,
                       ),
                     ),
@@ -558,7 +560,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                       style: TextStyle(
                         color: _selectedPlayerCount == 4
                             ? Colors.white70
-                            : Colors.white38,
+                            : Colors.white60,
                         fontSize: 12,
                       ),
                     ),

@@ -14,6 +14,7 @@ import '../../features/onboarding/home_onboarding.dart';
 import '../../features/onboarding/tour_prefs.dart';
 import 'blocked_users_screen.dart';
 import 'discovery_settings_screen.dart';
+import '../../core/constants/app_colors.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -22,11 +23,11 @@ class SettingsScreen extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         title: const Text('Sign Out', style: TextStyle(color: Colors.white)),
         content: const Text(
           'Are you sure you want to sign out?',
-          style: TextStyle(color: Color(0xFFB39DDB)),
+          style: TextStyle(color: AppColors.lavender),
         ),
         actions: [
           TextButton(
@@ -62,10 +63,10 @@ class SettingsScreen extends StatelessWidget {
         false;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         elevation: 0,
       ),
       body: ListView(
@@ -133,7 +134,7 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.play_circle_outline,
             title: 'View App Tutorial',
             subtitle: 'Learn how to use the app',
-            iconColor: const Color(0xFF7B2CBF),
+            iconColor: AppColors.brandPurpleLight,
             showBadge: true,
             badgeText: 'GUIDE',
             onTap: () => _showTutorial(context),
@@ -231,7 +232,7 @@ class SettingsScreen extends StatelessWidget {
             child: Text(
               'AvailChat v1.0.0',
               style: TextStyle(
-                color: const Color(0xFFB39DDB).withOpacity(0.5),
+                color: AppColors.lavender.withOpacity(0.5),
                 fontSize: 12,
               ),
             ),
@@ -299,7 +300,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF7B2CBF),
+          backgroundColor: AppColors.brandPurple,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -326,13 +327,13 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         title: Row(
           children: const [
-            Icon(Icons.bug_report, color: Color(0xFF7B2CBF)),
+            Icon(Icons.bug_report, color: AppColors.brandPurpleLight),
             SizedBox(width: 12),
             Text(
               'Tour Debug Info',
@@ -343,7 +344,7 @@ class SettingsScreen extends StatelessWidget {
         content: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A0E2E),
+            color: AppColors.backgroundDeep,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -356,7 +357,7 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     Text(
                       e.key,
-                      style: const TextStyle(color: Color(0xFFB39DDB)),
+                      style: const TextStyle(color: AppColors.lavender),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -364,7 +365,7 @@ class SettingsScreen extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                        color: AppColors.brandPurple.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -412,7 +413,7 @@ class SettingsScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -430,7 +431,7 @@ class SettingsScreen extends StatelessWidget {
           'This permanently deletes your profile, photos, voice intro, game '
           'stats and sign-in. Messages you already sent stay in the other '
           'person\'s chat and show as "Deleted user". This cannot be undone.',
-          style: TextStyle(color: Color(0xFFB39DDB), height: 1.5),
+          style: TextStyle(color: AppColors.lavender, height: 1.5),
         ),
         actions: [
           TextButton(
@@ -463,7 +464,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (_) => const PopScope(
         canPop: false,
         child: AlertDialog(
-          backgroundColor: Color(0xFF2D1B4E),
+          backgroundColor: AppColors.surfaceCard,
           content: Row(
             children: [
               CircularProgressIndicator(),
@@ -526,7 +527,7 @@ class SettingsScreen extends StatelessWidget {
     return showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         title: const Text(
           'Confirm your password',
           style: TextStyle(color: Colors.white),
@@ -538,7 +539,7 @@ class SettingsScreen extends StatelessWidget {
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             hintText: 'Password',
-            hintStyle: TextStyle(color: Color(0xFFB39DDB)),
+            hintStyle: TextStyle(color: AppColors.lavender),
           ),
           onSubmitted: (v) => Navigator.pop(dialogContext, v),
         ),
@@ -564,7 +565,7 @@ class SettingsScreen extends StatelessWidget {
   // ===========================================================================
 
   Widget _buildSectionHeader(String title, {bool isWarning = false, bool isDev = false}) {
-    Color color = const Color(0xFFB39DDB);
+    Color color = AppColors.lavender;
     if (isWarning) color = Colors.red;
     if (isDev) color = Colors.grey.withOpacity(0.5);
 
@@ -599,10 +600,10 @@ class SettingsScreen extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(0xFF7B2CBF).withOpacity(0.1),
+            color: AppColors.brandPurple.withOpacity(0.1),
           ),
         ),
         child: ListTile(
@@ -610,12 +611,12 @@ class SettingsScreen extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (iconColor ?? const Color(0xFF7B2CBF)).withOpacity(0.15),
+              color: (iconColor ?? AppColors.brandPurple).withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               icon,
-              color: iconColor ?? titleColor ?? const Color(0xFF7B2CBF),
+              color: iconColor ?? titleColor ?? AppColors.brandPurpleLight,
               size: 22,
             ),
           ),
@@ -636,7 +637,7 @@ class SettingsScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF7B2CBF), Color(0xFF9C27B0)],
+                      colors: [AppColors.brandPurple, AppColors.brandMagenta],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -655,14 +656,14 @@ class SettingsScreen extends StatelessWidget {
           subtitle: Text(
             subtitle,
             style: const TextStyle(
-              color: Color(0xFFB39DDB),
+              color: AppColors.lavender,
               fontSize: 12,
             ),
           ),
           trailing: enabled && showChevron && onTap != null
               ? Icon(
                   Icons.chevron_right,
-                  color: titleColor ?? const Color(0xFFB39DDB),
+                  color: titleColor ?? AppColors.lavender,
                 )
               : null,
           onTap: enabled ? onTap : null,
@@ -775,23 +776,23 @@ class _NotificationSettingsTilesState
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D1B4E),
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.1),
+          color: AppColors.brandPurple.withOpacity(0.1),
         ),
       ),
       child: SwitchListTile(
         value: value ?? true,
         onChanged: value == null || _saving ? null : onChanged,
-        activeColor: const Color(0xFF7B2CBF),
+        activeColor: AppColors.brandPurple,
         secondary: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF7B2CBF).withOpacity(0.15),
+            color: AppColors.brandPurple.withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: const Color(0xFF7B2CBF), size: 22),
+          child: Icon(icon, color: AppColors.brandPurpleLight, size: 22),
         ),
         title: Text(
           title,
@@ -802,7 +803,7 @@ class _NotificationSettingsTilesState
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(color: Color(0xFFB39DDB), fontSize: 12),
+          style: const TextStyle(color: AppColors.lavender, fontSize: 12),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 
 class AstrologyProgressHeader extends StatelessWidget {
   final int currentStep;
@@ -25,6 +26,7 @@ class AstrologyProgressHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: onBack ?? () => Navigator.maybePop(context),
             ),
@@ -34,7 +36,7 @@ class AstrologyProgressHeader extends StatelessWidget {
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    color: Color(0xFFB39DDB),
+                    color: AppColors.lavender,
                     fontSize: 16,
                   ),
                 ),
@@ -50,7 +52,7 @@ class AstrologyProgressHeader extends StatelessWidget {
               Text(
                 'Step $currentStep of $totalSteps',
                 style: const TextStyle(
-                  color: Color(0xFFB39DDB),
+                  color: AppColors.lavender,
                   fontSize: 14,
                 ),
               ),
@@ -59,8 +61,8 @@ class AstrologyProgressHeader extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: currentStep / totalSteps,
-                  backgroundColor: const Color(0xFF2D1B4E),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7B2CBF)),
+                  backgroundColor: AppColors.surfaceCard,
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brandPurple),
                   minHeight: 6,
                 ),
               ),

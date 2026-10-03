@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dart';
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileCompletionScreen extends StatefulWidget {
   const ProfileCompletionScreen({Key? key}) : super(key: key);
@@ -200,10 +201,10 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Complete Your Profile'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         actions: [
           Center(
             child: Padding(
@@ -211,7 +212,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
               child: Text(
                 '$_completionPercentage%',
                 style: const TextStyle(
-                  color: Color(0xFF7B2CBF),
+                  color: AppColors.brandPurpleLight,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -231,8 +232,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF7B2CBF).withOpacity(0.2),
-                    const Color(0xFF7B2CBF).withOpacity(0.05),
+                    AppColors.brandPurple.withOpacity(0.2),
+                    AppColors.brandPurple.withOpacity(0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
@@ -253,7 +254,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                       Text(
                         '$_completionPercentage%',
                         style: const TextStyle(
-                          color: Color(0xFF7B2CBF),
+                          color: AppColors.brandPurpleLight,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                         ),
@@ -265,9 +266,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
                       value: _completionPercentage / 100,
-                      backgroundColor: const Color(0xFF2D1B4E),
+                      backgroundColor: AppColors.surfaceCard,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF7B2CBF)),
+                          AppColors.brandPurple),
                       minHeight: 10,
                     ),
                   ),
@@ -277,7 +278,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                         ? '🎉 Your profile is complete!'
                         : 'Complete optional sections to boost your profile!',
                     style: const TextStyle(
-                      color: Color(0xFFB39DDB),
+                      color: AppColors.lavender,
                       fontSize: 14,
                     ),
                   ),
@@ -305,11 +306,11 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E),
+                  color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isCompleted
-                        ? const Color(0xFF7B2CBF)
+                        ? AppColors.brandPurple
                         : Colors.transparent,
                     width: 2,
                   ),
@@ -344,7 +345,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF7B2CBF).withOpacity(0.3),
+                              color: AppColors.brandPurple.withOpacity(0.3),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -361,13 +362,13 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     subtitle: Text(
                       section.description,
                       style: const TextStyle(
-                        color: Color(0xFFB39DDB),
+                        color: AppColors.lavender,
                         fontSize: 14,
                       ),
                     ),
                     trailing: isCompleted
                         ? const Icon(Icons.check_circle,
-                            color: Color(0xFF7B2CBF))
+                            color: AppColors.brandPurpleLight)
                         : const Icon(Icons.expand_more, color: Colors.white),
                     children: [
                       Padding(
@@ -399,9 +400,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                                     ? null
                                     : () => _saveSection(section.title, questions),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF7B2CBF),
+                                  backgroundColor: AppColors.brandPurple,
                                   disabledBackgroundColor:
-                                      const Color(0xFF2D1B4E),
+                                      AppColors.surfaceCard,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(28),
                                   ),

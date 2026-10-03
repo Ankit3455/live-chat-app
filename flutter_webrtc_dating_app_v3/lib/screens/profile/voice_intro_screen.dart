@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/voice/voice_record_sheet.dart';
+import '../../core/constants/app_colors.dart';
 
 /// A lightweight, focused screen that explains
 /// why voice intros matter and lets the user record one.
@@ -31,7 +32,7 @@ class VoiceIntroScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Solid fallback colors to avoid depending on external theme constants.
-    const bg = Color(0xFF1C1033);
+    const bg = AppColors.surfaceRaised;
     const headline = Colors.white;
     const sub = Colors.white70;
 
@@ -111,7 +112,7 @@ class VoiceIntroScreen extends StatelessWidget {
                           child: ElevatedButton.icon(
                             onPressed: () => _openRecorder(context),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF7B2CBF),
+                              backgroundColor: AppColors.brandPurple,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                             icon: const Icon(

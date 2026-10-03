@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_dimens.dart';
 
-/// App-wide theme converted from themes.xml and style.xml
+/// App-wide theme: one Destined palette (dark purple + pink glow).
 class AppTheme {
+  /// Montserrat loaded through google_fonts (it is not bundled as an asset).
+  static final String? fontFamily = GoogleFonts.montserrat().fontFamily;
+
   /// Main dark theme for the app
   static ThemeData get darkTheme {
-    return ThemeData(
+    final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       
       // Primary colors
       primaryColor: AppColors.purplePrimary,
@@ -17,10 +22,17 @@ class AppTheme {
       
       // Color scheme
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.purplePrimary,
+        primary: AppColors.brandPurple,
+        primaryContainer: AppColors.purplePressed,
+        onPrimaryContainer: AppColors.white,
         secondary: AppColors.purpleSecondary,
-        surface: AppColors.inputBackground,
+        tertiary: AppColors.brandPink,
+        onTertiary: AppColors.white,
+        surface: AppColors.surfaceCard,
+        surfaceContainerHighest: AppColors.inputBackground,
+        onSurfaceVariant: AppColors.lavender,
         background: AppColors.appBackground,
+        outline: AppColors.lavender,
         error: AppColors.dangerRed,
         onPrimary: AppColors.white,
         onSecondary: AppColors.white,
@@ -31,7 +43,8 @@ class AppTheme {
       
       // AppBar theme
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.purpleSecondary,
+        backgroundColor: AppColors.surfaceCard,
+        foregroundColor: AppColors.white,
         elevation: 0,
         centerTitle: true,
         systemOverlayStyle: SystemUiOverlayStyle(
@@ -47,7 +60,6 @@ class AppTheme {
           color: AppColors.white,
           fontSize: AppDimens.textSizeTitleLarge,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Montserrat',
         ),
       ),
       
@@ -81,14 +93,13 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: AppDimens.textSizeBodyLarge,
             fontWeight: FontWeight.bold,
-            fontFamily: 'Montserrat',
           ),
         ),
       ),
       
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.purpleSecondary,
+          foregroundColor: AppColors.brandPurpleLight,
           padding: const EdgeInsets.symmetric(
             vertical: AppDimens.paddingMedium,
             horizontal: AppDimens.paddingNormal,
@@ -96,15 +107,14 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: AppDimens.textSizeBody,
             fontWeight: FontWeight.w600,
-            fontFamily: 'Montserrat',
           ),
         ),
       ),
       
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.purpleSecondary,
-          side: const BorderSide(color: AppColors.purpleSecondary, width: 2),
+          foregroundColor: AppColors.brandPurpleLight,
+          side: const BorderSide(color: AppColors.brandPurpleLight, width: 2),
           padding: const EdgeInsets.symmetric(
             vertical: AppDimens.paddingNormal,
             horizontal: AppDimens.paddingLarge,
@@ -122,12 +132,10 @@ class AppTheme {
         hintStyle: const TextStyle(
           color: AppColors.hintPurple,
           fontSize: AppDimens.textSizeBody,
-          fontFamily: 'Montserrat',
         ),
         labelStyle: const TextStyle(
           color: AppColors.hintPurple,
           fontSize: AppDimens.textSizeBody,
-          fontFamily: 'Montserrat',
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimens.borderRadiusMedium),
@@ -136,7 +144,7 @@ class AppTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimens.borderRadiusMedium),
           borderSide: const BorderSide(
-            color: AppColors.purpleSecondary,
+            color: AppColors.brandPurpleLight,
             width: 2,
           ),
         ),
@@ -168,11 +176,9 @@ class AppTheme {
         selectedLabelStyle: TextStyle(
           fontSize: AppDimens.textSizeCaption,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Montserrat',
         ),
         unselectedLabelStyle: TextStyle(
           fontSize: AppDimens.textSizeCaption,
-          fontFamily: 'Montserrat',
         ),
         type: BottomNavigationBarType.fixed,
         elevation: 8,
@@ -197,46 +203,38 @@ class AppTheme {
           fontSize: AppDimens.textSizeDisplay,
           fontWeight: FontWeight.bold,
           color: AppColors.white,
-          fontFamily: 'Montserrat',
         ),
         displayMedium: TextStyle(
           fontSize: AppDimens.textSizeHeadline,
           fontWeight: FontWeight.bold,
           color: AppColors.white,
-          fontFamily: 'Montserrat',
         ),
         headlineMedium: TextStyle(
           fontSize: AppDimens.textSizeTitleLarge,
           fontWeight: FontWeight.w600,
           color: AppColors.white,
-          fontFamily: 'Montserrat',
         ),
         titleLarge: TextStyle(
           fontSize: AppDimens.textSizeTitle,
           fontWeight: FontWeight.w600,
           color: AppColors.white,
-          fontFamily: 'Montserrat',
         ),
         titleMedium: TextStyle(
           fontSize: AppDimens.textSizeBodyLarge,
           fontWeight: FontWeight.w500,
           color: AppColors.white,
-          fontFamily: 'Montserrat',
         ),
         bodyLarge: TextStyle(
           fontSize: AppDimens.textSizeBodyLarge,
           color: AppColors.inputTextWhite,
-          fontFamily: 'Montserrat',
         ),
         bodyMedium: TextStyle(
           fontSize: AppDimens.textSizeBody,
           color: AppColors.inputTextWhite,
-          fontFamily: 'Montserrat',
         ),
         bodySmall: TextStyle(
           fontSize: AppDimens.textSizeCaption,
           color: AppColors.hintPurple,
-          fontFamily: 'Montserrat',
         ),
       ),
       
@@ -245,9 +243,31 @@ class AppTheme {
         color: AppColors.white,
         size: AppDimens.iconSizeNormal,
       ),
-      
-      // Font family
-      fontFamily: 'Montserrat',
+
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(48, 48),
+        ),
+      ),
+
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(AppDimens.borderRadiusSmall),
+        ),
+        textStyle: const TextStyle(color: AppColors.white, fontSize: 13),
+      ),
+
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.brandPurpleLight,
+      ),
+
+      fontFamily: fontFamily,
+    );
+
+    return base.copyWith(
+      textTheme: GoogleFonts.montserratTextTheme(base.textTheme),
+      primaryTextTheme: GoogleFonts.montserratTextTheme(base.primaryTextTheme),
     );
   }
   
@@ -255,26 +275,22 @@ class AppTheme {
   static const TextStyle interestTagStyle = TextStyle(
     color: AppColors.white,
     fontSize: AppDimens.textSizeBody,
-    fontFamily: 'Montserrat',
   );
   
   static const TextStyle settingsSectionTitleStyle = TextStyle(
     color: AppColors.hintPurple,
     fontSize: AppDimens.textSizeTitle,
     fontWeight: FontWeight.bold,
-    fontFamily: 'Montserrat',
   );
   
   static const TextStyle settingsCardTitleStyle = TextStyle(
     color: AppColors.inputTextWhite,
     fontSize: AppDimens.textSizeBodyLarge,
-    fontFamily: 'Montserrat',
   );
   
   static const TextStyle settingsCardSubtitleStyle = TextStyle(
     color: AppColors.hintPurple,
     fontSize: AppDimens.textSizeBody,
-    fontFamily: 'Montserrat',
   );
   
   /// Custom decoration for interest tags

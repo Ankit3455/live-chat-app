@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/constants/app_colors.dart';
 
 enum ButtonType { primary, outline, text }
 enum ButtonSize { small, medium, large }
@@ -92,7 +93,7 @@ class _CustomButtonState extends State<CustomButton>
 
   List<Color> get _gradientColors {
     return widget.gradientColors ??
-        [const Color(0xFF9333EA), const Color(0xFFEC4899)];
+        [AppColors.brandViolet, AppColors.brandPink];
   }
 
   bool get _isDisabled => widget.onPressed == null || widget.isLoading;
@@ -120,12 +121,16 @@ class _CustomButtonState extends State<CustomButton>
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onTapCancel: _onTapCancel,
-        onTap: _onTap,
-        child: _buildButton(),
+      child: Semantics(
+        button: true,
+        enabled: !_isDisabled,
+        child: GestureDetector(
+          onTapDown: _onTapDown,
+          onTapUp: _onTapUp,
+          onTapCancel: _onTapCancel,
+          onTap: _onTap,
+          child: _buildButton(),
+        ),
       ),
     );
   }
@@ -144,7 +149,8 @@ class _CustomButtonState extends State<CustomButton>
   Widget _buildPrimaryButton() {
     return Container(
       width: widget.width ?? double.infinity,
-      height: _height,
+      constraints: BoxConstraints(minHeight: _height),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
         gradient: _isDisabled
             ? LinearGradient(
@@ -173,7 +179,8 @@ class _CustomButtonState extends State<CustomButton>
   Widget _buildOutlineButton() {
     return Container(
       width: widget.width ?? double.infinity,
-      height: _height,
+      constraints: BoxConstraints(minHeight: _height),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
@@ -191,9 +198,9 @@ class _CustomButtonState extends State<CustomButton>
   }
 
   Widget _buildTextButton() {
-    return SizedBox(
+    return Container(
       width: widget.width,
-      height: _height,
+      constraints: BoxConstraints(minHeight: _height),
       child: Center(
         child: _buildContent(
           _isDisabled ? Colors.grey : _gradientColors.first,
@@ -220,12 +227,15 @@ class _CustomButtonState extends State<CustomButton>
         children: [
           Icon(Icons.check_circle, color: color, size: _iconSize),
           const SizedBox(width: 8),
-          Text(
-            widget.text,
-            style: TextStyle(
-              fontSize: _fontSize,
-              fontWeight: FontWeight.w600,
-              color: color,
+          Flexible(
+            child: Text(
+              widget.text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: _fontSize,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -239,13 +249,16 @@ class _CustomButtonState extends State<CustomButton>
           Icon(widget.leftIcon, color: color, size: _iconSize),
           const SizedBox(width: 10),
         ],
-        Text(
-          widget.text,
-          style: TextStyle(
-            fontSize: _fontSize,
-            fontWeight: FontWeight.w600,
-            color: color,
-            letterSpacing: 0.5,
+        Flexible(
+          child: Text(
+            widget.text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: _fontSize,
+              fontWeight: FontWeight.w600,
+              color: color,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
         if (widget.rightIcon != null) ...[

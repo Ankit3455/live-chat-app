@@ -127,7 +127,7 @@ class _ReportDialogState extends State<ReportDialog> {
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
                   color: _reason == reason
-                      ? AppColors.purplePrimary
+                      ? AppColors.brandPurpleLight
                       : AppColors.hintPurple,
                 ),
                 title: Text(

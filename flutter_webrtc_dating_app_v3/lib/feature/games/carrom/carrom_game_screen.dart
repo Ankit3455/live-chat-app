@@ -509,6 +509,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
+                            tooltip: 'Leave game',
                             icon: const Icon(Icons.arrow_back_ios,
                                 color: Colors.amber),
                             onPressed: _confirmLeave,
@@ -523,6 +524,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
                             ),
                           ),
                           IconButton(
+                            tooltip: _audioService.isMuted ? 'Unmute' : 'Mute',
                             icon: Icon(
                               _audioService.isMuted
                                   ? Icons.volume_off

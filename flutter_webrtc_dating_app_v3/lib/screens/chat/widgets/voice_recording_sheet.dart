@@ -297,6 +297,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
                 // Cancel button
                 Semantics(
                   button: true,
+                  enabled: !_finishing,
                   label: 'Cancel recording',
                   child: GestureDetector(
                     onTap: _finishing ? null : _cancel,
@@ -320,6 +321,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
                 // Send button
                 Semantics(
                   button: true,
+                  enabled: canSend,
                   label: 'Send voice message',
                   child: GestureDetector(
                     onTap: canSend ? _stopAndSend : null,

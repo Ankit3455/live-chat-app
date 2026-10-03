@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../services/voice_intro_service.dart';
+import '../../core/constants/app_colors.dart';
 
 class VoiceRecordSheet extends StatefulWidget {
   const VoiceRecordSheet({super.key});
@@ -114,7 +115,7 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1033),
+        color: AppColors.surfaceRaised,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(color: Colors.white24, width: 0.5),
       ),

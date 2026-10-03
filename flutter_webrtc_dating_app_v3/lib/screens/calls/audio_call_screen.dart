@@ -135,7 +135,7 @@ class _AudioCallScreenState extends State<AudioCallScreen>
                                 : 'Waiting for audio...')),
                   style: TextStyle(
                     color: hasRemoteAudio
-                        ? AppColors.purplePrimary
+                        ? AppColors.brandPurpleLight
                         : AppColors.hintPurple,
                     fontSize: 16,
                   ),
@@ -269,6 +269,7 @@ class _AudioCallScreenState extends State<AudioCallScreen>
                       // Mute
                       _buildControlButton(
                         icon: callService.isMuted ? Icons.mic_off : Icons.mic,
+                        label: callService.isMuted ? 'Unmute' : 'Mute',
                         onPressed: () {
                           setState(() => callService.toggleMute());
                         },
@@ -280,6 +281,7 @@ class _AudioCallScreenState extends State<AudioCallScreen>
                       // End call
                       _buildControlButton(
                         icon: Icons.call_end,
+                        label: 'End call',
                         onPressed: hangUp,
                         backgroundColor: AppColors.dangerRed,
                         size: 70,
@@ -290,6 +292,9 @@ class _AudioCallScreenState extends State<AudioCallScreen>
                         icon: callService.isSpeakerOn
                             ? Icons.volume_up
                             : Icons.volume_off,
+                        label: callService.isSpeakerOn
+                            ? 'Turn speaker off'
+                            : 'Turn speaker on',
                         onPressed: () {
                           setState(() => callService.toggleSpeaker());
                         },
@@ -310,27 +315,37 @@ class _AudioCallScreenState extends State<AudioCallScreen>
 
   Widget _buildControlButton({
     required IconData icon,
+    required String label,
     required VoidCallback onPressed,
     required Color backgroundColor,
     double size = 60,
   }) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
       onTap: onPressed,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: backgroundColor.withOpacity(0.3),
-              blurRadius: 10,
-              spreadRadius: 2,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        child: GestureDetector(
+          onTap: onPressed,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: backgroundColor.withOpacity(0.3),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
-          ],
+            child: Icon(icon, color: Colors.white, size: size * 0.5),
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: size * 0.5),
       ),
     );
   }

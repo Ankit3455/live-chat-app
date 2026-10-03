@@ -162,7 +162,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: const Color(0xFF7B2CBF),
+        backgroundColor: AppColors.brandPurple,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -211,7 +211,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xFF1A0E2E), Color(0xFF0D0221)],
+                    colors: [AppColors.backgroundDeep, AppColors.backgroundDarkest],
                   ),
                 ),
               );
@@ -295,7 +295,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
           const SizedBox(height: 16),
           Text(
             _controller.error ?? 'Something went wrong',
-            style: const TextStyle(color: Color(0xFFB39DDB), fontSize: 16),
+            style: const TextStyle(color: AppColors.lavender, fontSize: 16),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -303,7 +303,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
             icon: const Icon(Icons.refresh),
             label: const Text('Try Again'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7B2CBF),
+              backgroundColor: AppColors.brandPurple,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -324,13 +324,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
           Icon(
             Icons.people_outline,
             size: 100,
-            color: const Color(0xFFB39DDB).withOpacity(0.5),
+            color: AppColors.lavender.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
           const Text(
             'No users found',
             style: TextStyle(
-              color: Color(0xFFB39DDB),
+              color: AppColors.lavender,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -338,7 +338,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
           const SizedBox(height: 8),
           const Text(
             'Try adjusting your search or filters',
-            style: TextStyle(color: Color(0xFFB39DDB), fontSize: 14),
+            style: TextStyle(color: AppColors.lavender, fontSize: 14),
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
@@ -346,8 +346,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
             icon: const Icon(Icons.tune),
             label: const Text('Adjust Filters'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF7B2CBF),
-              side: const BorderSide(color: Color(0xFF7B2CBF)),
+              foregroundColor: AppColors.brandPurpleLight,
+              side: const BorderSide(color: AppColors.brandPurple),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -362,8 +362,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
   Widget _buildUsersList() {
     return RefreshIndicator(
       onRefresh: _onRefresh,
-      color: const Color(0xFF7B2CBF),
-      backgroundColor: const Color(0xFF2D1B4E),
+      color: AppColors.brandPurple,
+      backgroundColor: AppColors.surfaceCard,
       child: Column(
         children: [
           // Profile Completion Banner

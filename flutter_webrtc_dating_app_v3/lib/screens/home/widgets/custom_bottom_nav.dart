@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../managers/unread_manager.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Tabs: 0 Discover, 1 Chats, 2 Games, 3 Profile (see MainShell).
 class CustomBottomNav extends StatelessWidget {
@@ -32,24 +33,27 @@ class CustomBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF2D1B4E).withOpacity(0.95),
-            const Color(0xFF1A0E2E).withOpacity(0.95),
+            AppColors.surfaceCard.withOpacity(0.95),
+            AppColors.backgroundDeep.withOpacity(0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(35),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.3),
+          color: AppColors.brandPurple.withOpacity(0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.3),
+            color: AppColors.brandPurple.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Row(
+      // Fixed-height bar: cap label scaling; full labels stay in Semantics.
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _NavItem(
@@ -82,6 +86,7 @@ class CustomBottomNav extends StatelessWidget {
             onTap: () => onTap(3),
           ),
         ],
+      ),
       ),
     );
   }
@@ -130,7 +135,7 @@ class _NavItem extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: isSelected
             ? const LinearGradient(
-          colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
         )
             : null,
         borderRadius: BorderRadius.circular(18),
@@ -142,8 +147,10 @@ class _NavItem extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: isSelected ? Colors.white : const Color(0xFFB39DDB),
+              color: isSelected ? Colors.white : AppColors.lavender,
               fontSize: 10,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -159,7 +166,7 @@ class _NavItem extends StatelessWidget {
       children: [
         Icon(
           icon,
-          color: isSelected ? Colors.white : const Color(0xFFB39DDB),
+          color: isSelected ? Colors.white : AppColors.lavender,
           size: 22,
         ),
         if (badgeCount > 0)

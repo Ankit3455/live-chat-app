@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class CarromMatchScreen extends StatefulWidget {
   final String matchId;
@@ -391,10 +392,10 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                 math.sin((_backgroundController.value + 0.5) * 2 * math.pi) * 0.5,
               ),
               colors: const [
-                Color(0xFF1A0E2E),
-                Color(0xFF2D1B4E),
+                AppColors.backgroundDeep,
+                AppColors.surfaceCard,
                 Color(0xFF3D2B5E),
-                Color(0xFF2D1B4E),
+                AppColors.surfaceCard,
               ],
               stops: const [0.0, 0.3, 0.7, 1.0],
             ),

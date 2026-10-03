@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../services/carrom_stats_service.dart';
+import '../../../../core/constants/app_colors.dart';
 
 class CarromLeaderboardScreen extends StatefulWidget {
   const CarromLeaderboardScreen({Key? key}) : super(key: key);
@@ -40,7 +41,7 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A0E2E), Color(0xFF2D1B4E)],
+            colors: [AppColors.backgroundDeep, AppColors.surfaceCard],
           ),
         ),
         child: SafeArea(
@@ -81,6 +82,7 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
@@ -194,7 +196,7 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
                 Text(
                   'Play games to appear here!',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withOpacity(0.6),
                     fontSize: 13,
                   ),
                 ),
@@ -337,7 +339,7 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
               Text(
                 'points',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white.withOpacity(0.6),
                   fontSize: 10,
                 ),
               ),

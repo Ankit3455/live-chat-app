@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/constants/app_colors.dart';
 
 class ProfileInfoCard extends StatelessWidget {
   final UserModel user;
@@ -39,13 +40,13 @@ class ProfileInfoCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF2D1B4E),
-            const Color(0xFF2D1B4E).withOpacity(0.8),
+            AppColors.surfaceCard,
+            AppColors.surfaceCard.withOpacity(0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.3),
+          color: AppColors.brandPurple.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -58,10 +59,10 @@ class ProfileInfoCard extends StatelessWidget {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                  color: AppColors.brandPurple.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFF7B2CBF),
+                    color: AppColors.brandPurple,
                     width: 3,
                   ),
                 ),
@@ -99,7 +100,7 @@ class ProfileInfoCard extends StatelessWidget {
                       Text(
                         user.profession!,
                         style: const TextStyle(
-                          color: Color(0xFFB39DDB),
+                          color: AppColors.lavender,
                           fontSize: 16,
                         ),
                       ),
@@ -139,12 +140,12 @@ class ProfileInfoCard extends StatelessWidget {
           // Bio
           if (user.bio != null && user.bio!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(color: Color(0xFF7B2CBF), thickness: 0.5),
+            const Divider(color: AppColors.brandPurple, thickness: 0.5),
             const SizedBox(height: 16),
             Text(
               user.bio!,
               style: const TextStyle(
-                color: Color(0xFFB39DDB),
+                color: AppColors.lavender,
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -157,7 +158,7 @@ class ProfileInfoCard extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      color: const Color(0xFF2D1B4E),
+      color: AppColors.surfaceCard,
       child: const Center(
         child: Icon(
           Icons.person_outline_rounded,

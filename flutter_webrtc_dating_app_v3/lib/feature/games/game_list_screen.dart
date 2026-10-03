@@ -8,6 +8,7 @@ import 'carrom/common/game_leaderboard_screen.dart';
 import 'carrom/services/carrom_stats_service.dart';
 import 'love_physics/love_physics_game.dart' show LovePhysicsScreen;
 import 'ludo/ludo_lobby_screen.dart';
+import '../../core/constants/app_colors.dart';
 
 class GameListScreen extends StatefulWidget {
   const GameListScreen({super.key});
@@ -64,7 +65,7 @@ class _GameListScreenState extends State<GameListScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A0E2E), Color(0xFF2D1B4E)],
+            colors: [AppColors.backgroundDeep, AppColors.surfaceCard],
           ),
         ),
         child: SafeArea(
@@ -101,7 +102,7 @@ class _GameListScreenState extends State<GameListScreen> {
                             : null,
                         gradientColors: [
                           Colors.orange.withOpacity(0.3),
-                          const Color(0xFF2D1B4E),
+                          AppColors.surfaceCard,
                         ],
                         borderColor: Colors.orange.withOpacity(0.5),
                         isAvailable: true,
@@ -116,7 +117,7 @@ class _GameListScreenState extends State<GameListScreen> {
                         iconColor: Colors.blue,
                         gradientColors: [
                           Colors.blue.withOpacity(0.25),
-                          const Color(0xFF2D1B4E),
+                          AppColors.surfaceCard,
                         ],
                         borderColor: Colors.blue.withOpacity(0.4),
                         isAvailable: true,
@@ -131,7 +132,7 @@ class _GameListScreenState extends State<GameListScreen> {
                         iconColor: Colors.pinkAccent,
                         gradientColors: [
                           Colors.pinkAccent.withOpacity(0.25),
-                          const Color(0xFF2D1B4E),
+                          AppColors.surfaceCard,
                         ],
                         borderColor: Colors.pinkAccent.withOpacity(0.4),
                         isAvailable: true,
@@ -147,7 +148,7 @@ class _GameListScreenState extends State<GameListScreen> {
                         iconColor: Colors.brown,
                         gradientColors: [
                           Colors.brown.withOpacity(0.2),
-                          const Color(0xFF2D1B4E),
+                          AppColors.surfaceCard,
                         ],
                         borderColor: Colors.brown.withOpacity(0.3),
                         isAvailable: false,
@@ -176,6 +177,7 @@ class _GameListScreenState extends State<GameListScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
+                tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),

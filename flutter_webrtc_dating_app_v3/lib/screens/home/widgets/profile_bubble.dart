@@ -64,7 +64,7 @@ class _ProfileBubbleState extends State<ProfileBubble>
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
-            colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+            colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -86,7 +86,7 @@ class _ProfileBubbleState extends State<ProfileBubble>
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+          colors: [AppColors.brandPurple, AppColors.brandPurpleLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -100,7 +100,7 @@ class _ProfileBubbleState extends State<ProfileBubble>
           errorWidget: (_, __, ___) {
             // network fail → initials
             return Container(
-              color: const Color(0xFF1A0E2E),
+              color: AppColors.backgroundDeep,
               alignment: Alignment.center,
               child: Text(
                 _initial(),
@@ -129,7 +129,14 @@ class _ProfileBubbleState extends State<ProfileBubble>
           child: child,
         );
       },
-      child: GestureDetector(
+      child: Semantics(
+        button: true,
+        label: online
+            ? '${widget.user.username}, online'
+            : widget.user.username,
+        excludeSemantics: true,
+        onTap: widget.onTap,
+        child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
           width: 92,
@@ -140,7 +147,7 @@ class _ProfileBubbleState extends State<ProfileBubble>
           ),
           margin: const EdgeInsets.only(right: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2D1B4E),
+            color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
@@ -241,6 +248,7 @@ class _ProfileBubbleState extends State<ProfileBubble>
             ),
           ),
         ),
+      ),
       ),
     );
   }

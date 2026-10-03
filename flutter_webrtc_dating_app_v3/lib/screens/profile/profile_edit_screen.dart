@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/location_service.dart';
 import 'package:availchat/widgets/voice/voice_intro_section.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final UserModel user;
@@ -118,10 +119,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Edit Profile'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         actions: [
           if (_isSaving)
             const Padding(
@@ -137,6 +138,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             )
           else
             IconButton(
+              tooltip: 'Save changes',
               icon: const Icon(Icons.check, color: Colors.white),
               onPressed: _saveChanges,
             ),
@@ -145,7 +147,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: Colors.white,
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         child: Form(
           key: _formKey,
           child: ListView(
@@ -192,8 +194,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveChanges,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7B2CBF),
-                    disabledBackgroundColor: const Color(0xFF2D1B4E),
+                    backgroundColor: AppColors.brandPurple,
+                    disabledBackgroundColor: AppColors.surfaceCard,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
                     ),
@@ -297,17 +299,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFFB39DDB)),
-        prefixIcon: Icon(icon, color: const Color(0xFF7B2CBF)),
+        labelStyle: const TextStyle(color: AppColors.lavender),
+        prefixIcon: Icon(icon, color: AppColors.brandPurpleLight),
         filled: true,
-        fillColor: const Color(0xFF2D1B4E),
+        fillColor: AppColors.surfaceCard,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF7B2CBF), width: 2),
+          borderSide: const BorderSide(color: AppColors.brandPurple, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../services/safety_service.dart';
+import '../../core/constants/app_colors.dart';
 
 /// Settings > Blocked users: list with unblock (DEST-003).
 class BlockedUsersScreen extends StatefulWidget {
@@ -45,14 +46,14 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         title: Text(
           'Unblock $name?',
           style: const TextStyle(color: Colors.white),
         ),
         content: const Text(
           'You will be able to see and message each other again.',
-          style: TextStyle(color: Color(0xFFB39DDB)),
+          style: TextStyle(color: AppColors.lavender),
         ),
         actions: [
           TextButton(
@@ -88,10 +89,10 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Blocked users'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         elevation: 0,
       ),
       body: StreamBuilder<List<BlockedUser>?>(
@@ -145,12 +146,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         final busy = _busy.contains(user.uid);
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF2D1B4E),
+            color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
           ),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: const Color(0xFF7B2CBF).withValues(alpha: 0.3),
+              backgroundColor: AppColors.brandPurple.withValues(alpha: 0.3),
               foregroundImage: image,
               onForegroundImageError: image != null ? (_, __) {} : null,
               child: Text(
@@ -192,12 +193,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: const Color(0xFFB39DDB)),
+            Icon(icon, size: 48, color: AppColors.lavender),
             const SizedBox(height: 12),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFFB39DDB)),
+              style: const TextStyle(color: AppColors.lavender),
             ),
             if (action != null) ...[const SizedBox(height: 8), action],
           ],

@@ -11,6 +11,7 @@ import 'package:availchat/screens/profile/avatar_preview_screen.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/location_service.dart';
 import '../../features/onboarding/tour_prefs.dart';
+import '../../core/constants/app_colors.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   const QuestionnaireScreen({Key? key}) : super(key: key);
@@ -166,7 +167,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         if (!didPop && !_isSaving) _previousPage();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A0E2E),
+        backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
           child: Column(
             children: [
@@ -213,7 +214,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         child: OutlinedButton(
                           onPressed: _isSaving ? null : _previousPage,
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF7B2CBF)),
+                            side: const BorderSide(color: AppColors.brandPurple),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(28),
                             ),
@@ -222,7 +223,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           child: const Text(
                             'Back',
                             style: TextStyle(
-                              color: Color(0xFF7B2CBF),
+                              color: AppColors.brandPurpleLight,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -236,8 +237,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       child: ElevatedButton(
                         onPressed: _isSaving ? null : _nextPage,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF7B2CBF),
-                          disabledBackgroundColor: const Color(0xFF2D1B4E),
+                          backgroundColor: AppColors.brandPurple,
+                          disabledBackgroundColor: AppColors.surfaceCard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(28),
                           ),

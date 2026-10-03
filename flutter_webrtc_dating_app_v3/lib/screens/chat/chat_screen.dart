@@ -895,7 +895,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (_conversation?.isMuted(_myUid) ?? false)
           const Padding(
             padding: EdgeInsets.only(right: 4),
-            child: Icon(Icons.volume_off, size: 18, color: Colors.white70),
+            child: Icon(
+              Icons.volume_off,
+              size: 18,
+              color: Colors.white70,
+              semanticLabel: 'Muted',
+            ),
           ),
         if (_canSend) ...[
           _buildCallButton(CallType.video),
@@ -1146,7 +1151,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         child: Center(
           child: TextButton.icon(
             onPressed: _loadMoreMessages,
-            icon: const Icon(Icons.refresh, color: AppColors.purplePrimary),
+            icon: const Icon(Icons.refresh, color: AppColors.brandPurpleLight),
             label: const Text(
               'Could not load messages. Retry',
               style: TextStyle(color: AppColors.hintPurple),
@@ -1217,7 +1222,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           Container(width: 4, height: 40, color: AppColors.purplePrimary),
           const SizedBox(width: 8),
-          Icon(icon, size: 18, color: AppColors.purplePrimary),
+          Icon(icon, size: 18, color: AppColors.brandPurpleLight),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1228,7 +1233,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   title,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: AppColors.purplePrimary,
+                    color: AppColors.brandPurpleLight,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1290,7 +1295,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 onPressed: _unblockUser,
                 child: const Text(
                   'Unblock',
-                  style: TextStyle(color: AppColors.purplePrimary),
+                  style: TextStyle(color: AppColors.brandPurpleLight),
                 ),
               ),
           ],
@@ -1322,8 +1327,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               icon: Icon(
                 Icons.attach_file,
                 color: _isUploadingMedia || isEditing
-                    ? AppColors.purplePrimary.withOpacity(0.5)
-                    : AppColors.purplePrimary,
+                    ? AppColors.brandPurpleLight.withOpacity(0.5)
+                    : AppColors.brandPurpleLight,
               ),
               tooltip: 'Attach',
               onPressed: _isUploadingMedia || isEditing

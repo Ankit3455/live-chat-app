@@ -324,34 +324,41 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     required IconData icon,
     required String label,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: backgroundColor.withOpacity(0.3),
-                  blurRadius: 15,
-                  spreadRadius: 5,
-                ),
-              ],
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: '$label call',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: backgroundColor.withOpacity(0.3),
+                    blurRadius: 15,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 35),
             ),
-            child: Icon(icon, color: Colors.white, size: 35),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          label,
-          style: TextStyle(color: AppColors.hintPurple, fontSize: 14),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: TextStyle(color: AppColors.hintPurple, fontSize: 14),
+          ),
+        ],
+      ),
     );
   }
 }

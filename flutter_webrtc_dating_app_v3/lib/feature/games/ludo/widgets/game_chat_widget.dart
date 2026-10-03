@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/ludo_game_service.dart';
 import '../constants.dart';
+import '../../../../core/constants/app_colors.dart';
 
 class GameChatWidget extends StatefulWidget {
   final String matchId;
@@ -96,7 +97,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
-        color: Color(0xFF1A0E2E),
+        color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -129,6 +130,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                 ),
                 const Spacer(),
                 IconButton(
+                  tooltip: 'Close chat',
                   icon: const Icon(Icons.close, color: Colors.white54),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -204,7 +206,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                         Text(
                           'Send a reaction or message!',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withOpacity(0.6),
                             fontSize: 12,
                           ),
                         ),
@@ -250,7 +252,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                     decoration: InputDecoration(
                       counterText: '',
                       hintText: 'Type a message...',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.1),
                       border: OutlineInputBorder(

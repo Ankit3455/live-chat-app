@@ -197,7 +197,7 @@ class MessageBubble extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: AppColors.purplePrimary),
+          Icon(icon, color: AppColors.brandPurpleLight),
           const SizedBox(width: 8),
           Text(
             label,
@@ -504,7 +504,7 @@ class MessageBubble extends StatelessWidget {
               // Copy (only for text messages)
               if (message.type == MessageType.text && !message.isDeleted)
                 ListTile(
-                  leading: Icon(Icons.content_copy, color: AppColors.purplePrimary),
+                  leading: Icon(Icons.content_copy, color: AppColors.brandPurpleLight),
                   title: Text('Copy', style: TextStyle(color: AppColors.inputTextWhite)),
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: message.message));
@@ -519,7 +519,7 @@ class MessageBubble extends StatelessWidget {
               // Reply
               if (onReply != null)
                 ListTile(
-                  leading: Icon(Icons.reply, color: AppColors.purplePrimary),
+                  leading: Icon(Icons.reply, color: AppColors.brandPurpleLight),
                   title: Text('Reply', style: TextStyle(color: AppColors.inputTextWhite)),
                   onTap: () {
                     Navigator.pop(context);
@@ -533,7 +533,7 @@ class MessageBubble extends StatelessWidget {
                   !message.isDeleted &&
                   message.type == MessageType.text)
                 ListTile(
-                  leading: Icon(Icons.edit, color: AppColors.purplePrimary),
+                  leading: Icon(Icons.edit, color: AppColors.brandPurpleLight),
                   title: Text('Edit', style: TextStyle(color: AppColors.inputTextWhite)),
                   onTap: () {
                     Navigator.pop(context);

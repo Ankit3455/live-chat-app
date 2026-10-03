@@ -7,6 +7,7 @@ import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/constants/app_colors.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -109,7 +110,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final usesEmailPassword = providers.contains('password');
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: _buildAppBar(),
       body: usesEmailPassword
           ? _buildPasswordForm()
@@ -122,6 +123,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
+        tooltip: 'Back',
         icon: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -161,15 +163,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        const Color(0xFF9333EA).withOpacity(0.2),
-                        const Color(0xFFEC4899).withOpacity(0.2),
+                        AppColors.brandViolet.withOpacity(0.2),
+                        AppColors.brandPink.withOpacity(0.2),
                       ],
                     ),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.lock_outline,
-                    color: Color(0xFF9333EA),
+                    color: AppColors.brandViolet,
                     size: 40,
                   ),
                 ),
@@ -196,6 +198,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 icon: Icons.lock_outline,  // ✅ Fixed
                 obscureText: _obscureCurrent,
                 suffixIcon: IconButton(
+                  tooltip: _obscureCurrent ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureCurrent ? Icons.visibility_off : Icons.visibility,
                     color: Colors.grey,
@@ -212,6 +215,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 icon: Icons.lock_reset,  // ✅ Fixed
                 obscureText: _obscureNew,
                 suffixIcon: IconButton(
+                  tooltip: _obscureNew ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureNew ? Icons.visibility_off : Icons.visibility,
                     color: Colors.grey,
@@ -228,6 +232,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 icon: Icons.lock_outline,  // ✅ Fixed
                 obscureText: _obscureConfirm,
                 suffixIcon: IconButton(
+                  tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureConfirm ? Icons.visibility_off : Icons.visibility,
                     color: Colors.grey,
@@ -355,15 +360,15 @@ class _ProviderBanner extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF9333EA).withOpacity(0.1),
-                const Color(0xFFEC4899).withOpacity(0.1),
+                AppColors.brandViolet.withOpacity(0.1),
+                AppColors.brandPink.withOpacity(0.1),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF9333EA).withOpacity(0.3),
+              color: AppColors.brandViolet.withOpacity(0.3),
               width: 1,
             ),
           ),
@@ -373,12 +378,12 @@ class _ProviderBanner extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF9333EA).withOpacity(0.2),
+                  color: AppColors.brandViolet.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   _icon(providerId),
-                  color: const Color(0xFF9333EA),
+                  color: AppColors.brandViolet,
                   size: 40,
                 ),
               ),

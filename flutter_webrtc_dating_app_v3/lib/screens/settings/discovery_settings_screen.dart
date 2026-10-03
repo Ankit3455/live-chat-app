@@ -5,6 +5,7 @@ import 'package:availchat/managers/filter_preferences.dart';
 import 'package:availchat/services/location_service.dart';
 
 import '../../features/onboarding/discovery_onboarding.dart';
+import '../../core/constants/app_colors.dart';
 
 class DiscoverySettingsScreen extends StatefulWidget {
   const DiscoverySettingsScreen({Key? key}) : super(key: key);
@@ -249,11 +250,11 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
     final open = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         title: Text(title, style: const TextStyle(color: Colors.white)),
         content: Text(
           message,
-          style: const TextStyle(color: Color(0xFFB39DDB)),
+          style: const TextStyle(color: AppColors.lavender),
         ),
         actions: [
           TextButton(
@@ -274,14 +275,14 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
     final discard = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         title: const Text(
           'Discard changes?',
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
           'Your changes have not been saved.',
-          style: TextStyle(color: Color(0xFFB39DDB)),
+          style: TextStyle(color: AppColors.lavender),
         ),
         actions: [
           TextButton(
@@ -314,9 +315,9 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF1A0E2E),
+        backgroundColor: AppColors.backgroundDeep,
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF7B2CBF)),
+          child: CircularProgressIndicator(color: AppColors.brandPurple),
         ),
       );
     }
@@ -330,9 +331,9 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
         Navigator.pop(this.context);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A0E2E),
+        backgroundColor: AppColors.backgroundDeep,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF2D1B4E),
+          backgroundColor: AppColors.surfaceCard,
           title: const Text('Discovery Settings'),
           actions: [
             IconButton(
@@ -356,14 +357,14 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
               key: DiscoveryOnboarding.discoveryToggleKey,
               value: _discoveryEnabled,
               onChanged: (v) => setState(() => _discoveryEnabled = v),
-              activeColor: const Color(0xFF7B2CBF),
+              activeColor: AppColors.brandPurple,
               title: const Text(
                 'Show me on Discover',
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: const Text(
                 'Let other people see your profile in their Discover feed',
-                style: TextStyle(color: Color(0xFFB39DDB)),
+                style: TextStyle(color: AppColors.lavender),
               ),
             ),
             const SizedBox(height: 12),
@@ -375,14 +376,14 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
               key: DiscoveryOnboarding.filtersToggleKey,
               value: _applyFilters,
               onChanged: (v) => setState(() => _applyFilters = v),
-              activeColor: const Color(0xFF7B2CBF),
+              activeColor: AppColors.brandPurple,
               title: const Text(
                 'Apply Discovery Filters',
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: const Text(
                 'Use the gender, age, distance and online filters below while browsing',
-                style: TextStyle(color: Color(0xFFB39DDB)),
+                style: TextStyle(color: AppColors.lavender),
               ),
             ),
             const SizedBox(height: 16),
@@ -395,10 +396,10 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                 key: DiscoveryOnboarding.genderFilterKey,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E).withOpacity(0.3),
+                  color: AppColors.surfaceCard.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                    color: AppColors.brandPurple.withOpacity(0.2),
                   ),
                 ),
                 child: Column(
@@ -414,7 +415,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       value: _showMeGender,
-                      dropdownColor: const Color(0xFF2D1B4E),
+                      dropdownColor: AppColors.surfaceCard,
                       decoration: _inputDecoration(),
                       items: const [
                         DropdownMenuItem(
@@ -456,10 +457,10 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                 key: DiscoveryOnboarding.ageFilterKey,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E).withOpacity(0.3),
+                  color: AppColors.surfaceCard.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                    color: AppColors.brandPurple.withOpacity(0.2),
                   ),
                 ),
                 child: Column(
@@ -477,7 +478,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                         ),
                         Text(
                           '${_ageRange.start.round()} - ${_ageRange.end.round()}',
-                          style: const TextStyle(color: Color(0xFFB39DDB)),
+                          style: const TextStyle(color: AppColors.lavender),
                         ),
                       ],
                     ),
@@ -487,8 +488,8 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                       min: 18,
                       max: 60,
                       divisions: 42,
-                      activeColor: const Color(0xFF7B2CBF),
-                      inactiveColor: const Color(0xFF7B2CBF).withOpacity(0.3),
+                      activeColor: AppColors.brandPurple,
+                      inactiveColor: AppColors.brandPurple.withOpacity(0.3),
                     ),
                   ],
                 ),
@@ -504,10 +505,10 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                 key: DiscoveryOnboarding.distanceFilterKey,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E).withOpacity(0.3),
+                  color: AppColors.surfaceCard.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                    color: AppColors.brandPurple.withOpacity(0.2),
                   ),
                 ),
                 child: Column(
@@ -525,7 +526,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                         ),
                         Text(
                           '${_distanceKm.round()} km',
-                          style: const TextStyle(color: Color(0xFFB39DDB)),
+                          style: const TextStyle(color: AppColors.lavender),
                         ),
                       ],
                     ),
@@ -535,8 +536,8 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                       min: 5,
                       max: 100,
                       divisions: 19,
-                      activeColor: const Color(0xFF7B2CBF),
-                      inactiveColor: const Color(0xFF7B2CBF).withOpacity(0.3),
+                      activeColor: AppColors.brandPurple,
+                      inactiveColor: AppColors.brandPurple.withOpacity(0.3),
                     ),
                   ],
                 ),
@@ -551,23 +552,23 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
               child: Container(
                 key: DiscoveryOnboarding.onlineFilterKey,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E).withOpacity(0.3),
+                  color: AppColors.surfaceCard.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                    color: AppColors.brandPurple.withOpacity(0.2),
                   ),
                 ),
                 child: SwitchListTile(
                   value: _onlineOnly,
                   onChanged: (v) => setState(() => _onlineOnly = v),
-                  activeColor: const Color(0xFF7B2CBF),
+                  activeColor: AppColors.brandPurple,
                   title: const Text(
                     'Online only',
                     style: TextStyle(color: Colors.white),
                   ),
                   subtitle: const Text(
                     'Show only users currently online',
-                    style: TextStyle(color: Color(0xFFB39DDB)),
+                    style: TextStyle(color: AppColors.lavender),
                   ),
                 ),
               ),
@@ -585,17 +586,17 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                        color: Color(0xFF7B2CBF),
+                        color: AppColors.brandPurple,
                         strokeWidth: 2,
                       ),
                     )
-                  : const Icon(Icons.my_location, color: Color(0xFF7B2CBF)),
+                  : const Icon(Icons.my_location, color: AppColors.brandPurpleLight),
               label: const Text(
                 'Use Current Location',
                 style: TextStyle(color: Colors.white),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF7B2CBF)),
+                side: const BorderSide(color: AppColors.brandPurple),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
@@ -611,7 +612,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _savePrefs,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7B2CBF),
+                  backgroundColor: AppColors.brandPurple,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -643,13 +644,13 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
   InputDecoration _inputDecoration() {
     return InputDecoration(
       filled: true,
-      fillColor: const Color(0xFF2D1B4E),
+      fillColor: AppColors.surfaceCard,
       enabledBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Color(0xFF7B2CBF)),
+        borderSide: const BorderSide(color: AppColors.brandPurple),
         borderRadius: BorderRadius.circular(12),
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Color(0xFF7B2CBF)),
+        borderSide: const BorderSide(color: AppColors.brandPurple),
         borderRadius: BorderRadius.circular(12),
       ),
     );

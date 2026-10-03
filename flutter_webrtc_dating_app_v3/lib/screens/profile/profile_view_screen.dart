@@ -6,6 +6,7 @@ import 'package:availchat/screens/profile/widgets/profile_stats_row.dart';
 import 'package:availchat/screens/profile/widgets/interests_grid.dart';
 import 'package:availchat/screens/profile/widgets/astrology_compatibility_card.dart';
 import 'package:availchat/screens/chat/chat_screen.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileViewScreen extends StatelessWidget {
   final UserModel user;
@@ -15,7 +16,7 @@ class ProfileViewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       body: CustomScrollView(
         slivers: [
           // ✔ Clean SliverAppBar
@@ -23,7 +24,7 @@ class ProfileViewScreen extends StatelessWidget {
             expandedHeight: 100,
             floating: false,
             pinned: true,
-            backgroundColor: const Color(0xFF2D1B4E),
+            backgroundColor: AppColors.surfaceCard,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 user.username,
@@ -39,8 +40,8 @@ class ProfileViewScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      const Color(0xFF7B2CBF).withOpacity(0.3),
-                      const Color(0xFF2D1B4E),
+                      AppColors.brandPurple.withOpacity(0.3),
+                      AppColors.surfaceCard,
                     ],
                   ),
                 ),
@@ -103,7 +104,7 @@ class ProfileViewScreen extends StatelessWidget {
 
       // ✅ Floating Chat Button
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF7B2CBF),
+        backgroundColor: AppColors.brandPurple,
         icon: const Icon(Icons.chat, color: Colors.white),
         label: const Text(
           'Message',

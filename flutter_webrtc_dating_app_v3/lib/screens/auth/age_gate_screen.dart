@@ -21,8 +21,8 @@ class AgeGateScreen extends StatefulWidget {
 }
 
 class _AgeGateScreenState extends State<AgeGateScreen> {
-  static const _fieldFill = Color(0xFF2D1B4E);
-  static const _hint = Color(0xFFB39DDB);
+  static const _fieldFill = AppColors.surfaceCard;
+  static const _hint = AppColors.lavender;
 
   DateTime? _dob;
   bool _confirmedAdult = false;
@@ -39,7 +39,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFF7B2CBF),
+            primary: AppColors.brandPurple,
             surface: _fieldFill,
           ),
         ),

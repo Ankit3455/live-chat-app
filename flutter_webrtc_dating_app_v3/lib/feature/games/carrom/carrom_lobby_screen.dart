@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'carrom_match_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class CarromLobbyScreen extends StatefulWidget {
   const CarromLobbyScreen({Key? key}) : super(key: key);
@@ -402,9 +403,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1A0E2E),
-              Color(0xFF2D1B4E),
-              Color(0xFF1A0E2E),
+              AppColors.backgroundDeep,
+              AppColors.surfaceCard,
+              AppColors.backgroundDeep,
             ],
             stops: [0.0, 0.5, 1.0],
           ),
@@ -450,6 +451,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: _searching ? null : () => Navigator.pop(context),
             ),

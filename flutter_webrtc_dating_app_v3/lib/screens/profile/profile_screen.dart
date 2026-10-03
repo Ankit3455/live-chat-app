@@ -13,6 +13,7 @@ import 'package:availchat/screens/profile/widgets/astrology_compatibility_card.d
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/profile_photo_service.dart';
 import 'package:availchat/widgets/user_avatar.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -133,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF2D1B4E),
+      backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -162,11 +163,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
                 ListTile(
                   leading: const Icon(Icons.photo_library,
-                      color: Color(0xFF00BCD4)),
+                      color: AppColors.cyan),
                   title: const Text('Upload a photo',
                       style: TextStyle(color: Colors.white)),
                   subtitle: const Text('Choose from your gallery',
-                      style: TextStyle(color: Color(0xFFB39DDB))),
+                      style: TextStyle(color: AppColors.lavender)),
                   onTap: () => choose(
                     ProfilePhotoService.pickAndUploadPhoto,
                     'Profile photo updated',
@@ -174,11 +175,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 ListTile(
                   leading:
-                      const Icon(Icons.face, color: Color(0xFF9D4EDD)),
+                      const Icon(Icons.face, color: AppColors.brandPurpleMid),
                   title: const Text('Use my avatar',
                       style: TextStyle(color: Colors.white)),
                   subtitle: const Text('Switch back to your generated avatar',
-                      style: TextStyle(color: Color(0xFFB39DDB))),
+                      style: TextStyle(color: AppColors.lavender)),
                   onTap: () => choose(
                     ProfilePhotoService.resetToAvatar,
                     'Avatar restored',
@@ -186,11 +187,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 ListTile(
                   leading:
-                      const Icon(Icons.autorenew, color: Color(0xFFFFD700)),
+                      const Icon(Icons.autorenew, color: AppColors.gold),
                   title: const Text('Generate a new avatar',
                       style: TextStyle(color: Colors.white)),
                   subtitle: const Text('Based on your profile answers',
-                      style: TextStyle(color: Color(0xFFB39DDB))),
+                      style: TextStyle(color: AppColors.lavender)),
                   onTap: () => choose(
                     ProfilePhotoService.regenerateAvatar,
                     'New avatar created',
@@ -207,16 +208,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF7B2CBF)))
+              child: CircularProgressIndicator(color: AppColors.brandPurple))
           : _currentUser == null
               ? _buildErrorState(_loadError ?? 'Please try again')
               : RefreshIndicator(
                   onRefresh: _refreshProfile,
-                  color: const Color(0xFF7B2CBF),
-                  backgroundColor: const Color(0xFF2D1B4E),
+                  color: AppColors.brandPurple,
+                  backgroundColor: AppColors.surfaceCard,
                   child: CustomScrollView(
                     slivers: [
                       // App Bar with Edit & Settings
@@ -224,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         expandedHeight: 120,
                         floating: false,
                         pinned: true,
-                        backgroundColor: const Color(0xFF2D1B4E),
+                        backgroundColor: AppColors.surfaceCard,
                         flexibleSpace: FlexibleSpaceBar(
                           title: const Text(
                             'My Profile',
@@ -240,8 +241,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  const Color(0xFF7B2CBF).withOpacity(0.3),
-                                  const Color(0xFF2D1B4E),
+                                  AppColors.brandPurple.withOpacity(0.3),
+                                  AppColors.surfaceCard,
                                 ],
                               ),
                             ),
@@ -346,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF7B2CBF), Color(0xFF9D4EDD)],
+          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -394,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text(
               'Complete',
               style: TextStyle(
-                color: Color(0xFF7B2CBF),
+                color: AppColors.brandPurple,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -428,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.auto_awesome,
           title: 'Astrology Questionnaire',
           subtitle: 'Update your cosmic profile',
-          color: const Color(0xFFFFD700),
+          color: AppColors.gold,
           onTap: () {
             Navigator.push(
               context,
@@ -443,7 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.assignment,
           title: 'Profile Completion',
           subtitle: 'Complete optional sections',
-          color: const Color(0xFF7B2CBF),
+          color: AppColors.brandPurple,
           onTap: () async {
             await Navigator.push(
               context,
@@ -461,7 +462,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle: _avatarBusy
               ? 'Updating your photo...'
               : 'Upload a photo or use your avatar',
-          color: const Color(0xFF00BCD4),
+          color: AppColors.cyan,
           onTap: _showChangeAvatarSheet,
           trailing: _avatarBusy
               ? const SizedBox(
@@ -469,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Color(0xFF00BCD4),
+                    color: AppColors.cyan,
                   ),
                 )
               : null,
@@ -479,7 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.settings,
           title: 'Settings',
           subtitle: 'Account, help & support, sign out',
-          color: const Color(0xFFB39DDB),
+          color: AppColors.lavender,
           onTap: _openSettings,
         ),
       ],
@@ -494,12 +495,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
     Widget? trailing,
   }) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -529,7 +532,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      color: Color(0xFFB39DDB),
+                      color: AppColors.lavender,
                       fontSize: 14,
                     ),
                   ),
@@ -539,10 +542,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             trailing ??
                 const Icon(
                   Icons.chevron_right,
-                  color: Color(0xFFB39DDB),
+                  color: AppColors.lavender,
                 ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -571,7 +575,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFB39DDB),
+              color: AppColors.lavender,
               fontSize: 14,
             ),
           ),
@@ -579,7 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: _refreshProfile,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7B2CBF),
+              backgroundColor: AppColors.brandPurple,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),

@@ -17,7 +17,7 @@ class VerifyEmailScreen extends StatefulWidget {
 }
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
-  static const _hint = Color(0xFFB39DDB);
+  static const _hint = AppColors.lavender;
   static const _resendCooldown = 30;
 
   bool _checking = false;

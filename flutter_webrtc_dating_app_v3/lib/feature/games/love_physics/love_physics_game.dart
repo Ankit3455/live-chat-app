@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
+import '../../../core/constants/app_colors.dart';
 
 // Camera zoom: 100 logical px = 1 world meter. The camera is anchored top-left,
 // so world = screen / pixelsPerMeter.
@@ -76,10 +77,10 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0221),
+      backgroundColor: AppColors.backgroundDarkest,
       appBar: AppBar(
         title: const Text('Love Physics'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

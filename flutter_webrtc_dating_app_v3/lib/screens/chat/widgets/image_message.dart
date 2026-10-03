@@ -28,7 +28,11 @@ class ImageMessage extends StatelessWidget {
       return _buildUnavailable();
     }
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: hasCaption ? 'Photo: $caption' : 'Photo',
+      hint: 'Open full screen',
+      child: GestureDetector(
       onTap: onTap ?? () => _showFullScreen(context, imageUrl),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -87,7 +91,7 @@ class ImageMessage extends StatelessWidget {
                             Text(
                               'Failed to load',
                               style: TextStyle(
-                                color: Colors.white38,
+                                color: Colors.white60,
                                 fontSize: 12,
                               ),
                             ),
@@ -116,6 +120,7 @@ class ImageMessage extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -175,6 +180,7 @@ class FullScreenImageView extends StatelessWidget {
         elevation: 0,
         actions: [
           IconButton(
+            tooltip: 'Download',
             icon: const Icon(Icons.download_rounded),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(

@@ -74,7 +74,7 @@ class AttachmentSheet extends StatelessWidget {
                   context,
                   icon: Icons.photo_library_rounded,
                   label: 'Gallery',
-                  color: const Color(0xFF9C27B0),
+                  color: AppColors.brandMagenta,
                   onTap: () {
                     Navigator.pop(context);
                     onSelected(AttachmentType.gallery);
@@ -84,7 +84,7 @@ class AttachmentSheet extends StatelessWidget {
                   context,
                   icon: Icons.mic_rounded,
                   label: 'Audio',
-                  color: const Color(0xFF00BCD4),
+                  color: AppColors.cyan,
                   onTap: () {
                     Navigator.pop(context);
                     onSelected(AttachmentType.audio);
@@ -107,7 +107,9 @@ class AttachmentSheet extends StatelessWidget {
         required Color color,
         required VoidCallback onTap,
       }) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      child: GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -139,6 +141,7 @@ class AttachmentSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

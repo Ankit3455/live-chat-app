@@ -231,6 +231,9 @@ class _VideoCallScreenState extends State<VideoCallScreen>
           icon: callService.isVideoEnabled
               ? Icons.videocam
               : Icons.videocam_off,
+          tooltip: callService.isVideoEnabled
+              ? 'Turn camera off'
+              : 'Turn camera on',
           onPressed: () {
             setState(() => callService.toggleVideo());
           },
@@ -240,6 +243,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
         // Mute
         _buildControlButton(
           icon: callService.isMuted ? Icons.mic_off : Icons.mic,
+          tooltip: callService.isMuted ? 'Unmute' : 'Mute',
           onPressed: () {
             setState(() => callService.toggleMute());
           },
@@ -249,6 +253,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
         // End call
         _buildControlButton(
           icon: Icons.call_end,
+          tooltip: 'End call',
           onPressed: hangUp,
           backgroundColor: Colors.red,
           size: 70,
@@ -257,6 +262,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
         // Switch camera
         _buildControlButton(
           icon: Icons.cameraswitch,
+          tooltip: 'Switch camera',
           onPressed: () async => callService.switchCamera(),
           backgroundColor: Colors.white24,
         ),
@@ -264,6 +270,9 @@ class _VideoCallScreenState extends State<VideoCallScreen>
         // Speaker
         _buildControlButton(
           icon: callService.isSpeakerOn ? Icons.volume_up : Icons.volume_off,
+          tooltip: callService.isSpeakerOn
+              ? 'Turn speaker off'
+              : 'Turn speaker on',
           onPressed: () {
             setState(() => callService.toggleSpeaker());
           },
@@ -275,6 +284,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
 
   Widget _buildControlButton({
     required IconData icon,
+    required String tooltip,
     required VoidCallback onPressed,
     required Color backgroundColor,
     double size = 60,
@@ -285,6 +295,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
       decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
       child: IconButton(
         icon: Icon(icon, color: Colors.white, size: size * 0.5),
+        tooltip: tooltip,
         onPressed: onPressed,
       ),
     );

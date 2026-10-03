@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:availchat/models/question_model.dart';
 import 'package:availchat/models/question_type.dart';
+import 'package:availchat/core/constants/app_colors.dart';
 
 class QuestionWidget extends StatefulWidget {
   final Question question;
@@ -149,7 +150,7 @@ class _QuestionWidgetState extends State<QuestionWidget> {
               const SizedBox(height: 8),
               Text(
                 widget.question.helperText!,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
             const SizedBox(height: 16),

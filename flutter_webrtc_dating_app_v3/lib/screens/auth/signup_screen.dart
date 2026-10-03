@@ -52,8 +52,8 @@ class _SignupScreenState extends State<SignupScreen> {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF7B2CBF),
-              surface: Color(0xFF2D1B4E),
+              primary: AppColors.brandPurple,
+              surface: AppColors.surfaceCard,
             ),
           ),
           child: child!,
@@ -76,8 +76,8 @@ class _SignupScreenState extends State<SignupScreen> {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF7B2CBF),
-              surface: Color(0xFF2D1B4E),
+              primary: AppColors.brandPurple,
+              surface: AppColors.surfaceCard,
             ),
           ),
           child: child!,
@@ -175,6 +175,7 @@ class _SignupScreenState extends State<SignupScreen> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -257,7 +258,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           Text(
                             'This helps us find your destined match.',
                             style: TextStyle(
-                              color: Color(0xFFB39DDB),
+                              color: AppColors.lavender,
                               fontSize: 14,
                             ),
                           ),
@@ -327,7 +328,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           : (v) => setState(() => _confirmedAdult = v ?? false),
                       controlAffinity: ListTileControlAffinity.leading,
                       contentPadding: EdgeInsets.zero,
-                      activeColor: const Color(0xFF7B2CBF),
+                      activeColor: AppColors.brandPurple,
                       title: const Text(
                         'I confirm I am 18 or older',
                         style: TextStyle(color: Colors.white),
@@ -340,7 +341,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     if (_isLoading)
                       const Center(
                         child:
-                            CircularProgressIndicator(color: Color(0xFF7B2CBF)),
+                            CircularProgressIndicator(color: AppColors.brandPurple),
                       )
                     else
                       // Sign Up Button
@@ -359,7 +360,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Ink(
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+                                colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
                               ),
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -386,7 +387,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         'By signing up, you agree to our Terms of Service and Privacy Policy.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xFFB39DDB),
+                          color: AppColors.lavender,
                           fontSize: 12,
                         ),
                       ),
@@ -408,7 +409,7 @@ class _SignupScreenState extends State<SignupScreen> {
       child: Text(
         text,
         style: const TextStyle(
-          color: Color(0xFFB39DDB),
+          color: AppColors.lavender,
           fontSize: 14,
         ),
       ),
@@ -437,10 +438,10 @@ class _SignupScreenState extends State<SignupScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
+        hintStyle: const TextStyle(color: AppColors.lavender),
         errorMaxLines: 2,
         filled: true,
-        fillColor: const Color(0xFF2D1B4E),
+        fillColor: AppColors.surfaceCard,
         prefixIcon: Icon(icon, color: Colors.white),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 import '../../../core/utils/astrology_utils.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Multi-select grid of the 12 signs. Values are canonical names ('Aries').
 class ZodiacSignSelector extends StatelessWidget {
@@ -28,7 +29,7 @@ class ZodiacSignSelector extends StatelessWidget {
             return const Icon(
               Icons.stars,
               size: 80,
-              color: Color(0xFF7B2CBF),
+              color: AppColors.brandPurpleLight,
             );
           },
         ),
@@ -53,12 +54,12 @@ class ZodiacSignSelector extends StatelessWidget {
               onTap: () => onToggle(sign),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF7B2CBF) : const Color(0xFF2D1B4E),
+                  color: isSelected ? AppColors.brandPurple : AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isSelected
-                        ? const Color(0xFF7B2CBF)
-                        : const Color(0xFF2D1B4E).withOpacity(0.3),
+                        ? AppColors.brandPurple
+                        : AppColors.surfaceCard.withOpacity(0.3),
                     width: 2,
                   ),
                 ),
@@ -75,7 +76,7 @@ class ZodiacSignSelector extends StatelessWidget {
                       style: TextStyle(
                         color: isSelected
                             ? Colors.white
-                            : const Color(0xFFB39DDB),
+                            : AppColors.lavender,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),

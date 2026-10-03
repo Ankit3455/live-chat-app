@@ -8,6 +8,7 @@ import 'widgets/dice_widget.dart';
 import 'widgets/game_chat_widget.dart';
 import 'constants.dart';
 import 'services/ludo_game_service.dart';
+import '../../../core/constants/app_colors.dart';
 
 class LudoWrapperScreen extends StatefulWidget {
   final String matchId;
@@ -108,7 +109,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           '🚪 Leave Game?',
@@ -155,7 +156,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
       child: ChangeNotifierProvider<LudoMultiplayerProvider>.value(
         value: _provider,
         child: Scaffold(
-          backgroundColor: const Color(0xFF1A0E2E),
+          backgroundColor: AppColors.backgroundDeep,
           body: SafeArea(
             child: Consumer<LudoMultiplayerProvider>(
               builder: (context, provider, _) {
@@ -348,6 +349,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Leave game',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () async {
                 if (await _onWillPop()) {
@@ -386,6 +388,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Open game chat',
               icon: const Icon(Icons.chat, color: Colors.blue),
               onPressed: _openChat,
             ),
@@ -570,7 +573,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF2D1B4E), Color(0xFF1A0E2E)],
+              colors: [AppColors.surfaceCard, AppColors.backgroundDeep],
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(

@@ -166,9 +166,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
+      hintStyle: const TextStyle(color: AppColors.lavender),
       filled: true,
-      fillColor: const Color(0xFF2D1B4E),
+      fillColor: AppColors.surfaceCard,
       prefixIcon: Icon(icon, color: Colors.white),
       suffixIcon: suffix,
       border: OutlineInputBorder(
@@ -199,7 +199,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.white,
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'Montserrat',
                 ),
               ),
 
@@ -208,9 +207,8 @@ class _LoginScreenState extends State<LoginScreen> {
               const Text(
                 'Find your cosmic connection.',
                 style: TextStyle(
-                  color: Color(0xFFB39DDB),
+                  color: AppColors.lavender,
                   fontSize: 16,
-                  fontFamily: 'Montserrat',
                 ),
               ),
 
@@ -258,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               _obscurePassword
                                   ? Icons.visibility
                                   : Icons.visibility_off,
-                              color: const Color(0xFFB39DDB),
+                              color: AppColors.lavender,
                             ),
                             onPressed: () => setState(
                               () => _obscurePassword = !_obscurePassword,
@@ -284,7 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 20),
 
               if (_isLoading)
-                const CircularProgressIndicator(color: Color(0xFF7B2CBF))
+                const CircularProgressIndicator(color: AppColors.brandPurple)
               else ...[
                 CustomButton(
                   text: 'Login',
@@ -312,7 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4285F4),
+                      backgroundColor: AppColors.googleBlue,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -327,19 +325,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text("Don't have an account? ",
-                      style: TextStyle(color: Color(0xFFB39DDB))),
-                  GestureDetector(
-                    onTap: () {
+                      style: TextStyle(color: AppColors.lavender)),
+                  TextButton(
+                    onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                             builder: (_) => const SignupScreen()),
                       );
                     },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                     child: const Text(
                       'Sign Up',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold),
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],

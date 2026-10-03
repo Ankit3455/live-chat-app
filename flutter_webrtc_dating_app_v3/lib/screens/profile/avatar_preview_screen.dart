@@ -8,6 +8,7 @@ import 'package:availchat/screens/questionnaire/post_signup_questions_screen.dar
 import 'package:availchat/services/dicebear_avatar_service.dart';
 import 'package:availchat/services/profile_photo_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/constants/app_colors.dart';
 
 /// Safe cache-busting helper
 String cacheBustedUrl(String url, int? version) {
@@ -132,9 +133,9 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         automaticallyImplyLeading: false,
         title: const Text('Meet Your Avatar'),
       ),
@@ -198,7 +199,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                   width: side,
                                   height: side,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF2D1B4E),
+                                    color: AppColors.surfaceCard,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
                                       color: const Color(
@@ -244,7 +245,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                   child: ElevatedButton(
                                     onPressed: _busy ? null : _continue,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF7B2CBF),
+                                      backgroundColor: AppColors.brandPurple,
                                       disabledBackgroundColor: const Color(
                                         0xFF2D1B4E,
                                       ),
@@ -296,7 +297,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
 
   Widget _buildLoading() {
     return const Center(
-      child: CircularProgressIndicator(color: Color(0xFF7B2CBF)),
+      child: CircularProgressIndicator(color: AppColors.brandPurple),
     );
   }
 

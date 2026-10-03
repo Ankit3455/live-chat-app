@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/user_model.dart';
 import '../../astrology/widgets/compatibility_chip.dart';
 import 'profile_quick_sheet.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Tap opens the quick sheet; its Message button calls [onTap].
 class ProfileCard extends StatefulWidget {
@@ -91,7 +92,7 @@ class _ProfileCardState extends State<ProfileCard>
       alignment: Alignment.center,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF7B2CBF), Color(0xFF9C4DFF)],
+          colors: [AppColors.brandPurple, AppColors.accentPurple],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -124,8 +125,20 @@ class _ProfileCardState extends State<ProfileCard>
   @override
   Widget build(BuildContext context) {
     final online = widget.user.online == true;
+    final age = widget.user.age;
+    final semanticsLabel = [
+      widget.user.username,
+      if (age != null) '$age',
+      if (online) 'online',
+    ].join(', ');
 
-    final card = GestureDetector(
+    final card = Semantics(
+      button: true,
+      label: semanticsLabel,
+      hint: 'Open profile',
+      excludeSemantics: true,
+      onTap: _openQuickSheet,
+      child: GestureDetector(
       onTapDown: (_) => _tapCtrl.reverse(),
       onTapCancel: () => _tapCtrl.forward(),
       onTapUp: (_) {
@@ -139,7 +152,7 @@ class _ProfileCardState extends State<ProfileCard>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               gradient: const LinearGradient(
-                colors: [Color(0xFF7B2CBF), Color(0xFF9C4DFF)],
+                colors: [AppColors.brandPurple, AppColors.accentPurple],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -265,6 +278,7 @@ class _ProfileCardState extends State<ProfileCard>
               ],
             ),
           ),
+      ),
       ),
     );
 

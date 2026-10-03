@@ -130,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen>
                             'Discover a love written in the stars,\nyour celestial journey begins here 🌌',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFFD1C4E9),
+                              color: AppColors.lavenderLight,
                               fontSize: 16,
                               height: 1.5,
                             ),
