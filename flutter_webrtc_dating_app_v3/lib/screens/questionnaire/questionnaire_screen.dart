@@ -9,6 +9,7 @@ import 'package:availchat/screens/questionnaire/widgets/progress_header.dart';
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
 import 'package:availchat/screens/profile/avatar_preview_screen.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
+import 'package:availchat/services/location_service.dart';
 import '../../features/onboarding/tour_prefs.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
@@ -105,8 +106,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             city,
           ).timeout(const Duration(seconds: 8));
           if (list.isNotEmpty) {
-            userData['userLatitude'] = list.first.latitude;
-            userData['userLongitude'] = list.first.longitude;
+            // Rounded coordinates plus a coarse geohash only (DEST-002/081).
+            userData.addAll(
+              LocationService.locationFields(
+                list.first.latitude,
+                list.first.longitude,
+              ),
+            );
           }
         } catch (e) {
           debugPrint('Geocoding failed: $e');

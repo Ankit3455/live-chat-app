@@ -1978,7 +1978,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildProfileGrid() {
     final users = _controller.displayedUsers;
 
-    return GridView.builder(
+    final grid = GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -2011,6 +2011,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return profileCard;
       },
+    );
+
+    // Paginated feed: fetch the next page near the end of the grid.
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 600) {
+          _controller.loadMore();
+        }
+        return false;
+      },
+      child: Stack(
+        children: [
+          grid,
+          if (_controller.isLoadingMore)
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 96,
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

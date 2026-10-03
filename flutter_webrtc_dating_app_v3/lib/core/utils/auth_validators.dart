@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/user_model.dart';
 import '../constants/app_strings.dart';
 
 /// Shared form validators and auth error text for login, signup and
@@ -106,20 +107,9 @@ class AgePolicy {
     return parse(data['dateOfBirth']) ?? parse(data['dob']);
   }
 
-  static DateTime? parse(dynamic raw) {
-    if (raw == null) return null;
-    if (raw is Timestamp) return raw.toDate();
-    if (raw is DateTime) return raw;
-    if (raw is String && raw.trim().isNotEmpty) {
-      final s = raw.trim();
-      try {
-        return legacyDobFormat.parseStrict(s);
-      } catch (_) {
-        return DateTime.tryParse(s);
-      }
-    }
-    return null;
-  }
+  /// Same tolerant parser the profile model uses, so the age gate and the
+  /// discovery feed agree on every stored DOB format.
+  static DateTime? parse(dynamic raw) => UserModel.parseDob(raw);
 
   /// Firestore fields written for a confirmed DOB. Keeps legacy `dob` for
   /// readers that still expect the dd/MM/yyyy string.

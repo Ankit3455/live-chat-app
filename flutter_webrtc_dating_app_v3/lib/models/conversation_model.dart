@@ -54,6 +54,10 @@ class Conversation {
   // Top-level muted map (legacy/alt storage): { "<uid>": bool }
   final Map<String, bool> muted;
 
+  /// Participants whose accounts were deleted (server-written). Shown as
+  /// "Deleted user".
+  final List<String> deletedUsers;
+
   Conversation({
     required this.id,
     required this.participants,
@@ -75,6 +79,7 @@ class Conversation {
     Map<String, bool>? isTyping,
     Map<String, bool>? isOnline,
     Map<String, bool>? muted,
+    this.deletedUsers = const [],
   })  : participantData = participantData ?? const {},
         statePerUser = statePerUser ?? const {},
         typingAt = typingAt ?? const {},
@@ -158,6 +163,9 @@ class Conversation {
       isOnline: ((data['isOnline'] as Map?) ?? const {})
           .map((k, v) => MapEntry(k.toString(), v == true)),
       muted: mutedMap,
+      deletedUsers: ((data['deletedUsers'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 
@@ -192,6 +200,10 @@ class Conversation {
     return participants.firstWhere((id) => id != currentUserId,
         orElse: () => '');
   }
+
+  /// Whether [uid]'s account was deleted.
+  bool isDeletedUser(String uid) =>
+      deletedUsers.contains(uid) || _dataFor(uid)['deleted'] == true;
 
   Map _dataFor(String uid) {
     final me = participantData[uid];

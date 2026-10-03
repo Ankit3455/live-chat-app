@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/services/location_service.dart';
 import 'package:availchat/widgets/voice/voice_intro_section.dart';
 
 class ProfileEditScreen extends StatefulWidget {
@@ -61,11 +62,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         'location': _locationController.text.trim(),
       });
 
+      // City changed: re-geocode so distance follows the new city (DEST-081).
+      final newCity = _locationController.text.trim();
+      final cityFound = newCity.isEmpty ||
+          newCity == (widget.user.location ?? '').trim() ||
+          await LocationService.instance.updateFromCity(newCity);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Profile updated successfully!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(cityFound
+              ? '✅ Profile updated successfully!'
+              : 'Profile updated. Could not find that city; distance may be inaccurate.'),
+          backgroundColor: cityFound ? Colors.green : null,
         ),
       );
       Navigator.pop(context, true);

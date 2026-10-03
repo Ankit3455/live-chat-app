@@ -408,7 +408,9 @@ class _ConversationTile extends StatelessWidget {
       builder: (context, snap) {
         final other = snap.data;
         final rawName = other?.username.trim() ?? '';
-        final name = rawName.isNotEmpty ? rawName : 'User';
+        final name = conv.isDeletedUser(otherId)
+            ? 'Deleted user'
+            : (rawName.isNotEmpty ? rawName : 'User');
         final avatarUrl = _avatarUrl(other);
 
         final content = ListTile(

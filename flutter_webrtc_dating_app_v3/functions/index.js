@@ -7,6 +7,14 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
+// Functions owned by other modules (WP-3 public profiles, WP-5 safety and account deletion).
+const moderation = require('./moderation');
+
+exports.deleteAccount = require('./account').deleteAccount;
+exports.onReportCreated = moderation.onReportCreated;
+exports.onBlockWritten = moderation.onBlockWritten;
+exports.mirrorPublicProfile = require('./profile_mirror').mirrorPublicProfile;
+
 const ONESIGNAL_APP_ID = 'f4489084-4880-4e7f-aa6d-a3b0cfb8beb4';
 const oneSignalRestApiKey = defineSecret('ONESIGNAL_REST_API_KEY');
 
