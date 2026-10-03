@@ -67,6 +67,30 @@ describe('database.rules.json', () => {
       await assertSucceeds(remove(ref(rtdb('bob'), `incoming_calls/bob/${id}`)));
     });
 
+    it('with consent enforcement on, ringing needs the server consent mirror', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await set(ref(ctx.database(), 'config/enforceCallConsent'), true);
+      });
+      const id = 'alice_bob_4';
+      await assertFails(set(ref(rtdb('alice'), `incoming_calls/bob/${id}`), inboxEntry('alice', id)));
+
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await set(ref(ctx.database(), 'call_consent/bob/alice'), { audio: true, video: false });
+      });
+      await assertSucceeds(set(ref(rtdb('alice'), `incoming_calls/bob/${id}`), inboxEntry('alice', id)));
+      const video = { ...inboxEntry('alice', 'alice_bob_5'), callType: 'video' };
+      await assertFails(set(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_5'), video));
+      // Closing an existing entry does not need consent.
+      await assertSucceeds(update(ref(rtdb('alice'), `incoming_calls/bob/${id}`), { status: 'ended' }));
+    });
+
+    it('call consent mirror is server-only', async () => {
+      await assertFails(set(ref(rtdb('alice'), 'call_consent/bob/alice'), { audio: true }));
+      await assertFails(set(ref(rtdb('alice'), 'config/enforceCallConsent'), false));
+      await assertSucceeds(get(ref(rtdb('bob'), 'call_consent/bob/alice')));
+      await assertFails(get(ref(rtdb('carol'), 'call_consent/bob/alice')));
+    });
+
     it('only the owner reads the inbox', async () => {
       await assertFails(get(ref(rtdb('alice'), 'incoming_calls/bob')));
       await assertSucceeds(get(ref(rtdb('bob'), 'incoming_calls/bob')));

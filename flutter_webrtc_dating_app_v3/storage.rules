@@ -1,20 +1,22 @@
 rules_version = '2';
 
-// Destined Cloud Storage rules, v1 (WP-1).
+// Destined Cloud Storage rules, v2 (WP-23).
 // Media currently goes to Cloudinary (StorageConfig.kUseCloudinaryForMedia);
 // these rules cover the Firebase Storage fallback paths.
 //
-// Enforced now:
 //  - Default deny.
 //  - voices/{uid}/..., profile_photos/{uid}/..., avatars/{uid}_avatar_*.png:
 //    signed-in read, owner-only write, type and size limits
 //    (images <= 10 MB jpeg/png/webp, audio <= 10 MB).
 //  - chat_media/{conversationId}/...: conversation participants only
-//    (checked against Firestore).
+//    (checked against Firestore). Blocks are enforced on the message write;
+//    an upload alone is not visible to the other user.
 //  - Legacy flat profile_photos/{timestamp}.jpg: create-only (no overwrite).
+//    Still used by FirebaseStorageRepo.uploadImageFile (no uid folder, no
+//    contentType); drop it once that writes profile_photos/{uid}/.
 //
-// v2 (WP-23) will tighten: drop the legacy flat path once uploads use
-// profile_photos/{uid}/, and serve chat media through signed URLs.
+// Client writes checked: firebase_storage_repo (uploadVoice/deleteVoice,
+// uploadBytes for avatars, uploadImageFile, uploadChatImage, uploadChatAudio).
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() {

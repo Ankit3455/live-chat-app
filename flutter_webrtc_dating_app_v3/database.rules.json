@@ -1,6 +1,5 @@
-// Destined Realtime Database rules, v1 (WP-1). Firebase rules files accept comments.
+// Destined Realtime Database rules, v2 (WP-23). Firebase rules files accept comments.
 //
-// Enforced now:
 //  - Default deny.
 //  - users/{uid} (astrology answers) and presence/{uid}: only the owner writes;
 //    users/{uid} is owner-read only.
@@ -8,12 +7,20 @@
 //    its own entry (callerId == auth.uid) and only when the callId starts with
 //    "<callerUid>_<calleeUid>_" or the room rooms/{callId} already names the
 //    caller and callee. A caller may remove its own entry; the owner may do anything.
+//    Consent and blocks (DEST-012, DEST-003): when config/enforceCallConsent is
+//    true, a new ringing entry also needs call_consent/{calleeUid}/{callerUid}/{callType}
+//    == true. That mirror is written only by a Function, set when both users
+//    enabled the call type in their conversation and neither blocked the other.
+//    Turn the flag on (console) only after that Function is deployed and backfilled.
+//  - call_consent: server-only; caller and callee may read their pair.
 //  - rooms/{callId}: only the callerId/calleeId stored in the room read or
 //    write; caller creates it; ids immutable; offer and caller_candidates are
 //    caller-only, answer and callee_candidates callee-only.
 //
-// v2 (WP-23) will tighten: inbox writes require the call-consent mirror
-// (call_consent/{convId}/{uid}) and no block between the users.
+// Client writes checked: signaling_service (room skeleton, state, endRoom,
+// onDisconnect end, offer/answer, candidates, deleteRoom, writeIncoming,
+// closeIncomingForCallee, inbox cleanup), incoming_call_screen (inbox read),
+// presence_service (presence/{me} + onDisconnect), astrology answers (users/{me}).
 {
   "rules": {
     ".read": false,
@@ -38,7 +45,7 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
         "$callId": {
-          ".write": "auth != null && ((data.exists() && !newData.exists() && data.child('callerId').val() === auth.uid) || ((!data.exists() || data.child('callerId').val() === auth.uid) && newData.child('callerId').val() === auth.uid && ($callId.beginsWith(auth.uid + '_' + $uid + '_') || (root.child('rooms').child($callId).child('callerId').val() === auth.uid && root.child('rooms').child($callId).child('calleeId').val() === $uid))))",
+          ".write": "auth != null && ((data.exists() && !newData.exists() && data.child('callerId').val() === auth.uid) || ((!data.exists() || data.child('callerId').val() === auth.uid) && newData.child('callerId').val() === auth.uid && ($callId.beginsWith(auth.uid + '_' + $uid + '_') || (root.child('rooms').child($callId).child('callerId').val() === auth.uid && root.child('rooms').child($callId).child('calleeId').val() === $uid)) && (data.exists() || root.child('config').child('enforceCallConsent').val() !== true || (newData.child('callType').isString() && root.child('call_consent').child($uid).child(auth.uid).child(newData.child('callType').val()).val() === true))))",
           ".validate": "newData.hasChildren(['callerId', 'status'])",
           "callerId": { ".validate": "newData.isString() && newData.val() !== $uid" },
           "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
@@ -47,6 +54,14 @@
           "callerAvatar": { ".validate": "newData.isString() && newData.val().length <= 2048" },
           "roomId": { ".validate": "newData.isString() && newData.val().length <= 200" },
           "timestamp": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+
+    "call_consent": {
+      "$calleeUid": {
+        "$callerUid": {
+          ".read": "auth != null && (auth.uid === $calleeUid || auth.uid === $callerUid)"
         }
       }
     },
