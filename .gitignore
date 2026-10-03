@@ -27,3 +27,18 @@
 **/*.jks
 **/*.keystore
 **/key.properties
+**/*.p8
+**/*.p12
+**/*.mobileprovision
+**/upload-keystore*
+**/.env
+**/.env.*
+!**/.env.example
+**/functions/.secret.local
+**/functions/.runtimeconfig.json
+**/service-account*.json
+
+# Node / Firebase local files
+**/node_modules/
+**/firebase-debug*.log
+**/.firebase/

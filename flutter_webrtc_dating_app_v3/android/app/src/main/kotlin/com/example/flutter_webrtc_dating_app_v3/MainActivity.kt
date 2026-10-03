@@ -1,5 +1,7 @@
 package com.example.flutter_webrtc_dating_app_v3
 
+import android.annotation.TargetApi
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ContentResolver
@@ -17,10 +19,9 @@ class MainActivity: FlutterActivity() {
     private val AUDIO_CHANNEL = "audio_manager_channel"
     private var audioManager: AudioManager? = null
 
-    // ✅ App start hote hi channel banao
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        createNotificationChannel()
+        createNotificationChannels()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -46,41 +47,77 @@ class MainActivity: FlutterActivity() {
             }
     }
 
-    // ✅ Custom Sound Notification Channel
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    // Channel IDs must match existing_android_channel_id sent by functions/index.js.
+    // A channel's sound cannot change after creation, so new sounds need a new ID.
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
-            val channelId = "onesignal_chat_channel"
-            val channelName = "Chat Messages"
+        val notificationAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+        val ringtoneAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+            .build()
 
-            // Custom sound URI
-            val soundUri = Uri.parse(
-                ContentResolver.SCHEME_ANDROID_RESOURCE + "://" +
-                        packageName + "/raw/notification_sound"
-            )
-
-            val audioAttributes = AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .build()
-
-            val channel = NotificationChannel(
-                channelId,
-                channelName,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Chat message notifications"
-                setSound(soundUri, audioAttributes)
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 300, 200, 300)
-            }
-
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-
-            android.util.Log.d("NotificationChannel", "✅ Custom channel created: $channelId")
+        val chatChannel = NotificationChannel(
+            "onesignal_chat_channel",
+            "Chat Messages",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Messages in your active chats"
+            setSound(rawSound("notification_sound"), notificationAttributes)
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 300, 200, 300)
         }
+
+        // First messages from someone you have not replied to yet: no sound, no heads-up.
+        val newChatChannel = NotificationChannel(
+            "onesignal_new_chat_channel",
+            "New Chat Requests",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Messages from people you have not replied to yet"
+            setSound(null, null)
+            enableVibration(false)
+        }
+
+        val audioCallChannel = callChannel(
+            "onesignal_audio_call_channel",
+            "Voice Calls",
+            "Incoming voice calls",
+            ringtoneAttributes
+        )
+        val videoCallChannel = callChannel(
+            "onesignal_video_call_channel",
+            "Video Calls",
+            "Incoming video calls",
+            ringtoneAttributes
+        )
+
+        getSystemService(NotificationManager::class.java).createNotificationChannels(
+            listOf(chatChannel, newChatChannel, audioCallChannel, videoCallChannel)
+        )
     }
+
+    @TargetApi(Build.VERSION_CODES.O)
+    private fun callChannel(
+        id: String,
+        name: String,
+        channelDescription: String,
+        attributes: AudioAttributes
+    ) = NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH).apply {
+        description = channelDescription
+        setSound(rawSound("incoming_call"), attributes)
+        enableVibration(true)
+        vibrationPattern = longArrayOf(0, 800, 400, 800)
+        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+    }
+
+    private fun rawSound(name: String): Uri = Uri.parse(
+        ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + packageName + "/raw/" + name
+    )
 
     private fun setCallAudioMode(inCall: Boolean) {
         audioManager?.let { am ->
@@ -95,7 +132,7 @@ class MainActivity: FlutterActivity() {
                     AudioManager.AUDIOFOCUS_GAIN
                 )
 
-                android.util.Log.d("AudioManager", "✅ Set to MODE_IN_COMMUNICATION + Speaker ON")
+                android.util.Log.d("AudioManager", "Set to MODE_IN_COMMUNICATION + speaker on")
             } else {
                 am.mode = AudioManager.MODE_NORMAL
                 am.isSpeakerphoneOn = false
@@ -103,13 +140,13 @@ class MainActivity: FlutterActivity() {
                 @Suppress("DEPRECATION")
                 am.abandonAudioFocus(null)
 
-                android.util.Log.d("AudioManager", "✅ Set to MODE_NORMAL")
+                android.util.Log.d("AudioManager", "Set to MODE_NORMAL")
             }
         }
     }
 
     private fun setSpeakerphone(enabled: Boolean) {
         audioManager?.isSpeakerphoneOn = enabled
-        android.util.Log.d("AudioManager", "🔊 Speakerphone: ${if (enabled) "ON" else "OFF"}")
+        android.util.Log.d("AudioManager", "Speakerphone: ${if (enabled) "on" else "off"}")
     }
 }
