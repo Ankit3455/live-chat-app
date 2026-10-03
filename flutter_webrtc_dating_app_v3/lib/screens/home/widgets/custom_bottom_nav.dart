@@ -118,6 +118,8 @@ class _NavItem extends StatelessWidget {
         button: true,
         selected: isSelected,
         label: semanticLabel,
+        // excludeSemantics drops the GestureDetector's tap action.
+        onTap: onTap,
         excludeSemantics: true,
         child: GestureDetector(
           key: itemKey,
