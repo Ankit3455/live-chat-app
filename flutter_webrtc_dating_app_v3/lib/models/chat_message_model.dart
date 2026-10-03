@@ -161,6 +161,11 @@ enum MessageType {
 }
 
 class ChatMessage {
+  /// Maximum text length accepted by ChatService (mirrored in security rules).
+  static const int maxLength = 2000;
+
+  static const String deletedText = 'This message was deleted';
+
   final String id;
   final String senderId;
   final String receiverId;
@@ -172,6 +177,9 @@ class ChatMessage {
   final bool isDeleted;
   final Map<String, dynamic>? metadata;
   final String? replyToMessageId;
+
+  /// Snapshot of the replied-to message: { id, senderId, text, type }.
+  final Map<String, dynamic>? replyTo;
   final DateTime? editedAt;
   final DateTime? readAt;
   final DateTime? deliveredAt;
@@ -196,6 +204,7 @@ class ChatMessage {
     this.isDeleted = false,
     this.metadata,
     this.replyToMessageId,
+    this.replyTo,
     this.editedAt,
     this.readAt,
     this.deliveredAt,
@@ -251,14 +260,17 @@ class ChatMessage {
       isDeleted: (data['isDeleted'] ?? false) == true,
       metadata: data['metadata'] as Map<String, dynamic>?,
       replyToMessageId: data['replyToMessageId'] as String?,
+      replyTo: data['replyTo'] is Map
+          ? Map<String, dynamic>.from(data['replyTo'] as Map)
+          : null,
       editedAt: _toDate(data['editedAt']),
       readAt: _toDate(data['readAt']),
       deliveredAt: _toDate(data['deliveredAt']),
       // 🆕 Media fields
       mediaUrl: data['mediaUrl'] as String?,
       thumbnailUrl: data['thumbnailUrl'] as String?,
-      mediaDuration: data['mediaDuration'] as int?,
-      mediaSize: data['mediaSize'] as int?,
+      mediaDuration: (data['mediaDuration'] as num?)?.toInt(),
+      mediaSize: (data['mediaSize'] as num?)?.toInt(),
       fileName: data['fileName'] as String?,
       mimeType: data['mimeType'] as String?,
     );
@@ -277,6 +289,7 @@ class ChatMessage {
       'isDeleted': isDeleted,
       'metadata': metadata,
       'replyToMessageId': replyToMessageId,
+      'replyTo': replyTo,
       'editedAt': editedAt == null ? null : Timestamp.fromDate(editedAt!),
       'readAt': readAt == null ? null : Timestamp.fromDate(readAt!),
       'deliveredAt': deliveredAt == null ? null : Timestamp.fromDate(deliveredAt!),
@@ -300,6 +313,7 @@ class ChatMessage {
     DateTime? timestamp,
     Map<String, dynamic>? metadata,
     String? replyToMessageId,
+    Map<String, dynamic>? replyTo,
     // 🆕 Media fields
     String? mediaUrl,
     String? thumbnailUrl,
@@ -320,6 +334,7 @@ class ChatMessage {
       isDeleted: isDeleted ?? this.isDeleted,
       metadata: metadata ?? this.metadata,
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyTo: replyTo ?? this.replyTo,
       editedAt: editedAt ?? this.editedAt,
       readAt: readAt ?? this.readAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
@@ -338,9 +353,22 @@ class ChatMessage {
   /// Check if this is a media message
   bool get isMedia => type == MessageType.image || type == MessageType.audio || type == MessageType.video;
 
+  /// Snapshot stored on a reply so the quote renders without another read.
+  Map<String, dynamic> toReplySnapshot() => {
+        'id': id,
+        'senderId': senderId,
+        'text': isDeleted ? '' : message,
+        'type': type.name,
+      };
+
   /// Get display text for conversation list preview
-  String get previewText {
-    if (isDeleted) return 'This message was deleted';
+  String get previewText => isDeleted
+      ? deletedText
+      : previewFor(type, message, fileName: fileName);
+
+  /// Conversation-list preview for a message of [type] with [message] text.
+  static String previewFor(MessageType type, String message,
+      {String? fileName}) {
     switch (type) {
       case MessageType.image:
         return '📷 Photo${message.isNotEmpty ? ': $message' : ''}';
