@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../managers/unread_manager.dart';
 
+/// Tabs: 0 Discover, 1 Chats, 2 Games, 3 Profile (see MainShell).
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
@@ -74,18 +75,11 @@ class CustomBottomNav extends StatelessWidget {
             onTap: () => onTap(2),
           ),
           _NavItem(
-            icon: Icons.tune,
-            label: 'Filters',
+            icon: Icons.person,
+            label: 'Profile',
             isSelected: currentIndex == 3,
             itemKey: _keyAt(3),
             onTap: () => onTap(3),
-          ),
-          _NavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: currentIndex == 4,
-            itemKey: _keyAt(4),
-            onTap: () => onTap(4),
           ),
         ],
       ),
@@ -112,34 +106,49 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: itemKey,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-            colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
-          )
-              : null,
-          borderRadius: BorderRadius.circular(18),
+    final semanticLabel =
+        badgeCount > 0 ? '$label, $badgeCount unread' : label;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: semanticLabel,
+        excludeSemantics: true,
+        child: GestureDetector(
+          key: itemKey,
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Center(child: _buildPill()),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildIcon(),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFFB39DDB),
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
+      ),
+    );
+  }
+
+  Widget _buildPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? const LinearGradient(
+          colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+        )
+            : null,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildIcon(),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : const Color(0xFFB39DDB),
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

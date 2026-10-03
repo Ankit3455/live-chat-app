@@ -337,9 +337,9 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ====================================================================
-          // Help & Tutorial Section
+          // Help & Support Section
           // ====================================================================
-          _buildSectionHeader('Help & Tutorial'),
+          _buildSectionHeader('Help & Support'),
           const SizedBox(height: 12),
 
           _buildSettingsTile(

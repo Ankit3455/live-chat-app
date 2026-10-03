@@ -250,6 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         actions: [
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.white),
+                            tooltip: 'Edit profile',
                             onPressed: () async {
                               if (_currentUser == null) return;
                               final result = await Navigator.push(
@@ -267,14 +268,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           IconButton(
                             icon:
                                 const Icon(Icons.settings, color: Colors.white),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen(),
-                                ),
-                              );
-                            },
+                            tooltip: 'Settings',
+                            onPressed: _openSettings,
                           ),
                         ],
                       ),
@@ -335,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                               // Quick Actions
                               _buildQuickActions(),
-                              const SizedBox(height: 100), // Bottom padding
+                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
@@ -346,7 +341,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ✅ THIS METHOD WAS MISSING - NOW ADDED
   Widget _buildCompletionCTA() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -407,6 +401,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
     );
   }
 
@@ -472,6 +473,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 )
               : null,
+        ),
+        const SizedBox(height: 12),
+        _buildActionTile(
+          icon: Icons.settings,
+          title: 'Settings',
+          subtitle: 'Account, help & support, sign out',
+          color: const Color(0xFFB39DDB),
+          onTap: _openSettings,
         ),
       ],
     );
