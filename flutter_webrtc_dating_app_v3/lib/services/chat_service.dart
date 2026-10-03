@@ -155,7 +155,7 @@ class ChatService {
   // --------------------------------------------
   // Send message (SERVER TIMESTAMPS)
   // --------------------------------------------
-  Future<void> sendMessage({
+  Future<String?> sendMessage({
     required String conversationId,
     required String receiverId,
     required String message,
@@ -163,7 +163,7 @@ class ChatService {
     Map<String, dynamic>? metadata,
     String? replyToMessageId,
   }) async {
-    if (currentUserId.isEmpty) return;
+    if (currentUserId.isEmpty) return null;
 
     final convRef = _firestore.collection('conversations').doc(conversationId);
     final msgRef = convRef.collection('messages').doc();
@@ -242,6 +242,7 @@ class ChatService {
     });
 
     await batch.commit();
+    return msgRef.id;
   }
 
   // --------------------------------------------

@@ -95,12 +95,8 @@ class CallService {
 
     // ✅ ADD THIS: Send OneSignal Push Notification for Call
     await OneSignalSender.sendCallNotification(
-      callerId: caller.uid,
-      callerName: caller.displayName ?? 'User',
-      callerAvatar: caller.photoURL,
       receiverId: receiverId,
       callId: callId,
-      isVideo: type == CallType.video,
     );
 
     // start WebRTC as the caller (renderer will be attached by the call screen later)
