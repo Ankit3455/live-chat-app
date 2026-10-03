@@ -41,6 +41,14 @@
       ]
     },
     {
+      "collectionGroup": "ludo_matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "playerUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "state", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "carrom_queue",
       "queryScope": "COLLECTION",
       "fields": [

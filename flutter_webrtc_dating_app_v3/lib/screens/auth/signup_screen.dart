@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
-import '../../features/onboarding/tour_prefs.dart';
 import '../../services/auth_service.dart';
 import 'auth_router.dart';
 
@@ -132,7 +131,6 @@ class _SignupScreenState extends State<SignupScreen> {
         },
       );
 
-      await TourPrefs.setForceShowAfterSignup(true);
       if (!mounted) return;
 
       _showSuccess('Account created! Check your inbox to verify your email.');

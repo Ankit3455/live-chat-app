@@ -86,6 +86,11 @@ describe('firestore.rules', () => {
       await assertFails(getDocs(collection(db('carol'), 'conversations/c1/messages')));
     });
 
+    it('messages of a not-yet-created pair conversation are readable only by the pair', async () => {
+      await assertSucceeds(getDocs(collection(db('alice'), 'conversations/alice_bob/messages')));
+      await assertFails(getDocs(collection(db('carol'), 'conversations/alice_bob/messages')));
+    });
+
     it('list query must be scoped to my conversations', async () => {
       const mine = query(
         collection(db('alice'), 'conversations'),
@@ -226,6 +231,34 @@ describe('firestore.rules', () => {
   });
 
   describe('games', () => {
+    it('another player can claim a carrom queue entry only with a new match', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'carrom_queue/bob'), { uid: 'bob', displayName: 'Bob' });
+      });
+      const fs = db('alice');
+      await assertFails(updateDoc(doc(fs, 'carrom_queue/bob'), { matchId: 'none', claimedBy: 'alice' }));
+      const batch = writeBatch(fs);
+      batch.set(doc(fs, 'carrom_matches/cm1'), {
+        host: 'alice',
+        players: { alice: {}, bob: {} },
+        playerUids: ['alice', 'bob'],
+        status: 'ready',
+        turn: 'alice',
+      });
+      batch.update(doc(fs, 'carrom_queue/bob'), { matchId: 'cm1', claimedBy: 'alice' });
+      await assertSucceeds(batch.commit());
+    });
+
+    it('either player may create a carrom rematch hosted by the other', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), 'carrom_matches/cm2'), {
+        host: 'bob',
+        players: { alice: {}, bob: {} },
+        playerUids: ['alice', 'bob'],
+        status: 'ready',
+        turn: 'bob',
+      }));
+    });
+
     it('non-player cannot update or delete a match', async () => {
       await assertFails(updateDoc(doc(db('carol'), 'ludo_matches/l1'), { dice: 6 }));
       await assertFails(deleteDoc(doc(db('carol'), 'ludo_matches/l1')));

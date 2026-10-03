@@ -128,6 +128,17 @@ class CallConsent {
     if (cached != null) return cached;
 
     final participants = [uidA, uidB]..sort();
+
+    // New chats use the deterministic id "<lowerUid>_<higherUid>".
+    final deterministicId = '${participants[0]}_${participants[1]}';
+    try {
+      final snap =
+          await _db.collection('conversations').doc(deterministicId).get();
+      if (snap.exists) return _conversationIds[key] = deterministicId;
+    } catch (e) {
+      debugPrint('CallConsent: conversation lookup failed: $e');
+    }
+
     final q = await _db
         .collection('conversations')
         .where('participants', isEqualTo: participants)

@@ -290,7 +290,9 @@ class ChatService {
       convRef,
       <String, dynamic>{
         'conversationId': conversationId,
-        'participants': participants,
+        // Rules keep participants immutable (order included); legacy docs
+        // may store them unsorted, so only write them when creating.
+        if (exists != true) 'participants': participants,
         'isGroup': false,
         if (exists == false) 'createdAt': now,
         'lastMessage': {

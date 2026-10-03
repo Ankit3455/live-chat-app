@@ -721,13 +721,16 @@ class CallService {
         'readAt': null,
         'deliveredAt': null,
       });
+      // Same summary shape as ChatService._writeMessage.
       batch.update(convRef, {
-        'lastMessageText': text,
+        'lastMessage': {
+          'text': text,
+          'type': 'call',
+          'senderId': call.callerId,
+          'messageId': msgRef.id,
+          'at': FieldValue.serverTimestamp(),
+        },
         'lastMessageAt': FieldValue.serverTimestamp(),
-        'lastMessageSender': call.callerId,
-        'lastMessage': text,
-        'lastMessageTime': FieldValue.serverTimestamp(),
-        'lastMessageSenderId': call.callerId,
         'participantData.${call.receiverId}.unreadCount': FieldValue.increment(
           1,
         ),
