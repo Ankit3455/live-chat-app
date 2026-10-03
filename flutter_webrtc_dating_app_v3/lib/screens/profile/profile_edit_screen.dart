@@ -1,16 +1,12 @@
 // lib/screens/profile/profile_edit_screen.dart
-import 'dart:io';
+//
+// Text fields and voice intro only. Photo/avatar actions live in
+// My Profile's Change Avatar sheet (ProfilePhotoService).
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/widgets/voice/voice_intro_section.dart';
-
-import 'package:availchat/core/config/storage_config.dart';
-import 'package:availchat/services/storage/storage_repo.dart';
-import 'package:availchat/services/storage/firebase_storage_repo.dart';
-import 'package:availchat/services/storage/cloudinary_storage_repo.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final UserModel user;
@@ -29,10 +25,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late TextEditingController _locationController;
 
   bool _isSaving = false;
-  bool _isRefreshing = false;
-
-  StorageRepo get _storage =>
-      StorageConfig.kUseCloudinaryForMedia ? const CloudinaryStorageRepo() : FirebaseStorageRepo();
 
   @override
   void initState() {
@@ -54,6 +46,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
+    if (widget.user.uid == null) return;
 
     setState(() => _isSaving = true);
 
@@ -85,90 +78,31 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  /// Reloads the profile and puts the latest values into the fields.
   Future<void> _refresh() async {
-    if (widget.user.uid == null) return;
-    setState(() => _isRefreshing = true);
+    final uid = widget.user.uid;
+    if (uid == null) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).get();
-
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('🔄 Refreshed')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Refresh failed: $e')));
-    } finally {
-      if (mounted) setState(() => _isRefreshing = false);
-    }
-  }
-
-  Future<void> _changePhoto() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-
-    try {
-      if (mounted) {
+      if (!doc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Uploading photo...')),
-        );
+            const SnackBar(content: Text('Profile not found')));
+        return;
       }
-
-      final url = await _storage.uploadImageFile(
-        folder: 'profile_photos',
-        file: File(picked.path),
-      );
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({
-        'profileImage': url,
-        // user uploaded photo -> custom avatar true
-        'isCustomAvatar': true,
-        'avatarVersion': FieldValue.increment(1),
+      final fresh = UserModel.fromFirestore(doc);
+      setState(() {
+        _usernameController.text = fresh.username;
+        _bioController.text = fresh.bio ?? '';
+        _professionController.text = fresh.profession ?? '';
+        _locationController.text = fresh.location ?? '';
       });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Profile photo updated')),
-      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-    }
-  }
-
-  Future<void> _resetToAvatar() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).get();
-      final data = doc.data() ?? {};
-      final props = (data['avatarProperties'] as Map<String, dynamic>?) ?? {};
-      final avatarUrl = (props['avatarPngUrl'] as String?) ?? '';
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({
-        'profileImage': avatarUrl.isNotEmpty ? avatarUrl : null,
-        // reset to generated avatar -> NOT custom
-        'isCustomAvatar': false,
-        'avatarVersion': FieldValue.increment(1),
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Reset to Avatar'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed: $e')));
+      debugPrint('Profile refresh failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not refresh. Please try again.')));
     }
   }
 
@@ -209,6 +143,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24.0),
             children: [
+              _buildSectionHeader('About you'),
               _buildTextField(
                 controller: _usernameController,
                 label: 'Username',
@@ -225,7 +160,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 maxLines: 5,
                 maxLength: 150,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              _buildSectionHeader('Work & location'),
               _buildTextField(
                 controller: _professionController,
                 label: 'Profession',
@@ -237,58 +173,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 label: 'Location',
                 icon: Icons.location_on,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
               const Divider(color: Colors.white24, height: 1),
               const SizedBox(height: 18),
               _liveVoiceSection(widget.user),
-              const SizedBox(height: 18),
-              const Divider(color: Colors.white24, height: 1),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Profile Photo',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _changePhoto,
-                          icon: const Icon(Icons.photo),
-                          label: const Text('Change Photo'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7B2CBF),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton(
-                          onPressed: _resetToAvatar,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white38),
-                          ),
-                          child: const Text(
-                            'Reset to Avatar',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
               const SizedBox(height: 32),
               SizedBox(
                 height: 56,
@@ -320,7 +208,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   ),
                 ),
               ),
-              if (_isRefreshing) const SizedBox(height: 24),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -368,6 +256,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
         return VoiceIntroSection(user: mergedForVoice);
       },
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 

@@ -22,10 +22,15 @@
       this.onTap,
     });
 
+    // profileImage is the current photo (custom or generated); fall back to
+    // the stored generated avatar if it is empty.
     String? _bestUrl(UserModel u) {
-      final propUrl = (u.avatarProperties?['avatarPngUrl'] as String?);
-      final profile = u.profileImage;
-      String? chosen = (propUrl != null && propUrl.trim().isNotEmpty) ? propUrl : (profile.isNotEmpty ? profile : null);
+      final profile = u.profileImage.trim();
+      final avatarUrl =
+          (u.avatarProperties?['avatarImageUrl'] as String?)?.trim() ?? '';
+      final chosen = profile.isNotEmpty
+          ? profile
+          : (avatarUrl.isNotEmpty ? avatarUrl : null);
       if (chosen == null) return null;
       return cacheBustedUrl(chosen, u.avatarVersion);
     }
