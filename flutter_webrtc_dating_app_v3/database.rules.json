@@ -1,0 +1,92 @@
+// Destined Realtime Database rules, v1 (WP-1). Firebase rules files accept comments.
+//
+// Enforced now:
+//  - Default deny.
+//  - users/{uid} (astrology answers) and presence/{uid}: only the owner writes;
+//    users/{uid} is owner-read only.
+//  - incoming_calls/{uid}: only {uid} reads. A caller may create or update only
+//    its own entry (callerId == auth.uid) and only when the callId starts with
+//    "<callerUid>_<calleeUid>_" or the room rooms/{callId} already names the
+//    caller and callee. A caller may remove its own entry; the owner may do anything.
+//  - rooms/{callId}: only the callerId/calleeId stored in the room read or
+//    write; caller creates it; ids immutable; offer and caller_candidates are
+//    caller-only, answer and callee_candidates callee-only.
+//
+// v2 (WP-23) will tighten: inbox writes require the call-consent mirror
+// (call_consent/{convId}/{uid}) and no block between the users.
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "incoming_calls": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$callId": {
+          ".write": "auth != null && ((data.exists() && !newData.exists() && data.child('callerId').val() === auth.uid) || ((!data.exists() || data.child('callerId').val() === auth.uid) && newData.child('callerId').val() === auth.uid && ($callId.beginsWith(auth.uid + '_' + $uid + '_') || (root.child('rooms').child($callId).child('callerId').val() === auth.uid && root.child('rooms').child($callId).child('calleeId').val() === $uid))))",
+          ".validate": "newData.hasChildren(['callerId', 'status'])",
+          "callerId": { ".validate": "newData.isString() && newData.val() !== $uid" },
+          "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "callType": { ".validate": "newData.val() === 'audio' || newData.val() === 'video'" },
+          "callerName": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "callerAvatar": { ".validate": "newData.isString() && newData.val().length <= 2048" },
+          "roomId": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "timestamp": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null && (!data.exists() || data.child('callerId').val() === auth.uid || data.child('calleeId').val() === auth.uid)",
+        ".write": "auth != null && ((!data.exists() && newData.child('callerId').val() === auth.uid) || (data.exists() && !newData.exists() && (data.child('callerId').val() === auth.uid || data.child('calleeId').val() === auth.uid)))",
+        ".validate": "newData.hasChildren(['callerId', 'calleeId'])",
+
+        "callerId": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+        },
+        "calleeId": {
+          ".validate": "newData.isString() && newData.val() !== newData.parent().child('callerId').val() && (!data.exists() || newData.val() === data.val())"
+        },
+        "state": {
+          ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)",
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "offer": {
+          ".write": "auth != null && root.child('rooms').child($roomId).child('callerId').val() === auth.uid"
+        },
+        "answer": {
+          ".write": "auth != null && root.child('rooms').child($roomId).child('calleeId').val() === auth.uid"
+        },
+        "caller_candidates": {
+          ".write": "auth != null && root.child('rooms').child($roomId).child('callerId').val() === auth.uid"
+        },
+        "callee_candidates": {
+          ".write": "auth != null && root.child('rooms').child($roomId).child('calleeId').val() === auth.uid"
+        },
+        "endedBy": {
+          ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)",
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "$other": {
+          ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "destined-rules-tests",
+  "private": true,
+  "description": "Emulator tests for firestore.rules, database.rules.json and storage.rules",
+  "scripts": {
+    "test": "mocha --exit --timeout 20000 \"*.test.js\"",
+    "test:emulators": "cd ../.. && firebase emulators:exec --only firestore,database,storage --project demo-destined \"npm --prefix test/rules test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1",
+    "mocha": "^10.7.3"
+  }
+}
