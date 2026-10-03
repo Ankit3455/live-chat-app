@@ -9,18 +9,14 @@ import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/discovery_feed_service.dart';
 import 'package:availchat/services/location_service.dart';
 import 'package:availchat/services/safety_service.dart';
-import 'package:availchat/services/session_service.dart';
 
 /// Home screen logic, kept out of the UI.
 class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   final _auth = FirebaseAuth.instance;
   final _db = FirebaseFirestore.instance;
 
-  static const Duration _searchDebounce = Duration(milliseconds: 300);
-
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _meSubscription;
   StreamSubscription<Set<String>>? _hiddenSubscription;
-  Timer? _searchTimer;
   bool _disposed = false;
 
   DiscoveryFeed? _feed;
@@ -34,7 +30,6 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isLoadingMore = false;
   String? _error;
-  String _searchQuery = '';
 
   // Bumped on every reload so a late page from an older load is dropped.
   int _loadGeneration = 0;
@@ -100,7 +95,6 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _meSubscription?.cancel();
     _hiddenSubscription?.cancel();
-    _searchTimer?.cancel();
     super.dispose();
   }
 
@@ -159,7 +153,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
       _hiddenUids = ids;
       if (_allUsers.any((u) => ids.contains(u.uid))) {
         _allUsers = _allUsers.where((u) => !ids.contains(u.uid)).toList();
-        _applySearch();
+        _publishUsers();
       }
     });
   }
@@ -187,7 +181,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
       _error = 'Failed to load users';
     }
     _isLoading = false;
-    _applySearch();
+    _publishUsers();
   }
 
   /// Loads the next page; call when the grid nears its end.
@@ -210,26 +204,11 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_disposed || generation != _loadGeneration) return;
     _isLoadingMore = false;
-    _applySearch();
+    _publishUsers();
   }
 
-  // ===========================================================================
-  // Search (client-side over loaded profiles)
-  // ===========================================================================
-
-  void _applySearch() {
-    final query = _searchQuery.toLowerCase().trim();
-    _displayedUsers = query.isEmpty
-        ? List.unmodifiable(_allUsers)
-        : _allUsers.where((u) {
-            final text = [
-              u.username,
-              u.profession ?? '',
-              u.location ?? '',
-              ...u.interests,
-            ].join(' ').toLowerCase();
-            return text.contains(query);
-          }).toList();
+  void _publishUsers() {
+    _displayedUsers = List.unmodifiable(_allUsers);
     _notify();
   }
 
@@ -262,13 +241,6 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   // Public Actions
   // ===========================================================================
 
-  /// Debounced search query update.
-  void updateSearchQuery(String query) {
-    _searchQuery = query;
-    _searchTimer?.cancel();
-    _searchTimer = Timer(_searchDebounce, _applySearch);
-  }
-
   /// Pull-to-refresh / retry.
   Future<void> refresh() async {
     _filters = await DiscoveryFilters.load();
@@ -281,8 +253,6 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     _filters = await DiscoveryFilters.load();
     await _reloadFeed();
   }
-
-  Future<void> signOut() => SessionService.instance.signOut();
 
   bool isValidUserForChat(UserModel user) {
     return user.uid != null && user.uid!.isNotEmpty;

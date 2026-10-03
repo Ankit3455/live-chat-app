@@ -1,5 +1,6 @@
   // lib/widgets/user_avatar.dart
   import 'package:flutter/material.dart';
+  import 'package:cached_network_image/cached_network_image.dart';
   import 'package:availchat/models/user_model.dart';
 
   String cacheBustedUrl(String url, int? version) {
@@ -55,17 +56,15 @@
       if (url != null && (url.startsWith('http://') || url.startsWith('https://'))) {
         content = ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: Image.network(
-            url,
+          child: CachedNetworkImage(
+            imageUrl: url,
+            memCacheWidth: (size * 3).round(),
             width: size,
             height: size,
             fit: BoxFit.cover,
-            gaplessPlayback: true,
-            loadingBuilder: (ctx, child, progress) {
-              if (progress == null) return child;
-              return _skeleton();
-            },
-            errorBuilder: (ctx, err, stack) => _fallback(),
+            useOldImageOnUrlChange: true,
+            placeholder: (_, __) => _skeleton(),
+            errorWidget: (_, __, ___) => _fallback(),
           ),
         );
       } else {

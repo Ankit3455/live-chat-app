@@ -1,6 +1,7 @@
 // lib/screens/settings/blocked_users_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../services/safety_service.dart';
 
@@ -139,7 +140,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         final name = snap.data ?? 'User';
         final avatar = user.avatarUrl;
         final image = avatar != null && avatar.startsWith('http')
-            ? NetworkImage(avatar)
+            ? CachedNetworkImageProvider(avatar, maxWidth: 150)
             : null;
         final busy = _busy.contains(user.uid);
         return Container(

@@ -47,9 +47,6 @@ class UserModel {
   final String? location;
   final String? bio;
 
-  // Compatibility
-  final int? matchPercentage;
-
   // Discovery. Coordinates exist only on the user's own doc; other users are
   // known by a precision-5 [geohash].
   final double? userLatitude;
@@ -124,7 +121,6 @@ class UserModel {
     this.birthLocation,
     this.location,
     this.bio,
-    this.matchPercentage,
     this.userLatitude,
     this.userLongitude,
     this.geohash,
@@ -330,7 +326,6 @@ class UserModel {
       birthLocation: _str(map['birthLocation']) ?? _str(map['placeOfBirth']),
       location: _str(map['location']),
       bio: _str(map['bio']),
-      matchPercentage: _int(map['matchPercentage']),
       userLatitude: _double(map['userLatitude']),
       userLongitude: _double(map['userLongitude']),
       geohash: _str(map['geohash']),
@@ -414,7 +409,6 @@ class UserModel {
       'birthLocation': birthLocation,
       'location': location,
       'bio': bio,
-      'matchPercentage': matchPercentage,
       'userLatitude': userLatitude,
       'userLongitude': userLongitude,
       'geohash': geohash,
@@ -481,7 +475,6 @@ class UserModel {
     String? birthLocation,
     String? location,
     String? bio,
-    int? matchPercentage,
     double? userLatitude,
     double? userLongitude,
     String? geohash,
@@ -545,7 +538,6 @@ class UserModel {
       birthLocation: birthLocation ?? this.birthLocation,
       location: location ?? this.location,
       bio: bio ?? this.bio,
-      matchPercentage: matchPercentage ?? this.matchPercentage,
       userLatitude: userLatitude ?? this.userLatitude,
       userLongitude: userLongitude ?? this.userLongitude,
       geohash: geohash ?? this.geohash,

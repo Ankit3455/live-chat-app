@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
 
 class CarromMatchScreen extends StatefulWidget {
@@ -542,10 +543,11 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               ),
               child: ClipOval(
                 child: avatar.isNotEmpty
-                    ? Image.network(
-                  avatar,
+                    ? CachedNetworkImage(
+                  imageUrl: avatar,
+                  memCacheWidth: 270,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _defaultAvatar(name, color),
+                  errorWidget: (_, __, ___) => _defaultAvatar(name, color),
                 )
                     : _defaultAvatar(name, color),
               ),

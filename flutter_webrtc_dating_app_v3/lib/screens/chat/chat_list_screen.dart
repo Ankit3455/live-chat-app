@@ -10,6 +10,7 @@ import '../../models/user_model.dart';
 import '../../services/chat_service.dart';
 import '../chat/chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'widgets/selection_app_bar.dart';
 
@@ -427,7 +428,9 @@ class _ConversationTile extends StatelessWidget {
               CircleAvatar(
                 radius: 26,
                 backgroundImage:
-                    avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                    avatarUrl != null
+                    ? CachedNetworkImageProvider(avatarUrl, maxWidth: 160)
+                    : null,
                 backgroundColor: AppColors.purplePrimary,
                 child: avatarUrl == null
                     ? Text(

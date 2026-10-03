@@ -8,8 +8,6 @@ import '../models/conversation_model.dart';
 import '../models/user_model.dart';
 import 'conversations_repository.dart';
 
-import '_helpers/batch_delete.dart';
-
 /// Chat data layer. Conversation schema is documented on [Conversation].
 ///
 /// All conversation-level writes use field paths / merges so concurrent
@@ -42,66 +40,6 @@ class ChatService {
   Stream<List<Conversation>> getConversations() {
     if (currentUserId.isEmpty) return const Stream.empty();
     return ConversationsRepository.instance.watch(currentUserId);
-  }
-
-  // Optional: Active/New streams if your UI uses tabs
-  Stream<List<Conversation>> streamActive(String uid) {
-    return _conversations
-        .where('participants', arrayContains: uid)
-        .where('statePerUser.$uid', isEqualTo: 'active')
-        .orderBy('lastMessageAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Conversation.fromFirestore(d)).toList());
-  }
-
-  Stream<List<Conversation>> streamNew(String uid) {
-    return _conversations
-        .where('participants', arrayContains: uid)
-        .where('statePerUser.$uid', isEqualTo: 'new')
-        .orderBy('lastMessageAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Conversation.fromFirestore(d)).toList());
-  }
-
-  // --------------------------------------------
-  // Messages
-  // --------------------------------------------
-  Stream<List<ChatMessage>> getMessages(String conversationId) {
-    return _conversations
-        .doc(conversationId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d)).toList());
-  }
-
-  // Paginated (optional)
-  Stream<List<ChatMessage>> getMessagesPaginated(
-      String conversationId, {
-        int limit = 50,
-        DocumentSnapshot? startAfter,
-      }) {
-    var q = _conversations
-        .doc(conversationId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .limit(limit);
-
-    if (startAfter != null) q = q.startAfterDocument(startAfter);
-
-    return q.snapshots().map(
-          (snap) => snap.docs.map((d) => ChatMessage.fromFirestore(d)).toList(),
-    );
-  }
-
-  Future<DocumentSnapshot?> getOldestMessage(String conversationId) async {
-    final snap = await _conversations
-        .doc(conversationId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-    return snap.docs.isNotEmpty ? snap.docs.first : null;
   }
 
   // --------------------------------------------
@@ -449,16 +387,6 @@ class ChatService {
     }
   }
 
-  // (Optional internal) reuse elsewhere if needed
-  // ignore: unused_element
-  Future<void> _deleteMessagesInBatches(
-      String conversationId, {
-        int batchSize = 400,
-      }) async {
-    final msgsRef = _conversations.doc(conversationId).collection('messages');
-    await deleteCollectionInBatches(msgsRef, batchSize: batchSize);
-  }
-
   // --------------------------------------------
   // Typing
   // --------------------------------------------
@@ -678,13 +606,6 @@ class ChatService {
       _log('getUserDetails', e);
     }
     return null;
-  }
-
-  Stream<UserModel?> streamUser(String uid) {
-    return _firestore.collection('users').doc(uid).snapshots().map((d) {
-      if (!d.exists) return null;
-      return UserModel.fromFirestore(d);
-    });
   }
 
   // --------------------------------------------

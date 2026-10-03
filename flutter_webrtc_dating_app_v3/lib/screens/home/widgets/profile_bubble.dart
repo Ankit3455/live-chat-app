@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/user_model.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -92,10 +93,11 @@ class _ProfileBubbleState extends State<ProfileBubble>
       ),
       padding: const EdgeInsets.all(2),
       child: ClipOval(
-        child: Image.network(
-          url,
+        child: CachedNetworkImage(
+          imageUrl: url,
+          memCacheWidth: 240,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
+          errorWidget: (_, __, ___) {
             // network fail → initials
             return Container(
               color: const Color(0xFF1A0E2E),

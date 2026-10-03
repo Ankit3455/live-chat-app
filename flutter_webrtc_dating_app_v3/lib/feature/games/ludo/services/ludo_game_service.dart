@@ -630,7 +630,7 @@ class LudoGameService {
         }
         tx.update(ref, updates);
       });
-      debugPrint('✅ Player left handled: $odId');
+      debugPrint('✅ Player left handled');
     } catch (e) {
       debugPrint('❌ playerLeft error: $e');
     }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/utils/astrology_utils.dart';
 import '../../../core/utils/compatibility_utils.dart';
@@ -207,12 +208,13 @@ class ProfileQuickSheet extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(80),
           child: hasPhoto
-              ? Image.network(
-            user.profileImage,
+              ? CachedNetworkImage(
+            imageUrl: user.profileImage,
+            memCacheWidth: 330,
             width: 110,
             height: 110,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _initialAvatar(initial),
+            errorWidget: (_, __, ___) => _initialAvatar(initial),
           )
               : _initialAvatar(initial),
         ),

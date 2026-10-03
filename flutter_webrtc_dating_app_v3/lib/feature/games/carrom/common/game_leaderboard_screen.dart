@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../services/carrom_stats_service.dart';
 
@@ -256,10 +257,11 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
             ),
             child: ClipOval(
               child: entry.avatar.isNotEmpty
-                  ? Image.network(
-                entry.avatar,
+                  ? CachedNetworkImage(
+                imageUrl: entry.avatar,
+                memCacheWidth: 150,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _defaultAvatar(entry.displayName),
+                errorWidget: (_, __, ___) => _defaultAvatar(entry.displayName),
               )
                   : _defaultAvatar(entry.displayName),
             ),

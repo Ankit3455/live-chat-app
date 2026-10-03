@@ -7,6 +7,7 @@ import 'package:availchat/models/user_model.dart';
 import 'package:availchat/screens/questionnaire/post_signup_questions_screen.dart';
 import 'package:availchat/services/dicebear_avatar_service.dart';
 import 'package:availchat/services/profile_photo_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// Safe cache-busting helper
 String cacheBustedUrl(String url, int? version) {
@@ -217,10 +218,11 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                     borderRadius: BorderRadius.circular(18),
                                     child: SizedBox.expand(
                                       child: hasImage && !_generating
-                                          ? Image.network(
-                                              avatarUrl,
+                                          ? CachedNetworkImage(
+                                              imageUrl: avatarUrl,
+                                              memCacheWidth: 900,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
+                                              errorWidget: (_, __, ___) =>
                                                   _avatarPlaceholder(),
                                             )
                                           : _avatarGenerating(

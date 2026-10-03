@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 // Models
 import '../../models/call_model.dart';
@@ -842,7 +843,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            backgroundImage: avatarUrl != null
+                ? CachedNetworkImageProvider(avatarUrl, maxWidth: 120)
+                : null,
             backgroundColor: AppColors.purpleSecondary,
             child: avatarUrl == null
                 ? Text(

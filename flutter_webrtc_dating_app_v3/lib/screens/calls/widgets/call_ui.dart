@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../models/call_model.dart';
@@ -38,13 +39,14 @@ class CallAvatar extends StatelessWidget {
       backgroundColor: AppColors.purpleSecondary,
       child: hasImage
           ? ClipOval(
-              child: Image.network(
-                url,
+              child: CachedNetworkImage(
+                imageUrl: url,
+                memCacheWidth: (radius * 6).round(),
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => Center(child: initial),
+                useOldImageOnUrlChange: true,
+                errorWidget: (_, __, ___) => Center(child: initial),
               ),
             )
           : initial,

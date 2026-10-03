@@ -1,6 +1,7 @@
 // lib/screens/profile/widgets/profile_info_card.dart
 import 'package:flutter/material.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfileInfoCard extends StatelessWidget {
   final UserModel user;
@@ -67,10 +68,11 @@ class ProfileInfoCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(17),
                   child: hasImage
-                      ? Image.network(
-                    avatarUrl!,
+                      ? CachedNetworkImage(
+                    imageUrl: avatarUrl!,
+                    memCacheWidth: 300,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _placeholder(),
+                    errorWidget: (_, __, ___) => _placeholder(),
                   )
                       : _placeholder(),
                 ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../services/session_service.dart';
 import 'auth_router.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -20,9 +19,6 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    // Idempotent; binds push identity and presence for a persisted session.
-    SessionService.instance.start();
-
     // Setup animations
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),

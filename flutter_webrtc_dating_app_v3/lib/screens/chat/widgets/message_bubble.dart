@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/chat_message_model.dart';
 import '../../../core/constants/app_colors.dart';
 import 'image_message.dart';
@@ -62,7 +63,7 @@ class MessageBubble extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundImage: otherUserAvatar != null && otherUserAvatar!.isNotEmpty
-                      ? NetworkImage(otherUserAvatar!)
+                      ? CachedNetworkImageProvider(otherUserAvatar!, maxWidth: 100)
                       : null,
                   backgroundColor: AppColors.purpleSecondary,
                   child: (otherUserAvatar == null || otherUserAvatar!.isEmpty)

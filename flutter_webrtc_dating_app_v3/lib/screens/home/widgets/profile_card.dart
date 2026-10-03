@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../models/user_model.dart';
 import '../../astrology/widgets/compatibility_chip.dart';
@@ -111,10 +112,11 @@ class _ProfileCardState extends State<ProfileCard>
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: Image.network(
-        url,
+      child: CachedNetworkImage(
+        imageUrl: url,
+        memCacheWidth: 600,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
+        errorWidget: (_, __, ___) => fallback,
       ),
     );
   }
