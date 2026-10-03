@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:firebase_database/firebase_database.dart';
 
-import '../../services/call/call_service.dart';
 import '../../core/constants/app_colors.dart';
+import '../../models/call_model.dart';
+import 'widgets/call_ui.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String callId;
@@ -20,52 +20,58 @@ class VideoCallScreen extends StatefulWidget {
   State<VideoCallScreen> createState() => _VideoCallScreenState();
 }
 
-class _VideoCallScreenState extends State<VideoCallScreen> {
-  final CallService _callService = CallService();
+class _VideoCallScreenState extends State<VideoCallScreen>
+    with ActiveCallScreenMixin {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
 
   bool _isConnecting = true;
+  bool _renderersReady = false;
 
   StreamSubscription<MediaStream?>? _localSub;
   StreamSubscription<MediaStream?>? _remoteSub;
-  StreamSubscription<DatabaseEvent>? _stateSub;
+  Timer? _durationTimer;
+
+  @override
+  String get callId => widget.callId;
+
+  @override
+  bool get isOutgoingCall => widget.isOutgoing;
 
   @override
   void initState() {
     super.initState();
+    initCallScreen();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
     _initializeRenderers();
-    _listenRoomState();
   }
 
   Future<void> _initializeRenderers() async {
-    // 1) Init renderers
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
+    if (!mounted) return;
+    _renderersReady = true;
 
-    // 2) Give them to the WebRTC engine (this may attach cached streams immediately)
-    await _callService.webrtc.setRenderers(_localRenderer, _remoteRenderer);
-
-    // 3) If WebRTC had already produced streams before this screen opened,
-    //    the engine may have just set srcObject. Clear the loader in that case.
+    // Attaches already-produced streams immediately.
+    await callService.webrtc.setRenderers(_localRenderer, _remoteRenderer);
+    if (!mounted) return;
     _markConnectedIfRendered();
 
-    // 4) Normal listeners for future updates
-    _localSub = _callService.localStream.listen((stream) {
+    _localSub = callService.localStream.listen((stream) {
       if (!mounted) return;
-      // renderer is already hooked inside the engine; no UI action needed
-      setState(() {}); // force mini preview repaint if needed
+      setState(() {}); // repaint the mini preview
     });
 
-    _remoteSub = _callService.remoteStream.listen((stream) {
+    _remoteSub = callService.remoteStream.listen((stream) {
       if (!mounted) return;
       if (stream != null) {
         setState(() => _isConnecting = false);
       }
     });
 
-    // 5) Small retry loop to handle any race where srcObject arrives between steps
-    //    (no-ops if already attached)
+    // Covers srcObject arriving between the steps above.
     for (int i = 0; i < 6; i++) {
       await Future.delayed(const Duration(milliseconds: 150));
       if (!mounted) return;
@@ -76,7 +82,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
   }
 
-  /// If the engine attached streams before we subscribed, srcObject will be non-null.
+  /// If the engine attached streams before we subscribed, srcObject is set.
   void _markConnectedIfRendered() {
     try {
       if (_remoteRenderer.srcObject != null) {
@@ -88,28 +94,18 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     setState(() {});
   }
 
-  void _listenRoomState() {
-    // Prefer current call's roomId if available
-    final roomId = _callService.currentCall?.roomId ?? widget.callId;
-    _stateSub = FirebaseDatabase.instance
-        .ref('rooms/$roomId/state')
-        .onValue
-        .listen((event) async {
-      if (event.snapshot.value == 'ended') {
-        await _endCall(silent: true);
-      }
-    }, onError: (e) {
-      // Avoid crashes on RTDB permission blips during teardown
-      debugPrint('⚠️ room state listener error: $e');
-    });
-  }
-
   @override
   void dispose() {
-    _stateSub?.cancel();
+    _durationTimer?.cancel();
     _localSub?.cancel();
     _remoteSub?.cancel();
-    // Only dispose renderers. Call teardown is driven by the red button / remote state.
+    disposeCallScreen();
+    if (_renderersReady) {
+      try {
+        _localRenderer.srcObject = null;
+        _remoteRenderer.srcObject = null;
+      } catch (_) {}
+    }
     _localRenderer.dispose();
     _remoteRenderer.dispose();
     super.dispose();
@@ -117,83 +113,99 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Remote video (full screen)
-          Center(
-            child: _isConnecting
-                ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: AppColors.purplePrimary),
-                const SizedBox(height: 20),
-                const Text(
-                  'Connecting...',
-                  style: TextStyle(color: Colors.white, fontSize: 18),
-                ),
-              ],
-            )
-                : RTCVideoView(
-              _remoteRenderer,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    final status = phaseLabel;
+    final linked = phase == CallPhase.active || phase == CallPhase.reconnecting;
+    final showRemote = _renderersReady && (!_isConnecting || linked);
+
+    return callPopScope(
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // Remote video (full screen)
+            Center(
+              child: !showRemote
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CallAvatar(
+                          name: otherName,
+                          imageUrl: otherAvatar,
+                          radius: 50,
+                        ),
+                        const SizedBox(height: 20),
+                        CircularProgressIndicator(
+                          color: AppColors.purplePrimary,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          status ?? 'Connecting...',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    )
+                  : RTCVideoView(
+                      _remoteRenderer,
+                      objectFit:
+                          RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    ),
             ),
-          ),
 
-          // Local video (PIP)
-          Positioned(
-            top: 100,
-            right: 20,
-            child: Container(
-              width: 120,
-              height: 160,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: _localRenderer.srcObject == null
-                    ? const ColoredBox(color: Colors.black)
-                    : RTCVideoView(
-                  _localRenderer,
-                  mirror: true,
-                  objectFit:
-                  RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            // Local video (PIP)
+            Positioned(
+              top: 100,
+              right: 20,
+              child: Container(
+                width: 120,
+                height: 160,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: !_renderersReady || _localRenderer.srcObject == null
+                      ? const ColoredBox(color: Colors.black)
+                      : RTCVideoView(
+                          _localRenderer,
+                          mirror: true,
+                          objectFit:
+                              RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                        ),
                 ),
               ),
             ),
-          ),
 
-          // Call controls
-          Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
-            child: _buildCallControls(),
-          ),
+            // Call controls
+            Positioned(
+              bottom: 50,
+              left: 0,
+              right: 0,
+              child: _buildCallControls(),
+            ),
 
-          // Call info
-          Positioned(
-            top: 50,
-            left: 20,
-            right: 20,
-            child: _buildCallInfo(),
-          ),
-        ],
+            // Call info
+            Positioned(
+              top: 50,
+              left: 20,
+              right: 20,
+              child: _buildCallInfo(status),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildCallInfo() {
+  Widget _buildCallInfo(String? status) {
     return SafeArea(
       child: Column(
         children: [
           Text(
-            _callService.currentCall?.receiverName ??
-                _callService.currentCall?.callerName ??
-                'User',
+            otherName,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
@@ -202,7 +214,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _formatDuration(_callService.callDuration),
+            status ?? _formatDuration(callService.callDuration),
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
         ],
@@ -216,19 +228,20 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       children: [
         // Toggle camera
         _buildControlButton(
-          icon:
-          _callService.isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+          icon: callService.isVideoEnabled
+              ? Icons.videocam
+              : Icons.videocam_off,
           onPressed: () {
-            setState(() => _callService.toggleVideo());
+            setState(() => callService.toggleVideo());
           },
           backgroundColor: Colors.white24,
         ),
 
         // Mute
         _buildControlButton(
-          icon: _callService.isMuted ? Icons.mic_off : Icons.mic,
+          icon: callService.isMuted ? Icons.mic_off : Icons.mic,
           onPressed: () {
-            setState(() => _callService.toggleMute());
+            setState(() => callService.toggleMute());
           },
           backgroundColor: Colors.white24,
         ),
@@ -236,7 +249,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         // End call
         _buildControlButton(
           icon: Icons.call_end,
-          onPressed: () => _endCall(),
+          onPressed: hangUp,
           backgroundColor: Colors.red,
           size: 70,
         ),
@@ -244,15 +257,15 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         // Switch camera
         _buildControlButton(
           icon: Icons.cameraswitch,
-          onPressed: () async => _callService.switchCamera(),
+          onPressed: () async => callService.switchCamera(),
           backgroundColor: Colors.white24,
         ),
 
         // Speaker
         _buildControlButton(
-          icon: _callService.isSpeakerOn ? Icons.volume_up : Icons.volume_off,
+          icon: callService.isSpeakerOn ? Icons.volume_up : Icons.volume_off,
           onPressed: () {
-            setState(() => _callService.toggleSpeaker());
+            setState(() => callService.toggleSpeaker());
           },
           backgroundColor: Colors.white24,
         ),
@@ -281,21 +294,5 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _endCall({bool silent = false}) async {
-    // Cancel state listener first (prevents races / permission errors on teardown)
-    await _stateSub?.cancel();
-    _stateSub = null;
-
-    await _callService.endCall();
-
-    if (!mounted) return;
-
-    if (silent) {
-      if (Navigator.canPop(context)) Navigator.pop(context);
-    } else {
-      Navigator.pop(context);
-    }
   }
 }
