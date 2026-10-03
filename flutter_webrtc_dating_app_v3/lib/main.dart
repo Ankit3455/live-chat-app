@@ -748,7 +748,6 @@ import 'firebase_options.dart';
 import 'services/notification/onesignal_service.dart';
 
 import 'core/theme/app_theme.dart';
-import 'core/utils/astrology_view_model.dart';
 import 'core/utils/error_handler.dart';
 import 'managers/unread_manager.dart';
 
@@ -798,7 +797,6 @@ Future<void> main() async {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => UnreadManager()..init()),
-        ChangeNotifierProvider(create: (_) => AstrologyViewModel()),
       ],
       child: const AvailChatApp(),
     ),

@@ -141,8 +141,8 @@ class ChatMediaService {
   // AUDIO/VOICE MESSAGE METHODS
   // =========================================================================
 
-  /// Recording UI cap; uploads are limited to [MediaValidator.maxVoiceSeconds].
-  static const int kMaxVoiceDuration = 60; // seconds
+  /// Recording cap; same as the upload limit (DEST-013: voice <= 2 min).
+  static const int kMaxVoiceDuration = MediaValidator.maxVoiceSeconds;
 
   /// Check microphone permission
   static Future<bool> hasMicrophonePermission() async {

@@ -18,6 +18,7 @@ import '../../services/call/call_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/discovery_feed_service.dart';
 import '../../services/media/chat_media_service.dart';
+import '../../services/navigation/pending_intent.dart';
 import '../../services/notification/onesignal_sender.dart';
 import '../../services/safety_service.dart';
 
@@ -57,6 +58,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// Null until resolved; nothing that needs it is built before then.
   String? _conversationId;
   String? _initError;
+
+  /// This screen's route, registered so foreground pushes for this chat are
+  /// suppressed however the chat was opened.
+  Route<dynamic>? _route;
   bool _isLoading = true;
 
   /// Latest conversation doc (null while no message was ever sent).
@@ -136,6 +141,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final route = _route;
+    if (route != null) PendingIntentRouter.instance.unregisterChat(route);
     _stopTyping();
     _cancelSubscriptions();
     _readDebounce?.cancel();
@@ -207,6 +214,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       final snap = results[0] as DocumentSnapshot<Map<String, dynamic>>;
       _conversationId = convId;
+      _route ??= ModalRoute.of(context);
+      final route = _route;
+      if (route != null) {
+        PendingIntentRouter.instance.registerChat(route, convId);
+      }
       _applyConversation(snap);
       _clearedBefore = _conversation?.clearedBeforeFor(me);
       _otherUser = results[1] as UserModel?;

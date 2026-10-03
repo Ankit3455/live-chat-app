@@ -58,6 +58,15 @@ class PendingIntent {
           conversationId: str('conversationId'),
           receiverId: str('receiverId'),
         );
+      case 'missed_call':
+        // Opens the chat with the caller; never treated as a ringing call.
+        final missedFrom = str('callerId');
+        if (missedFrom == null) return null;
+        return PendingIntent.chat(
+          otherUserId: missedFrom,
+          conversationId: str('conversationId'),
+          receiverId: str('receiverId'),
+        );
       case 'call':
         final callId = str('callId');
         final caller = str('callerId');

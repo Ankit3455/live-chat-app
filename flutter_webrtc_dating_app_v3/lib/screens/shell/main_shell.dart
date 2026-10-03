@@ -26,10 +26,9 @@ class MainShell extends StatefulWidget {
 }
 
 class MainShellState extends State<MainShell> {
-  // GameListScreen's header back button calls Navigator.pop, which would pop
-  // the shell itself. Until it hides that button when it cannot pop, Games
-  // opens as a pushed route instead of an embedded tab.
-  static const bool _embedGames = false;
+  // Games is an embedded tab: GameListScreen hides its back button when it
+  // cannot pop. Set to false to open it as a pushed route instead.
+  static const bool _embedGames = true;
 
   final ValueNotifier<int> _tab = ValueNotifier<int>(MainShell.discoverTab);
 

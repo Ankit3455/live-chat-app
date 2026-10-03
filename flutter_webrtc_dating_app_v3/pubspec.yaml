@@ -18,7 +18,7 @@ dependencies:
   firebase_storage: ^12.3.8
   firebase_database: ^11.3.5
   firebase_crashlytics: ^4.1.3
-  firebase_app_check: ^0.3.2  # App Check client (DEST-112/DEST-051); activation in main.dart pending
+  firebase_app_check: ^0.3.2  # App Check client (DEST-112/DEST-051); activated in main.dart
   cloud_functions: ^5.2.0
 
   # State Management
@@ -45,6 +45,7 @@ dependencies:
 
   # HTTP
   http: ^1.1.0
+  http_parser: ^4.0.2  # MediaType in cloudinary_storage_repo (was transitive)
   url_launcher: ^6.3.1  # Settings: Privacy/Terms/Support links (DEST-034)
 
   # Google Sign In
