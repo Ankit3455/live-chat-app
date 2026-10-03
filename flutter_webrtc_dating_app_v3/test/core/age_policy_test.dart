@@ -68,6 +68,9 @@ void main() {
       expect(UserModel.parseDob('1994/08/07'), d);
       expect(UserModel.parseDob('1994-08-07'), d);
       expect(UserModel.parseDob(d.millisecondsSinceEpoch ~/ 1000), d);
+      expect(UserModel.parseDob(d.millisecondsSinceEpoch), d);
+      final pre1970 = DateTime(1965, 3, 2);
+      expect(UserModel.parseDob(pre1970.millisecondsSinceEpoch), pre1970);
       final recent = DateTime(2005, 8, 7);
       expect(UserModel.parseDob(recent.millisecondsSinceEpoch), recent);
       expect(

@@ -2,6 +2,7 @@
 // STATUS: NEW/COMPLETE ✅
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class CarromStatsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -123,7 +124,7 @@ class CarromStatsService {
       if (!snap.exists) return null;
       return CarromStats.fromMap(snap.data()!);
     } catch (e) {
-      print('Error getting stats: $e');
+      debugPrint('Error getting stats: $e');
       return null;
     }
   }

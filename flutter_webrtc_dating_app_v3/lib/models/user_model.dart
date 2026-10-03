@@ -203,8 +203,9 @@ class UserModel {
       if (value is DateTime) return value;
       if (value is num) {
         final n = value.toInt();
+        // Seconds stay below 1e10 until year 2286; anything larger is ms.
         return DateTime.fromMillisecondsSinceEpoch(
-            n > 1000000000000 ? n : n * 1000);
+            n.abs() >= 10000000000 ? n : n * 1000);
       }
       if (value is Map && value['_seconds'] is num) {
         return DateTime.fromMillisecondsSinceEpoch(
@@ -369,7 +370,7 @@ class UserModel {
   }
 
   // dietPreference getter implemented (was returning null earlier)
-  get dietPreference => foodPreference;
+  String? get dietPreference => foodPreference;
 
   // ===== TO MAP =====
   // Own users/{uid} doc only. Age is derived, so it is not stored.

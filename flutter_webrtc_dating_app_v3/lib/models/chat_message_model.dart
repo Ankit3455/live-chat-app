@@ -238,7 +238,6 @@ class ChatMessage {
       case MessageType.gif:
         return '🎬 GIF';
       case MessageType.text:
-      default:
         return message;
     }
   }

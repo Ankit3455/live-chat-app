@@ -18,6 +18,7 @@ analyzer:
     unused_import: warning
     unused_element: warning
     dead_code: warning
+    avoid_print: warning
 
 linter:
   rules:
