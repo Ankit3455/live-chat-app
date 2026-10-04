@@ -138,6 +138,19 @@ class DiceBearAvatarService {
     }
   }
 
+  /// Preview URL for [answers] without uploading or saving anything. Used by
+  /// the questionnaire's live preview and the intro samples. The final
+  /// avatar can differ only if this exact face is already taken.
+  static ({String url, Map<String, String> params}) preview(
+    Map<String, dynamic> answers, {
+    required String uniqueKey,
+  }) {
+    final props = AvatarMapping.buildFromAnswers(answers);
+    _validateProperties(props);
+    final r = AvatarMapping.resolve(props, uniqueKey: uniqueKey);
+    return (url: _buildApiUrl(uniqueKey, r.params), params: r.params);
+  }
+
   // ==================== PRIVATE HELPERS ====================
 
   /// Older avatarProperties stored exact DOB and bio; a merge write keeps
@@ -172,6 +185,7 @@ class DiceBearAvatarService {
     final propsToSave = <String, dynamic>{
       ...props,
       'avatarVariant': choice.variant,
+      'avatarUnique': choice.claimed,
       'avatarFingerprint': fingerprint,
       'avatarParams': params,
       'avatarImageUrl': imageUrl,
@@ -207,7 +221,13 @@ class DiceBearAvatarService {
   /// free (or already ours) is claimed in avatar_fingerprints. If the
   /// registry can't be reached the first variant is used, so a missing
   /// network or undeployed rule never blocks avatar creation.
-  static Future<({Map<String, String> params, String fingerprint, int variant})>
+  static Future<
+          ({
+            Map<String, String> params,
+            String fingerprint,
+            int variant,
+            bool claimed,
+          })>
       _claimUniqueFace(
     String uid,
     Map<String, dynamic> props,
@@ -228,12 +248,22 @@ class DiceBearAvatarService {
           return true;
         });
         if (claimed) {
-          return (params: r.params, fingerprint: r.fingerprint, variant: v);
+          return (
+            params: r.params,
+            fingerprint: r.fingerprint,
+            variant: v,
+            claimed: true,
+          );
         }
         _log('DiceBear: face taken, trying next variant');
       } catch (e) {
         _log('DiceBear: uniqueness registry unavailable: $e');
-        return (params: r.params, fingerprint: r.fingerprint, variant: v);
+        return (
+          params: r.params,
+          fingerprint: r.fingerprint,
+          variant: v,
+          claimed: false,
+        );
       }
     }
 
@@ -244,6 +274,7 @@ class DiceBearAvatarService {
       params: r.params,
       fingerprint: r.fingerprint,
       variant: startVariant + _maxVariantTries,
+      claimed: false,
     );
   }
 

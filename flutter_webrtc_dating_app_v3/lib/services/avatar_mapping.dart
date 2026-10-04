@@ -153,6 +153,7 @@ class AvatarMapping {
       if (username.isNotEmpty) 'username': username,
       if (ageGroup.isNotEmpty) 'ageGroup': ageGroup,
       if (element.isNotEmpty) 'element': element,
+      if (sign != null) 'zodiacSign': sign,
       if (profession.isNotEmpty) 'profession': profession,
       if (personality.isNotEmpty) 'personality': personality,
       'likesMusic': likes(['music']),

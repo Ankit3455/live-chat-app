@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dart';
 import 'package:availchat/screens/questionnaire/widgets/progress_header.dart';
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
+import 'package:availchat/screens/questionnaire/widgets/avatar_live_preview.dart';
 import 'package:availchat/screens/profile/avatar_preview_screen.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/location_service.dart';
@@ -27,6 +28,61 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   int _currentPage = 0;
   bool _isSaving = false;
   bool _completed = false;
+
+  // Live avatar preview: only answers that change the avatar bump it.
+  static const _avatarFields = {'gender', 'interests', 'habits', 'profession'};
+  final String? _uid = FirebaseAuth.instance.currentUser?.uid;
+  dynamic _dob;
+  int _avatarRevision = 0;
+  String _lastAvatarAnswer = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDob();
+  }
+
+  // DOB is written at signup; the preview needs it for the zodiac palette.
+  Future<void> _loadDob() async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final dob = doc.data()?['dateOfBirth'];
+      if (dob != null && mounted) {
+        setState(() {
+          _dob = dob;
+          _avatarRevision++;
+        });
+      }
+    } catch (e) {
+      debugPrint('Questionnaire: could not load DOB for preview: $e');
+    }
+  }
+
+  void _onAnswerChanged(String field, dynamic answer) {
+    final previous = _answers[field];
+    setState(() {
+      _answers[field] = answer;
+      if (_avatarFields.contains(field)) {
+        _avatarRevision++;
+        _lastAvatarAnswer = _answerLabel(previous, answer);
+      }
+    });
+  }
+
+  // "Reading" for a newly picked interest, the option for single choices.
+  static String _answerLabel(dynamic previous, dynamic answer) {
+    if (answer is List) {
+      final before = previous is List ? previous : const [];
+      for (final item in answer) {
+        if (!before.contains(item)) return item.toString();
+      }
+      return '';
+    }
+    return answer?.toString() ?? '';
+  }
 
   @override
   void dispose() {
@@ -159,6 +215,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = _uid;
     // Back steps through the questions; on the first question it leaves
     // the app (this screen is the root of the onboarding chain).
     return PopScope(
@@ -177,7 +234,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 totalSteps: _questions.length,
                 title: 'Basic Profile',
               ),
-              const SizedBox(height: 24),
+              if (uid != null) ...[
+                const SizedBox(height: 12),
+                AvatarLivePreview(
+                  uid: uid,
+                  revision: _avatarRevision,
+                  answerLabel: _lastAvatarAnswer,
+                  answers: {
+                    ..._answers,
+                    if (_dob != null) 'dateOfBirth': _dob,
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
 
               Expanded(
                 child: PageView.builder(
@@ -194,11 +263,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       child: QuestionWidget(
                         question: q,
                         answer: _answers[q.fieldName],
-                        onAnswerChanged: (ans) {
-                          setState(() {
-                            _answers[q.fieldName] = ans;
-                          });
-                        },
+                        onAnswerChanged: (ans) =>
+                            _onAnswerChanged(q.fieldName, ans),
                       ),
                     );
                   },

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/session_service.dart';
 import '../home/home_screen.dart';
 import '../questionnaire/post_signup_questions_screen.dart';
-import '../questionnaire/questionnaire_screen.dart';
+import '../questionnaire/avatar_intro_screen.dart';
 import 'age_gate_screen.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
@@ -25,7 +25,7 @@ class AuthRouter {
       case StartDestination.verifyEmail:
         return const VerifyEmailScreen();
       case StartDestination.questionnaire:
-        return const QuestionnaireScreen();
+        return const AvatarIntroScreen();
       case StartDestination.postSignup:
         return const PostSignupQuestionsScreen();
       case StartDestination.home:
