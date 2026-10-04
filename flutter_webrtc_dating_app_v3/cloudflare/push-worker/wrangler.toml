@@ -1,0 +1,19 @@
+# Cloudflare Worker that sends Destined's OneSignal pushes (replaces the
+# Cloud Functions in functions/push.js on the Firebase Spark plan).
+#
+# Secret (NOT in this file): ONESIGNAL_REST_API_KEY
+#   wrangler secret put ONESIGNAL_REST_API_KEY
+
+name = "destined-push"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "availchatproject"
+FIREBASE_DATABASE_URL = "https://availchatproject-default-rtdb.firebaseio.com"
+# Public OneSignal app id (same default as functions/config.js).
+ONESIGNAL_APP_ID = "f4489084-4880-4e7f-aa6d-a3b0cfb8beb4"
+# "true" only after OneSignal Identity Verification is on (DEST-008);
+# otherwise pushes show "New message" / "Photo" instead of the text.
+SHOW_MESSAGE_TEXT = "false"

@@ -13,6 +13,7 @@ const {
   writeBatch,
   serverTimestamp,
   increment,
+  arrayUnion,
   deleteField,
   Timestamp,
 } = require('firebase/firestore');
@@ -404,9 +405,403 @@ describe('firestore.rules', () => {
       await assertFails(setDoc(doc(db('alice'), 'users/alice'), { deleted: true }, { merge: true }));
     });
 
-    it('public_profiles are read-only for clients', async () => {
+    it('public_profiles are readable and reject writes without uid/updatedAt', async () => {
       await assertSucceeds(getDoc(doc(db('alice'), 'public_profiles/bob')));
       await assertFails(setDoc(doc(db('alice'), 'public_profiles/alice'), { username: 'x' }));
+    });
+  });
+
+  describe('public_profiles (client-written mirror)', () => {
+    // Shape of PublicProfile.fromUserData + updatedAt.
+    const mirror = (uid, over = {}) => ({
+      uid,
+      username: 'Alice',
+      profileImage: 'https://res.cloudinary.com/dekipip5j/image/upload/v1/a.jpg',
+      avatar: 'https://api.dicebear.com/7.x/x.svg',
+      avatarVersion: 2,
+      bio: 'Hello',
+      interests: ['music', 'travel'],
+      zodiacSign: 'Leo',
+      location: 'Pune',
+      voiceIntroDurationSeconds: 12,
+      profession: 'Engineer',
+      hereFor: ['dating'],
+      height: '170',
+      believesInAstrology: true,
+      astrologyBeliefLevel: 3,
+      online: true,
+      lastSeen: serverTimestamp(),
+      gender: 'female',
+      avatarProperties: { avatarImageUrl: 'https://res.cloudinary.com/dekipip5j/image/upload/v1/av.png' },
+      age: 25,
+      geohash: 'tek2m',
+      discoveryEnabled: true,
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const ref = (uid, as = uid) => doc(db(as), `public_profiles/${uid}`);
+
+    it('owner can create, replace, merge and delete its own mirror', async () => {
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice')));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice', { bio: 'New bio', online: false })));
+      await assertSucceeds(setDoc(ref('alice'),
+        { online: false, lastSeen: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true }));
+      await assertSucceeds(updateDoc(ref('alice'),
+        { age: deleteField(), discoveryEnabled: false, updatedAt: serverTimestamp() }));
+      await assertSucceeds(deleteDoc(ref('alice')));
+    });
+
+    it('a minimal mirror (uid, discoveryEnabled, updatedAt) is allowed', async () => {
+      await assertSucceeds(setDoc(ref('alice'),
+        { uid: 'alice', discoveryEnabled: false, updatedAt: serverTimestamp() }));
+    });
+
+    it("cannot write or delete someone else's mirror", async () => {
+      await assertFails(setDoc(ref('bob', 'alice'), mirror('bob')));
+      await assertFails(setDoc(ref('alice', 'bob'), mirror('alice')));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'public_profiles/bob'), { uid: 'bob', updatedAt: Timestamp.now() });
+      });
+      await assertFails(deleteDoc(ref('bob', 'alice')));
+      await assertFails(updateDoc(ref('bob', 'alice'), { bio: 'x', updatedAt: serverTimestamp() }));
+    });
+
+    it('uid field must match the doc id', async () => {
+      await assertFails(setDoc(ref('alice'), mirror('alice', { uid: 'bob' })));
+      const noUid = mirror('alice');
+      delete noUid.uid;
+      await assertFails(setDoc(ref('alice'), noUid));
+    });
+
+    it('updatedAt must be the server time on every write', async () => {
+      await assertFails(setDoc(ref('alice'), mirror('alice', { updatedAt: Timestamp.fromDate(new Date(2020, 0, 1)) })));
+      const noTs = mirror('alice');
+      delete noTs.updatedAt;
+      await assertFails(setDoc(ref('alice'), noTs));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice')));
+      await assertFails(updateDoc(ref('alice'), { bio: 'no timestamp' }));
+    });
+
+    it('unknown keys are rejected', async () => {
+      await assertFails(setDoc(ref('alice'), mirror('alice', { isPremium: true })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { coins: 100 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', {
+        avatarProperties: { avatarImageUrl: 'https://x/y.png', skinColor: 'f0c' },
+      })));
+    });
+
+    it('private fields are rejected', async () => {
+      const privateFields = {
+        email: 'a@example.com',
+        dateOfBirth: Timestamp.fromDate(new Date(2000, 0, 1)),
+        dob: '01/01/2000',
+        birthTime: '10:30',
+        birthLocation: 'Mumbai',
+        placeOfBirth: 'Mumbai',
+        lat: 18.5,
+        lng: 73.8,
+        latitude: 18.5,
+        longitude: 73.8,
+        userLatitude: 18.5,
+        userLongitude: 73.8,
+        fcmTokens: ['t1'],
+        notificationSettings: { chat: true },
+        notificationsEnabled: true,
+        settings: { theme: 'dark' },
+      };
+      for (const [key, value] of Object.entries(privateFields)) {
+        await assertFails(setDoc(ref('alice'), mirror('alice', { [key]: value })));
+      }
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice')));
+      await assertFails(setDoc(ref('alice'),
+        { email: 'a@example.com', updatedAt: serverTimestamp() }, { merge: true }));
+    });
+
+    it('string and list caps match the users rules', async () => {
+      await assertFails(setDoc(ref('alice'), mirror('alice', { username: 'x'.repeat(101) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { bio: 'x'.repeat(1001) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { profession: 'x'.repeat(151) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { location: 'x'.repeat(101) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { profileImage: 'https://x/' + 'a'.repeat(2048) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { voiceIntroUrl: 'https://x/' + 'a'.repeat(2048) })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', {
+        avatarProperties: { avatarImageUrl: 'https://x/' + 'a'.repeat(2048) },
+      })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', {
+        interests: Array.from({ length: 31 }, (_, i) => `i${i}`),
+      })));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice', {
+        username: 'x'.repeat(100),
+        bio: 'x'.repeat(1000),
+        interests: Array.from({ length: 30 }, (_, i) => `i${i}`),
+      })));
+    });
+
+    it('derived fields are type- and range-checked', async () => {
+      await assertFails(setDoc(ref('alice'), mirror('alice', { age: 17 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { age: 121 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { age: 25.5 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { age: '25' })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { geohash: 'tek2m4x6vrt9q' })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { geohash: 12345 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { online: 'yes' })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', { discoveryEnabled: 1 })));
+      await assertFails(setDoc(ref('alice'), mirror('alice', {
+        lastSeen: Timestamp.fromDate(new Date(Date.now() + 365 * 24 * 3600 * 1000)),
+      })));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice', {
+        age: 18,
+        lastSeen: Timestamp.fromDate(new Date(2024, 0, 1)),
+      })));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice', { age: 120 })));
+    });
+
+    it('discoveryEnabled true requires a known adult age', async () => {
+      const noAge = mirror('alice');
+      delete noAge.age;
+      await assertFails(setDoc(ref('alice'), noAge));
+      await assertSucceeds(setDoc(ref('alice'), { ...noAge, discoveryEnabled: false }));
+      await assertSucceeds(setDoc(ref('alice'), mirror('alice')));
+      await assertFails(updateDoc(ref('alice'), { age: deleteField(), updatedAt: serverTimestamp() }));
+    });
+
+    it('signed-out users cannot read; signed-in users can', async () => {
+      await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'public_profiles/alice')));
+      await assertSucceeds(getDoc(doc(db('bob'), 'public_profiles/alice')));
+    });
+  });
+
+  describe('account deletion (client side)', () => {
+    const conv = (uid) => doc(db(uid), 'conversations/c1');
+
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), 'conversations/c1'), {
+          'participantData.alice': { hasReplied: true, unreadCount: 0 },
+          'participantData.bob': { hasReplied: true, unreadCount: 3, muted: true },
+          'statePerUser.alice': 'active',
+          'statePerUser.bob': 'active',
+          'typingAt.alice': Timestamp.now(),
+          'typingAt.bob': Timestamp.now(),
+        });
+      });
+    });
+
+    // Same shape as functions/account.js anonymiseConversations.
+    const markDeleted = (uid, over = {}) => ({
+      deletedUsers: arrayUnion(uid),
+      [`participantData.${uid}`]: { deleted: true, unreadCount: 0 },
+      [`statePerUser.${uid}`]: deleteField(),
+      [`typingAt.${uid}`]: deleteField(),
+      ...over,
+    });
+
+    it('participant can mark itself deleted in a conversation', async () => {
+      await assertSucceeds(updateDoc(conv('bob'), markDeleted('bob')));
+    });
+
+    it('the other participant can mark itself deleted afterwards too', async () => {
+      await assertSucceeds(updateDoc(conv('bob'), markDeleted('bob')));
+      await assertSucceeds(updateDoc(conv('alice'), markDeleted('alice')));
+    });
+
+    it('works when statePerUser/typingAt entries are absent', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), 'conversations/c1'), {
+          'statePerUser.bob': deleteField(),
+          'typingAt.bob': deleteField(),
+        });
+      });
+      await assertSucceeds(updateDoc(conv('bob'), markDeleted('bob')));
+    });
+
+    it('participantData.<me> must be exactly {deleted: true, unreadCount: 0}', async () => {
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', {
+        'participantData.bob': { deleted: true, unreadCount: 0, muted: true },
+      })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', {
+        'participantData.bob': { deleted: true },
+      })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', {
+        'participantData.bob': { deleted: false, unreadCount: 0 },
+      })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', {
+        'participantData.bob': { deleted: true, unreadCount: 5 },
+      })));
+      // Field-path merge keeps the old keys (hasReplied, muted), so it is not exact.
+      await assertFails(updateDoc(conv('bob'), {
+        deletedUsers: arrayUnion('bob'),
+        'participantData.bob.deleted': true,
+        'participantData.bob.unreadCount': 0,
+        'statePerUser.bob': deleteField(),
+        'typingAt.bob': deleteField(),
+      }));
+    });
+
+    it('cannot mark the other participant deleted', async () => {
+      await assertFails(updateDoc(conv('alice'), markDeleted('bob')));
+      await assertFails(updateDoc(conv('alice'), {
+        deletedUsers: arrayUnion('bob'),
+        'participantData.alice': { deleted: true, unreadCount: 0 },
+      }));
+      await assertFails(updateDoc(conv('alice'), markDeleted('alice', {
+        deletedUsers: arrayUnion('alice', 'bob'),
+      })));
+    });
+
+    it('cannot replace deletedUsers instead of appending', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), 'conversations/c1'), { deletedUsers: ['legacy'] });
+      });
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { deletedUsers: ['bob'] })));
+      await assertSucceeds(updateDoc(conv('bob'), markDeleted('bob', { deletedUsers: ['legacy', 'bob'] })));
+    });
+
+    it('participantData.<me> cannot be set without joining deletedUsers', async () => {
+      const noList = markDeleted('bob');
+      delete noList.deletedUsers;
+      await assertFails(updateDoc(conv('bob'), noList));
+    });
+
+    it("cannot touch other keys or the other user's entries in the same write", async () => {
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { lastMessageAt: serverTimestamp() })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { participants: ['alice', 'bob'].reverse() })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { title: 'gone' })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { 'participantData.alice.muted': true })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { 'statePerUser.alice': deleteField() })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { 'typingAt.alice': deleteField() })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { 'statePerUser.bob': 'deleted' })));
+      await assertFails(updateDoc(conv('bob'), markDeleted('bob', { 'typingAt.bob': serverTimestamp() })));
+    });
+
+    it('non-participant cannot use the deletion update', async () => {
+      await assertFails(updateDoc(conv('carol'), markDeleted('carol')));
+    });
+
+    it('conversations still cannot be deleted by clients', async () => {
+      await assertFails(deleteDoc(conv('bob')));
+    });
+
+    it('owner can delete its users doc and owner subcollections', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'users/bob/blocked/carol'), { blockedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/bob/blockedBy/alice'), { blockedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/bob/settings/main'), { theme: 'dark' });
+      });
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'users/bob/blocked/carol')));
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'users/bob/settings/main')));
+      // blockedBy only once the profile doc is gone (same batch or after).
+      await assertFails(deleteDoc(doc(db('bob'), 'users/bob/blockedBy/alice')));
+      const fs = db('bob');
+      const batch = writeBatch(fs);
+      batch.delete(doc(fs, 'users/bob'));
+      batch.delete(doc(fs, 'users/bob/blockedBy/alice'));
+      await assertSucceeds(batch.commit());
+    });
+
+    it('owner can delete blockedBy after deleting the users doc', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/bob/blockedBy/alice'), { blockedAt: Timestamp.now() });
+      });
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'users/bob')));
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'users/bob/blockedBy/alice')));
+    });
+
+    it("cannot delete another user's doc or subcollections", async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/blocked/carol'), { blockedAt: Timestamp.now() });
+      });
+      await assertFails(deleteDoc(doc(db('bob'), 'users/alice')));
+      await assertFails(deleteDoc(doc(db('bob'), 'users/alice/blocked/carol')));
+    });
+
+    it('may remove its own blockedBy mirror in others, but not their blocked list', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'users/alice/blockedBy/bob'), { blockedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/alice/blocked/bob'), { blockedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/alice/blockedBy/carol'), { blockedAt: Timestamp.now() });
+      });
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'users/alice/blockedBy/bob')));
+      await assertFails(deleteDoc(doc(db('bob'), 'users/alice/blocked/bob')));
+      await assertFails(deleteDoc(doc(db('bob'), 'users/alice/blockedBy/carol')));
+    });
+
+    it('owner can delete its game stats, history and leaderboard rows', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'user_game_stats/bob'), { createdAt: Timestamp.now() });
+        await setDoc(doc(fs, 'user_game_stats/bob/games/carrom'), { totalGames: 3 });
+        await setDoc(doc(fs, 'user_game_stats/bob/carrom_history/cm1'), { myScore: 9 });
+        await setDoc(doc(fs, 'leaderboards/carrom/allTime/bob'), { odZ: 'bob', score: 9 });
+        await setDoc(doc(fs, 'leaderboards/carrom/daily/2026-10-4/users/bob'), { odZ: 'bob', score: 9 });
+        await setDoc(doc(fs, 'leaderboards/carrom/weekly/2026-W40/users/bob'), { odZ: 'bob', score: 9 });
+      });
+      const fs = db('bob');
+      await assertSucceeds(deleteDoc(doc(fs, 'user_game_stats/bob/games/carrom')));
+      await assertSucceeds(deleteDoc(doc(fs, 'user_game_stats/bob/carrom_history/cm1')));
+      await assertSucceeds(deleteDoc(doc(fs, 'user_game_stats/bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'leaderboards/carrom/allTime/bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'leaderboards/carrom/daily/2026-10-4/users/bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'leaderboards/carrom/weekly/2026-W40/users/bob')));
+      // Deleting a row that does not exist is fine (client guesses period keys).
+      await assertSucceeds(deleteDoc(doc(fs, 'leaderboards/carrom/daily/2026-10-3/users/bob')));
+    });
+
+    it("cannot delete another user's game stats or leaderboard rows", async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'user_game_stats/alice'), { createdAt: Timestamp.now() });
+        await setDoc(doc(fs, 'user_game_stats/alice/games/carrom'), { totalGames: 3 });
+        await setDoc(doc(fs, 'user_game_stats/alice/carrom_history/cm1'), { myScore: 9 });
+        await setDoc(doc(fs, 'leaderboards/carrom/allTime/alice'), { odZ: 'alice', score: 9 });
+        await setDoc(doc(fs, 'leaderboards/carrom/daily/2026-10-4/users/alice'), { odZ: 'alice', score: 9 });
+      });
+      const fs = db('bob');
+      await assertFails(deleteDoc(doc(fs, 'user_game_stats/alice')));
+      await assertFails(deleteDoc(doc(fs, 'user_game_stats/alice/games/carrom')));
+      await assertFails(deleteDoc(doc(fs, 'user_game_stats/alice/carrom_history/cm1')));
+      await assertFails(deleteDoc(doc(fs, 'leaderboards/carrom/allTime/alice')));
+      await assertFails(deleteDoc(doc(fs, 'leaderboards/carrom/daily/2026-10-4/users/alice')));
+    });
+
+    it('owner can delete its queue entries (also expired ones on app start)', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        const past = Timestamp.fromDate(new Date(Date.now() - 3600 * 1000));
+        await setDoc(doc(fs, 'ludo_queue/bob'), { uid: 'bob', playerCount: 2, expiresAt: past });
+        await setDoc(doc(fs, 'carrom_queue/bob'), { uid: 'bob', expiresAt: past });
+        await setDoc(doc(fs, 'carrom_queue/alice'), { uid: 'alice' });
+      });
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'ludo_queue/bob')));
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'carrom_queue/bob')));
+      await assertFails(deleteDoc(doc(db('bob'), 'carrom_queue/alice')));
+    });
+
+    it('owner releases only its own avatar fingerprints', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'avatar_fingerprints/00000000000000b0'), { uid: 'bob', createdAt: Timestamp.now() });
+        await setDoc(doc(fs, 'avatar_fingerprints/00000000000000a0'), { uid: 'alice', createdAt: Timestamp.now() });
+      });
+      await assertSucceeds(deleteDoc(doc(db('bob'), 'avatar_fingerprints/00000000000000b0')));
+      await assertFails(deleteDoc(doc(db('bob'), 'avatar_fingerprints/00000000000000a0')));
+    });
+
+    it('full client deletion sequence succeeds', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const fs = ctx.firestore();
+        await setDoc(doc(fs, 'public_profiles/bob'), { uid: 'bob', updatedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/bob/blocked/carol'), { blockedAt: Timestamp.now() });
+        await setDoc(doc(fs, 'users/carol/blockedBy/bob'), { blockedAt: Timestamp.now() });
+      });
+      const fs = db('bob');
+      await assertSucceeds(updateDoc(doc(fs, 'conversations/c1'), markDeleted('bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'users/carol/blockedBy/bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'users/bob/blocked/carol')));
+      await assertSucceeds(deleteDoc(doc(fs, 'public_profiles/bob')));
+      await assertSucceeds(deleteDoc(doc(fs, 'users/bob')));
     });
   });
 

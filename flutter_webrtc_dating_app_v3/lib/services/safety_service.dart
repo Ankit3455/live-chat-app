@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
 import 'conversations_repository.dart';
@@ -253,6 +254,33 @@ class SafetyService {
       {'blockedAt': FieldValue.serverTimestamp()},
     );
     await batch.commit().timeout(_writeTimeout);
+    unawaited(_dropPendingCalls(me, callerId: otherUid));
+  }
+
+  /// Removes ringing calls from [callerId] in my inbox (was onBlockWritten).
+  /// My own entries in their inbox can't be found: rules let a caller read
+  /// only an entry whose id it knows, not list the inbox. Best-effort.
+  Future<void> _dropPendingCalls(String me, {required String callerId}) async {
+    try {
+      final ref = FirebaseDatabase.instance.ref('incoming_calls/$me');
+      final snap = await ref.get().timeout(const Duration(seconds: 10));
+      final updates = <String, Object?>{};
+      for (final call in snap.children) {
+        final value = call.value;
+        final key = call.key;
+        if (key != null && value is Map && value['callerId'] == callerId) {
+          updates[key] = null;
+        }
+      }
+      if (updates.isNotEmpty) {
+        await ref.update(updates).timeout(const Duration(seconds: 10));
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        final code = e is FirebaseException ? e.code : e.runtimeType;
+        debugPrint('SafetyService call cleanup skipped: $code');
+      }
+    }
   }
 
   Future<void> unblock(String otherUid) async {

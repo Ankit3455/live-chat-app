@@ -11,6 +11,8 @@ import '../core/utils/auth_validators.dart';
 import 'notification/push_token_service.dart';
 import 'call/webrtc/ice_servers.dart';
 import 'presence_service.dart';
+import 'public_profile_sync.dart';
+import 'stale_cleanup.dart';
 
 /// Where a signed-in (or signed-out) user should land on app start.
 enum StartDestination {
@@ -76,6 +78,8 @@ class SessionService {
       _uid = user.uid;
       await bindPushIdentity(user.uid);
       await PresenceService.instance.start(user.uid);
+      PublicProfileSync.instance.start(user.uid);
+      unawaited(StaleCleanup.run(user.uid));
     } else if (_uid != null && !_signingOut) {
       // Signed out without signOut() (token revoked, account deleted):
       // Firestore writes are no longer allowed, so clean up locally only.
@@ -84,6 +88,7 @@ class SessionService {
   }
 
   Future<void> _endLocalSession({required bool markOffline}) async {
+    PublicProfileSync.instance.stop();
     await PresenceService.instance.stop(markOffline: markOffline);
     await unbindPushIdentity();
     IceServers.clearCache();
@@ -115,6 +120,8 @@ class SessionService {
     _signingOut = true;
     try {
       await PresenceService.instance.stop(markOffline: true);
+      // Publishes the offline state before auth goes away.
+      await PublicProfileSync.instance.flushAndStop();
       await PushTokenService.removeToken();
       await unbindPushIdentity();
       _uid = null;

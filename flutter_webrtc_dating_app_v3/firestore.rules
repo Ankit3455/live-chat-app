@@ -9,22 +9,38 @@ rules_version = '2';
 //    Writes: server-owned fields denied, free-text caps, dateOfBirth can be
 //    set only while no timestamp DOB exists and must be 18+ (coarse, day
 //    precision), emailVerificationRequired cannot be cleared once true.
-//  - users/{uid}/blocked: owner. users/{uid}/blockedBy/{blocker}: the blocker.
-//  - public_profiles: signed-in read, Functions-only write.
+//  - users/{uid}/blocked: owner. users/{uid}/blockedBy/{blocker}: the blocker;
+//    the owner may delete it only once users/{uid} is gone (account deletion,
+//    same batch or after the profile doc delete).
+//  - public_profiles/{uid}: signed-in read. Written by the owner's client
+//    (Spark plan, no Functions): a mirror of PublicProfile.fromUserData plus
+//    updatedAt (server time). Keys are an allow-list (no email, DOB, birth
+//    data, coordinates, tokens or settings); caps match users; age 18..120;
+//    geohash <= 12 chars; online/discoveryEnabled bool (true needs age);
+//    lastSeen not in the future. Owner may delete.
 //  - reports: create-only by the reporter, fixed keys; no client reads.
 //  - conversations: participants only. Updates use an allow-list (DEST-061):
 //    lastMessage (my own message), lastMessageAt (server time),
 //    participantData.<me>.{hasReplied,unreadCount=0,lastReadAt,clearedBefore,
 //    muted,callEnabled.{audio,video}}, participantData.<other>.unreadCount +1,
 //    statePerUser.<me> in [active, deleted], statePerUser.<other> -> new/active
-//    only from unset/deleted, typingAt.<me>. deletedUsers and
-//    participantData.<x>.deleted are server-only.
+//    only from unset/deleted, typingAt.<me>. Account deletion (client side,
+//    accountDeletionUpdateOk): one write that appends me to deletedUsers, sets
+//    participantData.<me> to exactly {deleted: true, unreadCount: 0} and removes
+//    statePerUser.<me> / typingAt.<me>; nothing else. No other path may touch
+//    deletedUsers or participantData.<x>.deleted.
 //  - messages: sender is the caller, fixed keys, text <= 2000, our media hosts
 //    only; denied when either user blocked the other or the receiver's account
 //    was deleted (DEST-003). Sender edits message/editedAt/isDeleted/mediaUrl,
 //    receiver sets status (delivered/read)/readAt/deliveredAt.
 //  - Games: match reads and writes by players only (lists must filter on
 //    playerUids); queue entries keyed by uid; carrom history owner-only.
+//  - Account deletion runs in the client (AccountDeletionService, freshly
+//    re-authenticated): conversations as above, users/{me} + subcollections,
+//    users/{x}/blockedBy/{me}, avatar_fingerprints with uid == me, queue
+//    entries, user_game_stats/{me} (+games, carrom_history), leaderboard rows
+//    keyed by me, public_profiles/{me}. All owner-only deletes. Others'
+//    users/{x}/blocked/{me} stay. Conversations are never deleted by clients.
 //
 // Client writes checked against these rules (lib/):
 //  users/{me}: auth_service (signup, Google first login), age_gate_screen,
@@ -47,7 +63,8 @@ rules_version = '2';
 //    transaction), carrom_match_screen, carrom_game_screen, carrom_result_screen
 //    (rematch flags and rematch transaction).
 //  user_game_stats, carrom_history, leaderboards: carrom_stats_service transaction.
-// Functions use the Admin SDK and bypass these rules.
+//  public_profiles/{me}: profile mirror writer + account deletion.
+// Functions (if ever deployed) use the Admin SDK and bypass these rules.
 //
 // Not enforced here yet: emailVerified gating (ID tokens refresh the claim up
 // to an hour after verification unless the client forces a refresh), game
@@ -180,9 +197,13 @@ service cloud.firestore {
       }
 
       // Mirror of a block, written by the blocker into the blocked user's doc.
+      // The owner may remove it only during account deletion, i.e. when
+      // users/{uid} no longer exists after this write.
       match /blockedBy/{blockerId} {
         allow read: if isUser(uid) || isUser(blockerId);
         allow create, update, delete: if isUser(blockerId) && blockerId != uid;
+        allow delete: if isUser(uid)
+          && !existsAfter(/databases/$(database)/documents/users/$(uid));
       }
 
       match /{sub}/{docId} {
@@ -190,10 +211,78 @@ service cloud.firestore {
       }
     }
 
-    // Filled by the mirrorPublicProfile Function; clients only read.
+    // Client-written mirror: uid, updatedAt, PublicProfile.displayFields, then
+    // the derived fields of PublicProfile.fromUserData.
+    function publicProfileKeys() {
+      return [
+        'uid', 'updatedAt',
+        'username', 'profileImage', 'avatar', 'avatarVersion', 'bio', 'interests',
+        'zodiacSign', 'sunSign', 'location', 'voiceIntroUrl',
+        'voiceIntroDurationSeconds', 'profession', 'habits', 'activityLevel',
+        'relationshipGoal', 'relationshipStatus', 'hereFor', 'height', 'bodyType',
+        'education', 'lifestyle', 'sleepSchedule', 'foodPreference', 'smokingHabits',
+        'drinkingHabits', 'exerciseFrequency', 'pets', 'wantsChildren',
+        'partyingFrequency', 'tattoos', 'personalityType', 'politicalViews',
+        'religiousViews', 'musicGenres', 'movieGenres', 'tvGenres', 'preferredSigns',
+        'personalityPriority', 'believesInAstrology', 'astrologyBeliefLevel',
+        'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
+        'gender', 'avatarProperties', 'age', 'geohash', 'discoveryEnabled'
+      ];
+    }
+
+    function listMax(data, keys, key, n) {
+      return !(key in keys) || !(key in data) || !(data[key] is list) || data[key].size() <= n;
+    }
+
+    // [ok] only has to hold when [key] was written and still exists (removing
+    // an optional field is fine).
+    function fieldOk(data, keys, key, ok) {
+      return !(key in keys) || !(key in data) || ok;
+    }
+
+    // discoveryEnabled == true needs an adult age, as in fromUserData.
+    function publicProfileOk(uid) {
+      let d = request.resource.data;
+      let k = writtenKeys();
+      return d.keys().hasOnly(publicProfileKeys())
+        && d.get('uid', '') == uid
+        && d.get('updatedAt', null) == request.time
+        && strMax(d, k, 'username', 100)
+        && strMax(d, k, 'bio', 1000)
+        && strMax(d, k, 'profession', 150)
+        && strMax(d, k, 'education', 150)
+        && strMax(d, k, 'location', 100)
+        && strMax(d, k, 'idealDate', 500)
+        && strMax(d, k, 'hereFor', 200)
+        && strMax(d, k, 'gender', 50)
+        && strMax(d, k, 'profileImage', 2048)
+        && strMax(d, k, 'avatar', 2048)
+        && strMax(d, k, 'voiceIntroUrl', 2048)
+        && listMax(d, k, 'interests', 30)
+        && listMax(d, k, 'hereFor', 30)
+        && listMax(d, k, 'habits', 30)
+        && listMax(d, k, 'pets', 30)
+        && listMax(d, k, 'musicGenres', 30)
+        && listMax(d, k, 'movieGenres', 30)
+        && listMax(d, k, 'tvGenres', 30)
+        && listMax(d, k, 'preferredSigns', 12)
+        && fieldOk(d, k, 'avatarProperties', d.get('avatarProperties', null) is map
+            && d.avatarProperties.keys().hasOnly(['avatarImageUrl'])
+            && d.avatarProperties.get('avatarImageUrl', '') is string
+            && d.avatarProperties.get('avatarImageUrl', '').size() <= 2048)
+        && fieldOk(d, k, 'age', d.get('age', null) is int && d.get('age', 0) >= 18 && d.get('age', 0) <= 120)
+        && fieldOk(d, k, 'geohash', d.get('geohash', null) is string && d.get('geohash', '').size() <= 12)
+        && fieldOk(d, k, 'online', d.get('online', null) is bool)
+        && fieldOk(d, k, 'discoveryEnabled', d.get('discoveryEnabled', null) is bool)
+        && (d.get('discoveryEnabled', false) != true
+          || (d.get('age', null) is int && d.get('age', 0) >= 18))
+        && fieldOk(d, k, 'lastSeen', d.get('lastSeen', null) is timestamp && d.get('lastSeen', null) <= request.time);
+    }
+
     match /public_profiles/{uid} {
       allow read: if signedIn();
-      allow write: if false;
+      allow create, update: if isUser(uid) && publicProfileOk(uid);
+      allow delete: if isUser(uid);
     }
 
     // Avatar uniqueness registry: doc id = face fingerprint, value = owner.
@@ -320,6 +409,32 @@ service cloud.firestore {
           && (!('typingAt' in k) || typingOk(me));
       }
 
+      // Only [me] changed in map [field], and it is gone afterwards.
+      function myKeyRemoved(field, me) {
+        let before = resource.data.get(field, {});
+        let after = request.resource.data.get(field, {});
+        return after.diff(before).affectedKeys().hasOnly([me]) && !(me in after);
+      }
+
+      // Account deletion: mark me as deleted in one write (client port of
+      // functions/account.js anonymiseConversations).
+      function accountDeletionUpdateOk() {
+        let me = request.auth.uid;
+        let d = request.resource.data;
+        let k = changedKeys();
+        let delBefore = resource.data.get('deletedUsers', []);
+        let pdBefore = resource.data.get('participantData', {});
+        let pdAfter = d.get('participantData', {});
+        return k.hasOnly(['deletedUsers', 'participantData', 'statePerUser', 'typingAt'])
+          && (!('deletedUsers' in k)
+            || (!(me in delBefore) && d.deletedUsers == delBefore.concat([me])))
+          && me in d.get('deletedUsers', [])
+          && pdAfter.diff(pdBefore).affectedKeys().hasOnly([me])
+          && pdAfter.get(me, null) == {'deleted': true, 'unreadCount': 0}
+          && myKeyRemoved('statePerUser', me)
+          && myKeyRemoved('typingAt', me);
+      }
+
       function conversationCreateOk() {
         let d = request.resource.data;
         let p = d.participants;
@@ -353,8 +468,8 @@ service cloud.firestore {
 
       allow update: if signedIn()
         && request.auth.uid in resource.data.participants
-        && resource.data.participants.size() == 2
-        && conversationUpdateOk();
+        && ((resource.data.participants.size() == 2 && conversationUpdateOk())
+          || accountDeletionUpdateOk());
 
       allow delete: if false;
 
@@ -635,11 +750,12 @@ service cloud.firestore {
 
     match /user_game_stats/{uid} {
       allow read: if signedIn();
+      allow delete: if isUser(uid);
 
       match /games/{game} {
         allow read: if signedIn();
         allow create, update: if isUser(uid) && game in ['carrom', 'ludo'] && statsOk();
-        allow delete: if false;
+        allow delete: if isUser(uid);
       }
 
       // One history entry per match the user actually played.
@@ -654,20 +770,21 @@ service cloud.firestore {
           && request.resource.data.get('myScore', 0) >= 0
           && request.resource.data.get('myScore', 0) <= 30
           && strMax(request.resource.data, request.resource.data.keys(), 'opponentName', 100);
-        allow update, delete: if false;
+        allow delete: if isUser(uid);
+        allow update: if false;
       }
     }
 
     match /leaderboards/{game}/allTime/{uid} {
       allow read: if signedIn();
       allow create, update: if isUser(uid) && leaderboardOk(uid);
-      allow delete: if false;
+      allow delete: if isUser(uid);
     }
 
     match /leaderboards/{game}/{period}/{periodKey}/users/{uid} {
       allow read: if signedIn();
       allow create, update: if isUser(uid) && period in ['daily', 'weekly'] && leaderboardOk(uid);
-      allow delete: if false;
+      allow delete: if isUser(uid);
     }
   }
 }

@@ -97,6 +97,16 @@ describe('database.rules.json', () => {
     });
   });
 
+  it('a caller can read only their own entry in the callee inbox', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.database().ref('incoming_calls/bob/alice_bob_1').set({ callerId: 'alice', status: 'ringing' });
+      await ctx.database().ref('incoming_calls/bob/carol_bob_1').set({ callerId: 'carol', status: 'ringing' });
+    });
+    await assertSucceeds(get(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_1')));
+    await assertFails(get(ref(rtdb('alice'), 'incoming_calls/bob/carol_bob_1')));
+    await assertFails(get(ref(rtdb('alice'), 'incoming_calls/bob')));
+  });
+
   describe('rooms', () => {
     const id = 'alice_bob_9';
 
@@ -131,6 +141,49 @@ describe('database.rules.json', () => {
         endedAt: serverTimestamp(),
       }));
       await assertSucceeds(remove(ref(rtdb('alice'), `rooms/${id}`)));
+    });
+  });
+
+  describe('account deletion and stale cleanup (client side)', () => {
+    it('owner can remove its presence node; others cannot', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'presence/alice'), { online: true, lastSeen: serverTimestamp() }));
+      await assertFails(remove(ref(rtdb('bob'), 'presence/alice')));
+      await assertSucceeds(remove(ref(rtdb('alice'), 'presence/alice')));
+    });
+
+    it('owner can remove its whole incoming_calls node', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_10'), inboxEntry('alice', 'alice_bob_10')));
+      await assertSucceeds(set(ref(rtdb('carol'), 'incoming_calls/bob/carol_bob_10'), inboxEntry('carol', 'carol_bob_10')));
+      await assertFails(remove(ref(rtdb('alice'), 'incoming_calls/bob')));
+      await assertSucceeds(remove(ref(rtdb('bob'), 'incoming_calls/bob')));
+    });
+
+    it('callee can remove stale entries in its own inbox', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_11'), inboxEntry('alice', 'alice_bob_11')));
+      await assertSucceeds(set(ref(rtdb('carol'), 'incoming_calls/bob/carol_bob_11'), inboxEntry('carol', 'carol_bob_11')));
+      await assertSucceeds(update(ref(rtdb('bob'), 'incoming_calls/bob'), {
+        alice_bob_11: null,
+        carol_bob_11: null,
+      }));
+    });
+
+    it("caller can remove only its own entry in someone else's inbox", async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_12'), inboxEntry('alice', 'alice_bob_12')));
+      await assertSucceeds(set(ref(rtdb('carol'), 'incoming_calls/bob/carol_bob_12'), inboxEntry('carol', 'carol_bob_12')));
+      await assertFails(remove(ref(rtdb('alice'), 'incoming_calls/bob/carol_bob_12')));
+      await assertSucceeds(remove(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_12')));
+    });
+
+    it('owner can remove its astrology answers; others cannot', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'users/alice'), { luckyNumber: 7 }));
+      await assertFails(remove(ref(rtdb('bob'), 'users/alice')));
+      await assertSucceeds(remove(ref(rtdb('alice'), 'users/alice')));
+    });
+
+    it('a participant can remove a room by id; a stranger cannot', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), 'rooms/alice_r1'), room('alice', 'bob')));
+      await assertFails(remove(ref(rtdb('carol'), 'rooms/alice_r1')));
+      await assertSucceeds(remove(ref(rtdb('alice'), 'rooms/alice_r1')));
     });
   });
 

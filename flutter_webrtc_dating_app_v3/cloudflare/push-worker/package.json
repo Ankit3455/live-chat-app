@@ -1,0 +1,12 @@
+{
+  "name": "destined-push-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker that sends Destined's OneSignal push notifications.",
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/firebase.js && node --check src/limits.js && node --check src/rules.js",
+    "test": "node --test",
+    "deploy": "wrangler deploy"
+  }
+}
