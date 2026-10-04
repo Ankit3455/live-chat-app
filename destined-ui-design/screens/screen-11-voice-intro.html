@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11 · Voice intro — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .ob-top { padding: 0 var(--s-2); display: flex; align-items: center; gap: var(--s-2); height: var(--appbar-h); flex: none; position: relative; z-index: 2; }
+  .ob-top .progress { flex: 1; }
+  .ob-top .step { font: 600 12px var(--font-body); color: var(--text-subtle); white-space: nowrap; text-align: right; padding: 0 var(--s-3) 0 var(--s-2); }
+  .q { padding: var(--s-6) var(--s-6) 0; }
+  .q .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--pink-300); }
+  .q h1 { margin-top: 10px; }
+  .q p { margin-top: 8px; }
+  .prompts { padding: var(--s-5) var(--s-6) 0; }
+  .prompts .lbl { font: 600 var(--fs-label)/1 var(--font-body); color: var(--text-muted); margin-bottom: var(--s-3); display: block; }
+  .rec { display: flex; flex-direction: column; align-items: center; padding-top: var(--s-8); }
+  .timer { font: 700 var(--fs-display)/1 var(--font-display); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 10px; }
+  .timer .live { width: 10px; height: 10px; border-radius: 50%; background: var(--error); animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .timer-sub { font-size: var(--fs-caption); color: var(--text-subtle); margin-top: 6px; }
+  .rec-btn { margin-top: var(--s-6); width: 104px; height: 104px; border-radius: 50%; background: var(--grad-primary); display: grid; place-items: center; box-shadow: var(--shadow-glow); position: relative; }
+  .rec-btn svg { width: 40px; height: 40px; color: #fff; position: relative; z-index: 1; }
+  .rec-btn::before, .rec-btn::after { content: ''; position: absolute; inset: -12px; border-radius: 50%; border: 2px solid rgba(236,72,153,.45); animation: ring 1.8s ease-out infinite; }
+  .rec-btn::after { animation-delay: .9s; }
+  @keyframes ring { from { transform: scale(.92); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
+  .rec-btn .stop { position: absolute; right: -4px; bottom: -4px; width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); border: 3px solid var(--bg); display: grid; place-items: center; z-index: 2; }
+  .rec-btn .stop i { width: 10px; height: 10px; border-radius: 2px; background: var(--error); }
+  .hint { margin-top: var(--s-5); font: 600 14px var(--font-body); color: var(--text); }
+  .range { width: 240px; margin-top: var(--s-4); }
+  .range .bar { height: 6px; border-radius: 3px; background: var(--surface-2); position: relative; overflow: hidden; }
+  .range .sweet { position: absolute; left: 50%; width: 50%; top: 0; bottom: 0; background: rgba(52,211,153,.25); }
+  .range .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 40%; background: var(--grad-primary); border-radius: 3px; }
+  .range .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-subtle); margin-top: 6px; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-6) 30px; background: linear-gradient(180deg, transparent, var(--bg) 25%); z-index: 3; display: flex; flex-direction: column; gap: var(--s-3); align-items: center; }
+  .footer .pair { display: grid; grid-template-columns: 1fr 1.3fr; gap: var(--s-3); width: 100%; }
+  .footer .pair .btn { padding: 0 var(--s-4); white-space: nowrap; }
+  /* preview */
+  .player { margin: var(--s-8) var(--s-6) 0; padding: var(--s-4); display: flex; align-items: center; gap: var(--s-4); }
+  .play { width: 56px; height: 56px; border-radius: 50%; background: var(--grad-primary); display: grid; place-items: center; flex: none; box-shadow: var(--shadow-glow); }
+  .play svg { width: 24px; height: 24px; color: #fff; }
+  .wave { flex: 1; display: flex; align-items: center; gap: 3px; height: 48px; }
+  .wave i { flex: 1; border-radius: 2px; background: var(--border-strong); }
+  .wave i.on { background: var(--pink-300); }
+  .player .meta { display: flex; justify-content: space-between; font-size: var(--fs-caption); color: var(--text-subtle); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .answered { margin: var(--s-4) var(--s-6) 0; display: flex; gap: var(--s-2); flex-wrap: wrap; }
+  .good { color: var(--success); background: rgba(52,211,153,.1); border-color: rgba(52,211,153,.35); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- a) Record -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top">
+    <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div class="progress" role="progressbar" aria-valuenow="9" aria-valuemax="9" aria-label="Onboarding progress"><i style="width:100%"></i></div>
+    <span class="step">Last step</span>
+  </div>
+  <div class="screen">
+    <div class="q">
+      <span class="eyebrow">Last step</span>
+      <h1 class="t-h1">Add a voice intro</h1>
+      <p class="muted">Say hi in 15–30 seconds. People hear it on your profile.</p>
+    </div>
+    <div class="prompts">
+      <span class="lbl">Need an idea? Pick a prompt</span>
+      <div class="chip-row" role="group" aria-label="Prompts">
+        <button class="chip selectable">😂 What makes you laugh?</button>
+        <button class="chip selectable selected" aria-pressed="true">☀️ Your perfect Sunday</button>
+        <button class="chip selectable">🔮 Why astrology?</button>
+      </div>
+    </div>
+    <div class="rec">
+      <div class="timer" aria-live="polite"><span class="live" aria-hidden="true"></span>0:12</div>
+      <span class="timer-sub">Up to 2:00 · 15–30 s works best</span>
+      <button class="rec-btn" aria-label="Recording. Tap to stop"><svg><use href="#i-mic"/></svg><span class="stop" aria-hidden="true"><i></i></span></button>
+      <p class="hint">Recording… tap to stop</p>
+      <div class="range" aria-hidden="true">
+        <div class="bar"><span class="sweet"></span><span class="fill"></span></div>
+        <div class="ticks"><span>0:00</span><span>0:15</span><span>0:30</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-ghost">Skip for now</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Recording.</b> A large mic button with a live timer, a red dot and a stop badge make the recording state obvious. A small bar shows the 15–30 s sweet spot (the app allows up to 2 minutes). Prompt chips give people something to say. "Skip for now" stays visible. Prompt chips and the sweet-spot bar are <b>Proposed</b>.</p>
+</div>
+
+<!-- b) Preview -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top">
+    <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div class="progress" role="progressbar" aria-valuenow="9" aria-valuemax="9" aria-label="Onboarding progress"><i style="width:100%"></i></div>
+    <span class="step">Last step</span>
+  </div>
+  <div class="screen">
+    <div class="q">
+      <span class="eyebrow">Last step</span>
+      <h1 class="t-h1">Sounds great!</h1>
+      <p class="muted">Have a listen before you save. This is what people will hear on your profile.</p>
+    </div>
+    <div class="card player">
+      <button class="play" aria-label="Play voice intro, 24 seconds"><svg><use href="#i-play"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <div class="wave" aria-hidden="true">
+          <i class="on" style="height:30%"></i><i class="on" style="height:55%"></i><i class="on" style="height:80%"></i><i class="on" style="height:45%"></i><i class="on" style="height:65%"></i><i class="on" style="height:90%"></i><i class="on" style="height:50%"></i><i class="on" style="height:35%"></i><i style="height:60%"></i><i style="height:85%"></i><i style="height:70%"></i><i style="height:40%"></i><i style="height:25%"></i><i style="height:55%"></i><i style="height:75%"></i><i style="height:95%"></i><i style="height:60%"></i><i style="height:40%"></i><i style="height:30%"></i><i style="height:50%"></i><i style="height:70%"></i><i style="height:45%"></i><i style="height:30%"></i><i style="height:20%"></i>
+        </div>
+        <div class="meta"><span>0:08</span><span>0:24</span></div>
+      </div>
+    </div>
+    <div class="answered">
+      <span class="chip good"><svg><use href="#i-check"/></svg>Great length</span>
+      <span class="chip">☀️ Your perfect Sunday</span>
+    </div>
+  </div>
+  <div class="footer">
+    <div class="pair">
+      <button class="btn btn-secondary"><svg><use href="#i-mic"/></svg>Re-record</button>
+      <button class="btn btn-primary">Save voice intro</button>
+    </div>
+    <button class="btn btn-ghost">Skip for now</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Recorded preview.</b> A waveform player (0:24) lets people check how they sound before saving. "Save voice intro" is the main action and "Re-record" sits next to it with equal height. The "Great length" chip confirms the 15–30 s tip and is <b>Proposed</b>.</p>
+</div>
+
+</div></body></html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>01 · Login — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .hero { padding: 36px var(--s-6) 0; text-align: center; }
+  .logo { width: 72px; height: 72px; margin: 0 auto 18px; border-radius: 24px; background: var(--grad-primary); display: grid; place-items: center; box-shadow: var(--shadow-glow); }
+  .logo svg { width: 36px; height: 36px; color: #fff; }
+  .stars { position: absolute; inset: 0 0 auto; height: 260px; pointer-events: none; background-image:
+      radial-gradient(1.5px 1.5px at 40px 60px, #fff8, transparent), radial-gradient(1px 1px at 120px 30px, #fff6, transparent),
+      radial-gradient(1.5px 1.5px at 300px 80px, #fff7, transparent), radial-gradient(1px 1px at 340px 160px, #fff5, transparent),
+      radial-gradient(1px 1px at 70px 190px, #fff5, transparent), radial-gradient(1.5px 1.5px at 240px 40px, #fff6, transparent); }
+  .form { padding: var(--s-8) var(--s-6) 0; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--text-subtle); font-size: 12px; margin: var(--s-5) 0; }
+  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .legal { padding: var(--s-6) var(--s-8) 40px; text-align: center; font-size: 12px; color: var(--text-subtle); }
+  .legal a { color: var(--text-muted); text-decoration: underline; }
+  .signup { text-align: center; margin-top: var(--s-5); font-size: 14px; color: var(--text-muted); }
+  .signup a { color: var(--violet-300); font-weight: 600; text-decoration: none; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="stars"></div>
+    <div class="hero">
+      <div class="logo"><svg><use href="#i-sparkle"/></svg></div>
+      <h1 class="t-display">Destined</h1>
+      <p class="muted" style="margin-top:6px">Find your cosmic connection.</p>
+    </div>
+
+    <form class="form stack-4" onsubmit="return false">
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="input focus"><svg><use href="#i-mail"/></svg><input id="email" type="email" value="aanya.k@gmail.com" autocomplete="email"></div>
+      </div>
+      <div class="field">
+        <label for="pw">Password</label>
+        <div class="input"><svg><use href="#i-lock"/></svg><input id="pw" type="password" value="password12" autocomplete="current-password">
+          <button class="icon-btn" type="button" aria-label="Show password"><svg><use href="#i-eye"/></svg></button></div>
+        <div class="row between"><span></span><button class="btn-ghost btn t-label" type="button" style="padding-right:0">Forgot password?</button></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Log in</button>
+      <div class="or">or</div>
+      <button class="btn btn-google" type="button"><svg><use href="#i-google"/></svg>Continue with Google</button>
+      <p class="signup">New to Destined? <a href="#">Create an account</a></p>
+    </form>
+    <p class="legal">By continuing you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>. Destined is for adults 18+.</p>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Default.</b> One brand voice, a white Google button that sits well with the purple brand (it no longer clashes), and working Terms and Privacy links.</p>
+</div>
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="stars"></div>
+    <div class="hero">
+      <div class="logo"><svg><use href="#i-sparkle"/></svg></div>
+      <h1 class="t-display">Destined</h1>
+      <p class="muted" style="margin-top:6px">Find your cosmic connection.</p>
+    </div>
+    <form class="form stack-4" onsubmit="return false">
+      <div class="banner warn" role="alert"><svg><use href="#i-alert"/></svg><span>Email or password is incorrect. Try again or reset your password.</span></div>
+      <div class="field">
+        <label for="email2">Email</label>
+        <div class="input"><svg><use href="#i-mail"/></svg><input id="email2" value="aanya.k@gmail.com"></div>
+      </div>
+      <div class="field">
+        <label for="pw2">Password</label>
+        <div class="input error"><svg><use href="#i-lock"/></svg><input id="pw2" type="password" value="wrongpass">
+          <button class="icon-btn" type="button" aria-label="Show password"><svg><use href="#i-eye"/></svg></button></div>
+        <span class="err"><svg width="14" height="14"><use href="#i-alert"/></svg>Check your password</span>
+      </div>
+      <button class="btn btn-primary btn-loading" type="submit" aria-busy="true">Log in</button>
+      <div class="or">or</div>
+      <button class="btn btn-google" type="button" disabled style="opacity:.5"><svg><use href="#i-google"/></svg>Continue with Google</button>
+    </form>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Error + retry loading.</b> The error appears inline where the problem is, not in a passing snackbar. Only the pressed button shows a spinner, and the rest of the form stays in place.</p>
+</div>
+
+</div></body></html>

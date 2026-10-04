@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>18 · Avatar from your answers — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .pad { padding: 0 var(--s-6); }
+  .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--pink-300); }
+  .av { border-radius: 50%; background: var(--surface) center / cover no-repeat; flex: none; }
+
+  /* 1 · intro */
+  .samples { display: flex; justify-content: center; gap: 12px; margin: 28px 0 8px; }
+  .sample { width: 104px; text-align: center; }
+  .sample .av { width: 96px; height: 96px; margin: 0 auto 8px; box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--border-strong); }
+  .sample:nth-child(2) { transform: translateY(-14px); }
+  .sample:nth-child(2) .av { width: 104px; height: 104px; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--pink-500), var(--shadow-glow); }
+  .sample small { display: block; font-size: 11px; line-height: 15px; color: var(--text-muted); }
+  .vs { margin: 20px var(--s-6) 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vs > div { border-radius: var(--r-md); padding: 12px; font-size: 13px; line-height: 18px; border: 1px solid var(--border); background: var(--surface); }
+  .vs b { display: block; font: 700 13px var(--font-display); margin-bottom: 6px; }
+  .vs .them { color: var(--text-subtle); }
+  .vs .them .row-av { display: flex; gap: 4px; margin-bottom: 8px; }
+  .vs .them .row-av i { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: block; }
+  .vs .us { border-color: rgba(236,72,153,.4); background: linear-gradient(135deg, rgba(124,58,237,.16), rgba(236,72,153,.1)); }
+  .vs .us .row-av { display: flex; gap: 4px; margin-bottom: 8px; }
+  .vs .us .row-av span { width: 22px; height: 22px; border-radius: 50%; background-size: cover; display: block; }
+
+  /* 2 · questionnaire live preview */
+  .ob-top { padding: 0 var(--s-2); display: flex; align-items: center; gap: var(--s-2); height: var(--appbar-h); }
+  .ob-top .progress { flex: 1; }
+  .ob-top .step { font: 600 12px var(--font-body); color: var(--text-subtle); width: 48px; text-align: right; padding-right: var(--s-3); }
+  .live { margin: 4px var(--s-5) 0; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); position: relative; }
+  .live .av { width: 64px; height: 64px; position: relative; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--violet-500); }
+  .live .av::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid rgba(236,72,153,.5); animation: ping 1.6s ease-out infinite; }
+  @keyframes ping { from { transform: scale(.9); opacity: 1; } to { transform: scale(1.15); opacity: 0; } }
+  .live .txt { flex: 1; font-size: 13px; color: var(--text-muted); line-height: 18px; }
+  .live .txt b { display: block; color: var(--text); font: 700 14px var(--font-display); margin-bottom: 2px; }
+  .history { display: flex; gap: 6px; margin-top: 6px; }
+  .history span { width: 22px; height: 22px; border-radius: 50%; background-size: cover; opacity: .55; }
+  .live { flex-wrap: wrap; }
+  .toast-hint { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 8px 12px; border-radius: var(--r-md); font: 600 13px var(--font-body); background: rgba(245,194,107,.1); border: 1px solid rgba(245,194,107,.35); color: var(--gold-400); animation: hintIn .35s ease-out; }
+  .toast-hint .new { margin-left: auto; font: 600 11px var(--font-body); color: var(--text-subtle); }
+  @keyframes hintIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .history { align-items: center; }
+  .history em { font-style: normal; font-size: 11px; color: var(--text-subtle); margin-right: 2px; }
+  .q { padding: 24px var(--s-6) 0; }
+  .q h1 { margin-top: 10px; }
+  .chips { padding: var(--s-5) var(--s-6) 0; display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-6) 34px; background: linear-gradient(180deg, transparent, var(--bg) 30%); z-index: 3; }
+
+  /* 3 · reveal */
+  .reveal { text-align: center; padding: 20px var(--s-6) 0; }
+  .reveal .av { width: 168px; height: 168px; margin: 18px auto 0; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--pink-500), 0 18px 50px rgba(236,72,153,.35); }
+  .unique { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 6px 12px; border-radius: var(--r-pill); font: 600 12px var(--font-body); color: var(--gold-400); background: rgba(245,194,107,.1); border: 1px solid rgba(245,194,107,.4); }
+  .unique svg { width: 14px; height: 14px; }
+  .why { margin: 18px var(--s-5) 0; padding: 6px 4px; }
+  .why h3 { font: 700 15px var(--font-display); padding: 8px 12px 4px; display: flex; justify-content: space-between; align-items: baseline; }
+  .why h3 small { font: 500 12px var(--font-body); color: var(--text-subtle); }
+  .trait { display: flex; align-items: center; gap: 12px; padding: 9px 12px; }
+  .trait .ic { width: 34px; height: 34px; border-radius: 11px; background: var(--surface-2); display: grid; place-items: center; font-size: 17px; flex: none; }
+  .trait .from { flex: 1; font-size: 14px; }
+  .trait .from small { display: block; color: var(--text-subtle); font-size: 12px; }
+  .trait .arrow { color: var(--text-subtle); font-size: 13px; }
+  .trait .to { font: 600 13px var(--font-body); color: var(--violet-300); text-align: right; min-width: 96px; }
+  .reveal-cta { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px var(--s-5) 34px; background: linear-gradient(180deg, transparent, var(--bg) 25%); z-index: 3; display: grid; gap: 10px; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script>
+<div class="stage">
+
+<!-- 1 · Intro -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="pad center">
+      <span class="eyebrow">Before we start</span>
+      <h1 class="t-h1" style="margin-top:10px">Your answers become<br>your avatar</h1>
+      <p class="muted" style="margin-top:10px">Your habits, interests and zodiac sign shape a face that's made only for you.</p>
+    </div>
+    <div class="samples" aria-label="Example avatars">
+      <div class="sample"><div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample1&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=183858%2C49346f&amp;topProbability=100&amp;top=longButNotTooLong&amp;hairColor=c93305&amp;skinColor=d08b5b&amp;eyes=squint&amp;eyebrows=flatNatural&amp;mouth=smile&amp;clothing=shirtCrewNeck&amp;clothesColor=244f80&amp;facialHairProbability=0&amp;accessories=prescription02&amp;accessoriesColor=65c9ff&amp;accessoriesProbability=100')"></div><small>Night owl<br>Loves reading</small></div>
+      <div class="sample"><div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample2&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=ffccc0%2Cffbaad&amp;topProbability=100&amp;top=sides&amp;hairColor=4a312c&amp;skinColor=ae5d29&amp;eyes=happy&amp;eyebrows=raisedExcitedNatural&amp;mouth=smile&amp;clothing=shirtVNeck&amp;clothesColor=ff5766&amp;facialHairProbability=0&amp;accessories=wayfarers&amp;accessoriesColor=262e33&amp;accessoriesProbability=100')"></div><small>Early riser<br>Traveller</small></div>
+      <div class="sample"><div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample3&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=fdd9ce%2Cfcbdb1&amp;topProbability=100&amp;top=miaWallace&amp;hairColor=f59797&amp;skinColor=ffdbb4&amp;eyes=default&amp;eyebrows=defaultNatural&amp;mouth=twinkle&amp;clothing=overall&amp;clothesColor=ff4988&amp;facialHairProbability=0&amp;accessoriesProbability=0')"></div><small>Artist<br>Extrovert</small></div>
+    </div>
+    <div class="vs">
+      <div class="them"><div class="row-av"><i></i><i></i><i></i></div><b>Other apps</b>A random avatar from a small set that thousands of people share.</div>
+      <div class="us"><div class="row-av"><span style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample1&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=183858%2C49346f&amp;topProbability=100&amp;top=longButNotTooLong&amp;hairColor=c93305&amp;skinColor=d08b5b&amp;eyes=squint&amp;eyebrows=flatNatural&amp;mouth=smile&amp;clothing=shirtCrewNeck&amp;clothesColor=244f80&amp;facialHairProbability=0&amp;accessories=prescription02&amp;accessoriesColor=65c9ff&amp;accessoriesProbability=100')"></span><span style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample2&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=ffccc0%2Cffbaad&amp;topProbability=100&amp;top=sides&amp;hairColor=4a312c&amp;skinColor=ae5d29&amp;eyes=happy&amp;eyebrows=raisedExcitedNatural&amp;mouth=smile&amp;clothing=shirtVNeck&amp;clothesColor=ff5766&amp;facialHairProbability=0&amp;accessories=wayfarers&amp;accessoriesColor=262e33&amp;accessoriesProbability=100')"></span><span style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=sample3&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=fdd9ce%2Cfcbdb1&amp;topProbability=100&amp;top=miaWallace&amp;hairColor=f59797&amp;skinColor=ffdbb4&amp;eyes=default&amp;eyebrows=defaultNatural&amp;mouth=twinkle&amp;clothing=overall&amp;clothesColor=ff4988&amp;facialHairProbability=0&amp;accessoriesProbability=0')"></span></div><b>Destined</b>Built from your answers. No one else gets your face.</div>
+    </div>
+    <p class="t-caption center" style="margin-top:16px">You can switch to a real photo any time.</p>
+  </div>
+  <div class="footer"><button class="btn btn-primary">Let's build mine</button></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>1 · Questionnaire intro (Proposed).</b> Sets the promise before the first question: answers shape the avatar, unlike the shared random sets in other apps. The three samples are real avatars from the mapping, so the claim is visible, not just stated.</p>
+</div>
+
+<!-- 2 · Questionnaire with live preview -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top">
+    <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div class="progress"><i style="width:33%"></i></div>
+    <span class="step">3 of 9</span>
+  </div>
+  <div class="screen">
+    <div class="live" role="status" aria-live="polite">
+      <div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=aanya-uid&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=112e5e%2C332d6c&amp;topProbability=100&amp;top=bun&amp;hairColor=b58143&amp;skinColor=ffdbb4&amp;eyes=squint&amp;eyebrows=defaultNatural&amp;mouth=default&amp;clothing=graphicShirt&amp;clothesColor=5a9dea&amp;clothingGraphic=diamond&amp;facialHairProbability=0&amp;accessories=prescription01&amp;accessoriesColor=ffffff&amp;accessoriesProbability=100')" aria-label="Your avatar so far"></div>
+      <div class="txt"><b>Your avatar is taking shape</b>Every answer adds something.
+        <div class="history" aria-hidden="true"><em>Earlier:</em><span style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=aanya-uid&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=c5deea%2Ccadcfc&amp;topProbability=100&amp;top=bun&amp;hairColor=b58143&amp;skinColor=ffdbb4&amp;eyes=wink&amp;eyebrows=default&amp;mouth=default&amp;clothing=graphicShirt&amp;clothesColor=2e5982&amp;clothingGraphic=bear&amp;facialHairProbability=0&amp;accessoriesProbability=0')"></span><span style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=aanya-uid&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=112e5e%2C332d6c&amp;topProbability=100&amp;top=bun&amp;hairColor=b58143&amp;skinColor=ffdbb4&amp;eyes=happy&amp;eyebrows=default&amp;mouth=default&amp;clothing=graphicShirt&amp;clothesColor=5a9dea&amp;clothingGraphic=bear&amp;facialHairProbability=0&amp;accessoriesProbability=0')"></span></div>
+      </div>
+      <span class="toast-hint">📚 Reading → glasses added <span class="new">just now</span></span>
+    </div>
+    <div class="q">
+      <span class="eyebrow">About you</span>
+      <h1 class="t-h1">What are you into?</h1>
+      <p class="muted" style="margin-top:8px">Pick at least 3. Some of them show up on your avatar.</p>
+    </div>
+    <div class="chips" role="group" aria-label="Interests">
+      <button class="chip selectable selected">📚 Reading</button>
+      <button class="chip selectable selected">🔮 Astrology</button>
+      <button class="chip selectable">🎵 Music</button>
+      <button class="chip selectable">✈️ Travel</button>
+      <button class="chip selectable">🍳 Cooking</button>
+      <button class="chip selectable">🎨 Art</button>
+      <button class="chip selectable">💻 Tech</button>
+      <button class="chip selectable">💃 Dancing</button>
+      <button class="chip selectable">🧘 Meditation</button>
+      <button class="chip selectable">❤️ Romance</button>
+    </div>
+  </div>
+  <div class="footer"><button class="btn btn-primary">Continue</button></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>2 · Live preview while answering (Proposed).</b> The avatar at the top updates after each answer. The small faded faces show earlier versions, and a gold hint names what just changed. Users see their own answers building the face.</p>
+</div>
+
+<!-- 3 · Reveal -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="reveal">
+      <span class="eyebrow">Your avatar</span>
+      <h1 class="t-h1" style="margin-top:8px">This is you ✨</h1>
+      <div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=aanya-uid&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=112e5e%2C332d6c&amp;topProbability=100&amp;top=bun&amp;hairColor=b58143&amp;skinColor=ffdbb4&amp;eyes=squint&amp;eyebrows=defaultNatural&amp;mouth=default&amp;clothing=graphicShirt&amp;clothesColor=5a9dea&amp;clothingGraphic=diamond&amp;facialHairProbability=0&amp;accessories=prescription01&amp;accessoriesColor=ffffff&amp;accessoriesProbability=100')" role="img" aria-label="Your avatar"></div>
+      <span class="unique"><svg><use href="#i-sparkle"/></svg>One of a kind · no one else has this face</span>
+    </div>
+    <div class="card why">
+      <h3>Why you look like this <small>from your answers</small></h3>
+      <div class="trait"><span class="ic">♓︎</span><span class="from">Pisces<small>from your birth date</small></span><span class="arrow">→</span><span class="to">Ocean colours</span></div>
+      <div class="trait"><span class="ic">🌙</span><span class="from">Night owl<small>your habit</small></span><span class="arrow">→</span><span class="to">Night-sky colours</span></div>
+      <div class="trait"><span class="ic">📚</span><span class="from">Reading<small>your interest</small></span><span class="arrow">→</span><span class="to">Glasses</span></div>
+      <div class="trait"><span class="ic">💻</span><span class="from">Engineer<small>your profession</small></span><span class="arrow">→</span><span class="to">Casual tee</span></div>
+      <div class="trait"><span class="ic">🔮</span><span class="from">Astrology<small>your interest</small></span><span class="arrow">→</span><span class="to">Diamond print</span></div>
+    </div>
+    <div style="height:150px"></div>
+  </div>
+  <div class="reveal-cta">
+    <button class="btn btn-primary"><svg><use href="#i-check"/></svg>Use this avatar</button>
+    <button class="btn btn-secondary"><svg><use href="#i-camera"/></svg>Upload a photo instead</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>3 · Reveal with "Why you look like this".</b> Replaces the plain avatar preview. Each row is built from the parameters actually used to draw this face (stored with the avatar), so the explanation is always true. Example: this engineer got a graphic tee rather than a hoodie, so the row says "Casual tee". The gold badge states the uniqueness guarantee.</p>
+</div>
+
+</div></body></html>

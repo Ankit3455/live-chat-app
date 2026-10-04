@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>02 · Onboarding question — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .ob-top { padding: 0 var(--s-2) 0 var(--s-2); display: flex; align-items: center; gap: var(--s-2); height: var(--appbar-h); }
+  .ob-top .progress { flex: 1; }
+  .ob-top .step { font: 600 12px var(--font-body); color: var(--text-subtle); width: 48px; text-align: right; padding-right: var(--s-3); }
+  .q { padding: var(--s-6) var(--s-6) 0; }
+  .q .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--pink-300); }
+  .q h1 { margin-top: 10px; }
+  .q p { margin-top: 8px; }
+  .options { padding: var(--s-6) var(--s-6) 0; }
+  .option { display: flex; align-items: center; gap: var(--s-3); min-height: 60px; padding: 0 var(--s-4); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); width: 100%; text-align: left; }
+  .option + .option { margin-top: var(--s-3); }
+  .option .emoji { width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; font-size: 18px; }
+  .option .lbl { flex: 1; font-weight: 600; }
+  .option .lbl small { display: block; font-weight: 400; color: var(--text-muted); font-size: 13px; }
+  .option .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); display: grid; place-items: center; }
+  .option.selected { border-color: var(--violet-500); background: rgba(139,92,246,.12); }
+  .option.selected .radio { border-color: var(--violet-500); background: var(--violet-600); }
+  .option.selected .radio svg { width: 14px; height: 14px; color: #fff; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-6) 34px; background: linear-gradient(180deg, transparent, var(--bg) 30%); display: flex; gap: var(--s-3); z-index: 3; }
+  .chips { padding: var(--s-6) var(--s-6) 0; display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .counter { padding: var(--s-4) var(--s-6) 0; font-size: 13px; color: var(--text-subtle); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top">
+    <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div class="progress" role="progressbar" aria-valuenow="2" aria-valuemax="9"><i style="width:22%"></i></div>
+    <span class="step">2 of 9</span>
+  </div>
+  <div class="screen">
+    <div class="q">
+      <span class="eyebrow">About you</span>
+      <h1 class="t-h1">What is your gender?</h1>
+      <p class="muted">This helps us show you to the right people. You can change who you see later in Discovery settings.</p>
+    </div>
+    <div class="options" role="radiogroup">
+      <button class="option" role="radio" aria-checked="false"><span class="emoji">👨</span><span class="lbl">Male</span><span class="radio"></span></button>
+      <button class="option selected" role="radio" aria-checked="true"><span class="emoji">👩</span><span class="lbl">Female</span><span class="radio"><svg><use href="#i-check"/></svg></span></button>
+      <button class="option" role="radio" aria-checked="false"><span class="emoji">✨</span><span class="lbl">Other</span><span class="radio"></span></button>
+    </div>
+  </div>
+  <div class="footer"><button class="btn btn-primary">Continue</button></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Single choice.</b> One question per screen, with a thin progress bar and a single sticky Continue button. Back sits top-left, so it can't exit the app by accident.</p>
+</div>
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="ob-top">
+    <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div class="progress"><i style="width:33%"></i></div>
+    <span class="step">3 of 9</span>
+  </div>
+  <div class="screen">
+    <div class="q">
+      <span class="eyebrow">About you</span>
+      <h1 class="t-h1">What are you into?</h1>
+      <p class="muted">Pick at least 3. These show on your profile.</p>
+    </div>
+    <div class="chips" role="group" aria-label="Interests">
+      <button class="chip selectable selected">🎵 Music</button>
+      <button class="chip selectable">✈️ Travel</button>
+      <button class="chip selectable selected">📚 Reading</button>
+      <button class="chip selectable">🏋️ Fitness</button>
+      <button class="chip selectable">🍳 Cooking</button>
+      <button class="chip selectable selected">🌙 Astrology</button>
+      <button class="chip selectable">🎬 Movies</button>
+      <button class="chip selectable">📷 Photography</button>
+      <button class="chip selectable">🎮 Gaming</button>
+      <button class="chip selectable">🎨 Art</button>
+      <button class="chip selectable">🧘 Yoga</button>
+      <button class="chip selectable">⚽ Sports</button>
+      <button class="chip selectable">🐶 Pets</button>
+      <button class="chip selectable">☕ Cafés</button>
+    </div>
+    <p class="counter">3 selected</p>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary">Continue</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Multi choice.</b> The chips are large touch targets (40px+) and clearly show which are selected. The live counter shows how many you've picked.</p>
+</div>
+
+</div></body></html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Store screenshots — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  body { min-height: 100vh; background: radial-gradient(60% 40% at 50% 0%, rgba(124,58,237,.25), transparent 70%), #0A0516; }
+  .wrap { max-width: 1680px; margin: 0 auto; padding: 48px 32px 64px; }
+  header h1 { font: 800 32px/1.2 var(--font-display); }
+  header p { color: var(--text-muted); margin-top: 8px; max-width: 760px; }
+  .gallery { display: flex; gap: 24px; margin-top: 32px; overflow-x: auto; padding-bottom: 16px; }
+  figure { flex: none; width: 252px; }
+  .frame { width: 252px; height: 448px; border-radius: 18px; overflow: hidden; position: relative; box-shadow: 0 0 0 1px var(--border-strong), 0 16px 40px rgba(0,0,0,.5); display: block; }
+  .frame iframe { width: 1080px; height: 1920px; border: 0; transform: scale(.2333333); transform-origin: 0 0; pointer-events: none; position: absolute; top: 0; left: 0; }
+  figcaption { margin-top: 12px; font-size: 13px; line-height: 18px; color: var(--text-muted); }
+  figcaption b { display: block; color: var(--text); font: 700 14px/20px var(--font-display); }
+  figcaption a { color: var(--violet-300); text-decoration: underline; }
+  .note { margin-top: 24px; font-size: 13px; color: var(--text-subtle); }
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Destined · Store screenshots</h1>
+    <p>Six portrait screenshots at 1080 × 1920 px for Google Play and the App Store. Each screen is built from the existing mockups in <code>screens/</code>. Open a shot on its own and capture it at 1080 × 1920 to export.</p>
+  </header>
+  <div class="gallery">
+    <figure><a class="frame" href="shot-01.html"><iframe src="shot-01.html" title="Shot 1" loading="lazy"></iframe></a>
+      <figcaption><b>1 · Find your cosmic connection</b>Discover feed with zodiac compatibility chips. <a href="shot-01.html">Open</a></figcaption></figure>
+    <figure><a class="frame" href="shot-02.html"><iframe src="shot-02.html" title="Shot 2" loading="lazy"></iframe></a>
+      <figcaption><b>2 · Your answers become your avatar</b>Avatar reveal with "Why you look like this". <a href="shot-02.html">Open</a></figcaption></figure>
+    <figure><a class="frame" href="shot-03.html"><iframe src="shot-03.html" title="Shot 3" loading="lazy"></iframe></a>
+      <figcaption><b>3 · Compatibility written in the stars</b>Profile with the gold compatibility card. <a href="shot-03.html">Open</a></figcaption></figure>
+    <figure><a class="frame" href="shot-04.html"><iframe src="shot-04.html" title="Shot 4" loading="lazy"></iframe></a>
+      <figcaption><b>4 · Calls only when you both say yes</b>Chat with the mutual call-consent sheet. <a href="shot-04.html">Open</a></figcaption></figure>
+    <figure><a class="frame" href="shot-05.html"><iframe src="shot-05.html" title="Shot 5" loading="lazy"></iframe></a>
+      <figcaption><b>5 · Say hi with your voice</b>Voice notes in chat and a profile voice intro. <a href="shot-05.html">Open</a></figcaption></figure>
+    <figure><a class="frame" href="shot-06.html"><iframe src="shot-06.html" title="Shot 6" loading="lazy"></iframe></a>
+      <figcaption><b>6 · Play together</b>Games tab: Ludo, Carrom and Love Physics. <a href="shot-06.html">Open</a></figcaption></figure>
+  </div>
+  <p class="note">Avatars load from api.dicebear.com and fonts from Google Fonts, so you need to be online for the final render.</p>
+</div>
+</body></html>

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>08 · Sign up — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .appbar { border-bottom: 1px solid transparent; }
+  .appbar.scrolled { background: rgba(15,10,26,.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom-color: var(--border); }
+  .appbar .title { font-size: var(--fs-h3); }
+  .form { padding: var(--s-2) var(--s-5) 132px; }
+  .intro { color: var(--text-muted); margin-bottom: var(--s-6); }
+  .group-head { margin: var(--s-8) 0 var(--s-4); display: flex; gap: var(--s-3); align-items: flex-start; }
+  .group-head .mark { width: 36px; height: 36px; border-radius: 12px; flex: none; display: grid; place-items: center; background: rgba(245,194,107,.12); border: 1px solid rgba(245,194,107,.35); }
+  .group-head .mark svg { width: 18px; height: 18px; color: var(--gold-400); }
+  .group-head h2 { font: 700 var(--fs-h3)/var(--lh-h3) var(--font-display); }
+  .group-head p { color: var(--text-muted); font-size: var(--fs-label); line-height: var(--lh-label); margin-top: 2px; }
+  .field label .opt { font-weight: 500; color: var(--text-subtle); margin-left: 4px; }
+  .field label .req { color: var(--pink-300); margin-left: 2px; }
+  .input .val { flex: 1; font: 500 var(--fs-body) var(--font-body); color: var(--text); }
+  .input .val.ph { color: var(--text-subtle); }
+  .help.zodiac { color: var(--gold-400); font-weight: 600; display: flex; gap: 6px; align-items: center; }
+  .help.zodiac svg { width: 14px; height: 14px; }
+  .check { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-4); margin-top: var(--s-6); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); cursor: pointer; }
+  .check .box { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--border-strong); flex: none; display: grid; place-items: center; margin-top: 1px; }
+  .check.on { border-color: rgba(139,92,246,.5); background: rgba(139,92,246,.10); }
+  .check.on .box { background: var(--violet-600); border-color: var(--violet-500); }
+  .check .box svg { width: 14px; height: 14px; color: #fff; }
+  .check span { font-weight: 500; }
+  .check small { display: block; color: var(--text-subtle); font-size: var(--fs-caption); line-height: var(--lh-caption); margin-top: 2px; font-weight: 400; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-6) var(--s-5) 30px; background: linear-gradient(180deg, transparent, var(--bg) 26%); z-index: 3; }
+  .legal { margin-top: var(--s-3); text-align: center; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-subtle); }
+  .legal a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; display: inline-block; padding: 4px 0; }
+  .login-link { text-align: center; margin-top: var(--s-6); font-size: 14px; color: var(--text-muted); }
+  .login-link a { color: var(--violet-300); font-weight: 600; }
+  .strength { display: flex; gap: 4px; margin-top: 2px; }
+  .strength i { flex: 1; height: 3px; border-radius: 2px; background: var(--surface-2); }
+  .strength i.on { background: var(--success); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- State A: form -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="appbar">
+    <button class="icon-btn" aria-label="Back to log in" style="margin-left:-8px"><svg><use href="#i-back"/></svg></button>
+    <span class="title">Create account</span>
+  </div>
+  <div class="screen">
+    <form class="form" onsubmit="return false">
+      <p class="intro">Two quick parts: your login, then the birth details we use to read your chart.</p>
+
+      <div class="stack-4">
+        <div class="field">
+          <label for="a-email">Email</label>
+          <div class="input focus"><svg><use href="#i-mail"/></svg><input id="a-email" type="email" value="aanya.k@gmail.com" autocomplete="email"></div>
+        </div>
+        <div class="field">
+          <label for="a-pw">Password</label>
+          <div class="input"><svg><use href="#i-lock"/></svg><input id="a-pw" type="password" placeholder="At least 8 characters" autocomplete="new-password">
+            <button class="icon-btn" type="button" aria-label="Show password" aria-pressed="false"><svg><use href="#i-eye"/></svg></button></div>
+        </div>
+        <div class="field">
+          <label for="a-pw2">Confirm password</label>
+          <div class="input"><svg><use href="#i-lock"/></svg><input id="a-pw2" type="password" placeholder="Type it again" autocomplete="new-password">
+            <button class="icon-btn" type="button" aria-label="Show password" aria-pressed="false"><svg><use href="#i-eye"/></svg></button></div>
+        </div>
+      </div>
+
+      <div class="group-head">
+        <span class="mark"><svg><use href="#i-moon"/></svg></span>
+        <div>
+          <h2>Your natal chart details</h2>
+          <p>This helps us find your destined match.</p>
+        </div>
+      </div>
+
+      <div class="stack-4">
+        <div class="field">
+          <label>Birth date<span class="req" aria-hidden="true">*</span></label>
+          <button class="input" type="button" aria-label="Birth date, DD/MM/YYYY, opens date picker" style="width:100%;text-align:left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            <span class="val ph">DD/MM/YYYY</span>
+          </button>
+        </div>
+        <div class="field">
+          <label>Birth time<span class="opt">(optional)</span></label>
+          <button class="input" type="button" aria-label="Birth time, optional, opens time picker" style="width:100%;text-align:left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+            <span class="val ph">HH:MM</span>
+          </button>
+          <span class="help">Makes your chart more precise. Skip it if you're not sure.</span>
+        </div>
+        <div class="field">
+          <label for="a-loc">Birth location<span class="req" aria-hidden="true">*</span></label>
+          <div class="input"><svg><use href="#i-pin"/></svg><input id="a-loc" placeholder="City, Country" autocomplete="off"></div>
+        </div>
+      </div>
+
+      <label class="check" role="checkbox" aria-checked="false" tabindex="0">
+        <span class="box"></span>
+        <span>I confirm I am 18 or older</span>
+      </label>
+
+      <p class="login-link">Already have an account? <a href="#">Log in</a></p>
+    </form>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary" type="submit">Sign up</button>
+    <p class="legal">By signing up, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</p>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Signup form.</b> Every field takes the full width, so nothing gets squeezed on narrow phones. One 20px gutter replaces the old double padding, both password fields get show/hide, and Sign up stays pinned while the form scrolls. Terms and Privacy are now real links. <i>Proposed:</i> the one-line intro and the hint under Birth time.</p>
+</div>
+
+<!-- State B: validation + loading -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="appbar scrolled">
+    <button class="icon-btn" aria-label="Back to log in" style="margin-left:-8px"><svg><use href="#i-back"/></svg></button>
+    <span class="title">Create account</span>
+  </div>
+  <div class="screen">
+    <form class="form" onsubmit="return false" style="padding-top:var(--s-4)">
+      <div class="stack-4">
+        <div class="field">
+          <label for="b-pw">Password</label>
+          <div class="input"><svg><use href="#i-lock"/></svg><input id="b-pw" type="text" value="moonlit-Sky7" autocomplete="new-password">
+            <button class="icon-btn" type="button" aria-label="Hide password" aria-pressed="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/></svg>
+            </button></div>
+          <div class="strength" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        </div>
+        <div class="field">
+          <label for="b-pw2">Confirm password</label>
+          <div class="input error"><svg><use href="#i-lock"/></svg><input id="b-pw2" type="password" value="moonlit-sky7" aria-invalid="true" aria-describedby="b-pw2-err">
+            <button class="icon-btn" type="button" aria-label="Show password" aria-pressed="false"><svg><use href="#i-eye"/></svg></button></div>
+          <span class="err" id="b-pw2-err"><svg width="14" height="14"><use href="#i-alert"/></svg>Passwords don't match. Check upper and lower case.</span>
+        </div>
+      </div>
+
+      <div class="group-head">
+        <span class="mark"><svg><use href="#i-moon"/></svg></span>
+        <div>
+          <h2>Your natal chart details</h2>
+          <p>This helps us find your destined match.</p>
+        </div>
+      </div>
+
+      <div class="stack-4">
+        <div class="field">
+          <label>Birth date<span class="req" aria-hidden="true">*</span></label>
+          <button class="input" type="button" aria-label="Birth date, 04/03/2001, opens date picker" style="width:100%;text-align:left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            <span class="val">04/03/2001</span>
+          </button>
+          <span class="help zodiac"><svg><use href="#i-sparkle"/></svg>25 · Pisces ♓︎</span>
+        </div>
+        <div class="field">
+          <label>Birth time<span class="opt">(optional)</span></label>
+          <button class="input" type="button" aria-label="Birth time, 06:40, opens time picker" style="width:100%;text-align:left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+            <span class="val">06:40</span>
+          </button>
+        </div>
+        <div class="field">
+          <label for="b-loc">Birth location<span class="req" aria-hidden="true">*</span></label>
+          <div class="input"><svg><use href="#i-pin"/></svg><input id="b-loc" value="Jaipur, India"></div>
+        </div>
+      </div>
+
+      <label class="check on" role="checkbox" aria-checked="true" tabindex="0">
+        <span class="box"><svg><use href="#i-check"/></svg></span>
+        <span>I confirm I am 18 or older</span>
+      </label>
+    </form>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary btn-loading" type="submit" aria-busy="true">Sign up</button>
+    <p class="legal">By signing up, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</p>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Validation + loading.</b> The mismatch shows right under Confirm password, with a hint about letter case. Once a birth date is picked, the age and zodiac sign appear under it in gold, so people can catch a wrong year early. Only Sign up shows a spinner. <i>Proposed:</i> the password strength bar and the "Already have an account? Log in" link.</p>
+</div>
+
+</div></body></html>

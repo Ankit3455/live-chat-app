@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10 · Avatar — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .top { height: var(--appbar-h); display: flex; align-items: center; padding: 0 var(--s-2); flex: none; position: relative; z-index: 2; }
+  .intro { padding: var(--s-2) var(--s-6) 0; text-align: center; }
+  .intro .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--pink-300); }
+  .intro h1 { margin-top: 10px; }
+  .intro p { margin-top: 8px; }
+  .frame { margin: var(--s-6) auto 0; width: 248px; padding: 8px; border-radius: 36px; background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow-2); position: relative; }
+  .frame .art { width: 100%; aspect-ratio: 1; border-radius: var(--r-xl); background: var(--grad-primary); position: relative; overflow: hidden; display: grid; place-items: center; }
+  .frame .art::before { content: ''; position: absolute; inset: 0; background: radial-gradient(70% 60% at 50% 30%, rgba(255,255,255,.22), transparent 70%); }
+  .frame .art img { font-size: 12px; color: rgba(255,255,255,.8); text-align: center; width: 88%; position: relative; margin-top: 12%; }
+  .frame .tag { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); }
+  .frame .tag svg { color: var(--pink-300); }
+  .made-from { margin: var(--s-8) var(--s-6) 0; display: flex; justify-content: center; gap: var(--s-2); flex-wrap: wrap; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-6) 30px; background: linear-gradient(180deg, transparent, var(--bg) 22%); z-index: 3; display: flex; flex-direction: column; gap: var(--s-3); align-items: center; }
+  .footer .btn-ghost { margin-top: -2px; }
+  /* creating */
+  .frame .art.skeleton { background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; }
+  .frame .art.skeleton::before { display: none; }
+  .ghost-head { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); width: 40%; aspect-ratio: 1; border-radius: 50%; background: rgba(196,181,253,.08); }
+  .ghost-body { position: absolute; left: 50%; bottom: -12%; transform: translateX(-50%); width: 76%; height: 40%; border-radius: 50% 50% 0 0; background: rgba(196,181,253,.08); }
+  .sparkle { position: absolute; width: 28px; height: 28px; color: var(--pink-300); opacity: .8; }
+  .creating { margin: var(--s-8) var(--s-6) 0; }
+  .steps { margin-top: var(--s-4); }
+  .steps li { list-style: none; display: flex; align-items: center; gap: var(--s-3); font-size: 14px; min-height: 32px; color: var(--text-muted); }
+  .steps .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-strong); display: grid; place-items: center; flex: none; }
+  .steps .done .dot { background: var(--success); border-color: var(--success); }
+  .steps .done .dot svg { width: 12px; height: 12px; color: #0F0A1A; }
+  .steps .now { color: var(--text); font-weight: 600; }
+  .steps .now .dot { border-color: var(--violet-500); border-top-color: transparent; animation: spin .9s linear infinite; }
+  .steps .todo { color: var(--text-subtle); }
+  /* error */
+  .err-art { margin: var(--s-6) auto 0; width: 248px; aspect-ratio: 1; border-radius: var(--r-xl); border: 1.5px dashed var(--border-strong); background: var(--surface); display: grid; place-items: center; }
+  .err-art .ring { width: 96px; height: 96px; border-radius: 50%; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.35); display: grid; place-items: center; }
+  .err-art svg { width: 40px; height: 40px; color: var(--error); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- a) Ready -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="intro">
+      <span class="eyebrow">Your look</span>
+      <h1 class="t-h1">Meet your avatar</h1>
+      <p class="muted">We made it from your answers. It shows on your profile until you add a photo, and you can change it any time.</p>
+    </div>
+    <div class="frame">
+      <div class="art"><img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Aanya&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0" alt="Your generated avatar: a cartoon woman with dark hair, smiling"></div>
+      <span class="chip tag"><svg><use href="#i-sparkle"/></svg>Made for you</span>
+    </div>
+    <div class="made-from" aria-label="Made from">
+      <span class="chip">👩 Female</span><span class="chip">♓︎ Pisces</span><span class="chip">🌙 Astrology</span>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary"><svg><use href="#i-check"/></svg>Use this avatar</button>
+    <button class="btn btn-secondary"><svg><use href="#i-camera"/></svg>Upload a photo instead</button>
+    <button class="btn btn-ghost"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Generate a new one</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Avatar ready.</b> The avatar sits in a large framed card, and the title appears once (no extra app-bar title). "Upload a photo instead" is now a full-size secondary button rather than a faint text link. "Generate a new one" (already in the Change Avatar sheet) is a small ghost button. The "made from" chips are <b>Proposed</b>.</p>
+</div>
+
+<!-- b) Creating -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="intro" aria-live="polite">
+      <span class="eyebrow">Your look</span>
+      <h1 class="t-h1">Creating your avatar…</h1>
+      <p class="muted">This takes a few seconds. We're using your answers to style it.</p>
+    </div>
+    <div class="frame">
+      <div class="art skeleton" role="img" aria-label="Avatar loading">
+        <span class="ghost-head"></span><span class="ghost-body"></span>
+        <svg class="sparkle" style="top:14%;right:14%"><use href="#i-sparkle"/></svg>
+        <svg class="sparkle" style="bottom:18%;left:12%;width:20px;height:20px;opacity:.5"><use href="#i-sparkle"/></svg>
+      </div>
+    </div>
+    <div class="creating">
+      <div class="progress" role="progressbar" aria-valuenow="60" aria-valuemax="100" aria-label="Creating avatar"><i style="width:60%"></i></div>
+      <ul class="steps">
+        <li class="done"><span class="dot"><svg><use href="#i-check"/></svg></span>Reading your answers</li>
+        <li class="now"><span class="dot"></span>Picking hair, face and colours</li>
+        <li class="todo"><span class="dot"></span>Final touches</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary" disabled>Use this avatar</button>
+    <button class="btn btn-secondary"><svg><use href="#i-camera"/></svg>Upload a photo instead</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Creating.</b> A shimmer frame keeps its final size, so nothing jumps when the avatar arrives. The progress bar and 3 steps show it's working. "Use this avatar" stays disabled until it's ready, but uploading a photo is always possible. The step list is <b>Proposed</b>.</p>
+</div>
+
+<!-- c) Error -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="intro" role="alert">
+      <span class="eyebrow">Your look</span>
+      <h1 class="t-h1">We couldn't create your avatar</h1>
+      <p class="muted">Check your connection and try again. Your answers are saved, so you won't need to redo them.</p>
+    </div>
+    <div class="err-art"><div class="ring"><svg><use href="#i-alert"/></svg></div></div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Try again</button>
+    <button class="btn btn-secondary"><svg><use href="#i-camera"/></svg>Upload a photo instead</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Error.</b> A plain-language headline, a likely cause, and reassurance that the answers are kept. Two clear ways forward with the same button layout as the ready state: try again, or upload a photo.</p>
+</div>
+
+</div></body></html>

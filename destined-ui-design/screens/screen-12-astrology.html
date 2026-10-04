@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12 · Astrology — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .top { height: var(--appbar-h); display: flex; align-items: center; padding: 0 var(--s-2); flex: none; position: relative; z-index: 2; }
+  .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold-400); }
+  .hero { margin-top: var(--s-5); display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4); border-radius: var(--r-lg); background: linear-gradient(135deg, rgba(245,194,107,.16), rgba(124,58,237,.10) 70%); border: 1px solid rgba(245,194,107,.4); position: relative; overflow: hidden; }
+  .hero .glyph { width: 64px; height: 64px; border-radius: 20px; background: rgba(245,194,107,.14); border: 1px solid rgba(245,194,107,.45); display: grid; place-items: center; font-size: 34px; color: var(--gold-400); flex: none; }
+  .hero .t-h2 { margin-top: 6px; }
+  .hero .star { position: absolute; right: 14px; top: 14px; width: 18px; height: 18px; color: var(--gold-400); opacity: .7; }
+  .qh { font: 700 var(--fs-h3)/var(--lh-h3) var(--font-display); margin: var(--s-6) 0 var(--s-3); }
+  .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+  .opt { min-height: 88px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font: 600 14px var(--font-body); position: relative; padding: var(--s-3) var(--s-2); }
+  .opt .e { font-size: 22px; line-height: 1; }
+  .opt .radio { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-strong); display: grid; place-items: center; }
+  .opt.selected { border-color: var(--violet-500); background: rgba(139,92,246,.14); }
+  .opt.selected .radio { background: var(--violet-600); border-color: var(--violet-500); }
+  .opt.selected .radio svg { width: 11px; height: 11px; color: #fff; }
+  .signs { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+  .sign { height: 52px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 10px; font: 500 13px var(--font-body); position: relative; text-align: left; }
+  .sign .g { font-size: 18px; color: var(--text-muted); width: 20px; text-align: center; }
+  .sign.selected { background: rgba(245,194,107,.12); border-color: rgba(245,194,107,.5); color: var(--gold-400); font-weight: 600; }
+  .sign.selected .g { color: var(--gold-400); }
+  .sign .tick { position: absolute; top: 5px; right: 6px; width: 12px; height: 12px; }
+  .how { color: var(--violet-300); font-weight: 600; white-space: nowrap; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-6) 30px; background: linear-gradient(180deg, transparent, var(--bg) 30%); z-index: 3; }
+  .sign .g, .hero .glyph, .zg { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols 2', 'Noto Sans Symbols', sans-serif; font-weight: 400; }
+  .zg { color: var(--gold-400); }
+  /* sheet */
+  .sheet h2 { margin-bottom: 6px; }
+  .how-list { margin-top: var(--s-4); }
+  .how-list li { list-style: none; display: flex; gap: var(--s-3); align-items: flex-start; font-size: 14px; color: var(--text-muted); }
+  .how-list li + li { margin-top: var(--s-3); }
+  .how-list .n { width: 24px; height: 24px; border-radius: 50%; background: rgba(245,194,107,.14); color: var(--gold-400); font: 700 12px/24px var(--font-body); text-align: center; flex: none; }
+  .how-list b { color: var(--text); }
+  .example { margin-top: var(--s-5); padding: var(--s-4); border-radius: var(--r-lg); background: rgba(245,194,107,.08); border: 1px solid rgba(245,194,107,.35); }
+  .example .eq { display: flex; align-items: center; justify-content: center; gap: 10px; font: 700 var(--fs-h3)/1 var(--font-display); }
+  .example .eq .score { font-size: 26px; color: var(--gold-400); }
+  .example .eq .op { color: var(--text-subtle); font-weight: 500; }
+  .example .break { display: flex; justify-content: space-between; margin-top: var(--s-3); font-size: 13px; color: var(--text-muted); }
+  .note { margin-top: var(--s-4); display: flex; gap: var(--s-2); font-size: 13px; color: var(--text-muted); }
+  .note svg { width: 18px; height: 18px; flex: none; color: var(--violet-300); margin-top: 1px; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- a) Astrology profile -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="px">
+      <h1 class="t-h1">Your cosmic profile</h1>
+      <p class="muted" style="margin-top:6px">Used for the compatibility score on profile cards.</p>
+      <div class="hero">
+        <div class="glyph" aria-hidden="true">♓︎</div>
+        <div style="flex:1;min-width:0">
+          <span class="eyebrow">Sun sign</span>
+          <div class="t-h2">Pisces</div>
+          <p class="t-caption" style="color:var(--text-muted)">From your birth date · 12 Mar 2000</p>
+        </div>
+        <svg class="star" aria-hidden="true"><use href="#i-star"/></svg>
+      </div>
+      <p class="t-caption" style="margin-top:8px">Wrong sign? Update your birth date in Edit profile.</p>
+
+      <h2 class="qh">How much do you believe in astrology?</h2>
+      <div class="opts" role="radiogroup">
+        <button class="opt" role="radio" aria-checked="false"><span class="e">🙂</span>Not really<span class="radio"></span></button>
+        <button class="opt selected" role="radio" aria-checked="true"><span class="e">✨</span>A little<span class="radio"><svg><use href="#i-check"/></svg></span></button>
+        <button class="opt" role="radio" aria-checked="false"><span class="e">🔮</span>Completely<span class="radio"></span></button>
+      </div>
+
+      <div class="row between qh"><h2 style="font:inherit">Signs you vibe with</h2><span class="t-caption">3 selected</span></div>
+      <div class="signs" role="group" aria-label="Signs you vibe with">
+        <button class="sign" aria-pressed="false"><span class="g">♈︎</span><span>Aries</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♉︎</span><span>Taurus</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♊︎</span><span>Gemini</span></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♋︎</span><span>Cancer</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♌︎</span><span>Leo</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign" aria-pressed="false"><span class="g">♍︎</span><span>Virgo</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♎︎</span><span>Libra</span></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♏︎</span><span>Scorpio</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign" aria-pressed="false"><span class="g">♐︎</span><span>Sagittarius</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♑︎</span><span>Capricorn</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♒︎</span><span>Aquarius</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♓︎</span><span>Pisces</span></button>
+      </div>
+
+      <div class="banner" style="margin-top:var(--s-5)"><svg><use href="#i-info"/></svg><div>Astrology compatibility is calculated from zodiac signs. <a href="#" class="how">How it works</a></div></div>
+      <div style="height:112px"></div>
+    </div>
+  </div>
+  <div class="footer"><button class="btn btn-primary">Save</button></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Cosmic profile.</b> One screen: the sun sign comes from the birth date, so there's nothing to pick. Gold is used only for zodiac. Belief level is 3 large options, and "Signs you vibe with" (preferredSigns) is a 12-sign grid with 3 picked. The info banner uses the existing tooltip copy, and Save stays pinned at the bottom.</p>
+</div>
+
+<!-- b) How compatibility works -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="top"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button></div>
+  <div class="screen">
+    <div class="px">
+      <h1 class="t-h1">Your cosmic profile</h1>
+      <p class="muted" style="margin-top:6px">Used for the compatibility score on profile cards.</p>
+      <div class="hero">
+        <div class="glyph" aria-hidden="true">♓︎</div>
+        <div style="flex:1;min-width:0">
+          <span class="eyebrow">Sun sign</span>
+          <div class="t-h2">Pisces</div>
+          <p class="t-caption" style="color:var(--text-muted)">From your birth date · 12 Mar 2000</p>
+        </div>
+        <svg class="star" aria-hidden="true"><use href="#i-star"/></svg>
+      </div>
+      <p class="t-caption" style="margin-top:8px">Wrong sign? Update your birth date in Edit profile.</p>
+
+      <h2 class="qh">How much do you believe in astrology?</h2>
+      <div class="opts" role="radiogroup">
+        <button class="opt" role="radio" aria-checked="false"><span class="e">🙂</span>Not really<span class="radio"></span></button>
+        <button class="opt selected" role="radio" aria-checked="true"><span class="e">✨</span>A little<span class="radio"><svg><use href="#i-check"/></svg></span></button>
+        <button class="opt" role="radio" aria-checked="false"><span class="e">🔮</span>Completely<span class="radio"></span></button>
+      </div>
+
+      <div class="row between qh"><h2 style="font:inherit">Signs you vibe with</h2><span class="t-caption">3 selected</span></div>
+      <div class="signs" role="group" aria-label="Signs you vibe with">
+        <button class="sign" aria-pressed="false"><span class="g">♈︎</span><span>Aries</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♉︎</span><span>Taurus</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♊︎</span><span>Gemini</span></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♋︎</span><span>Cancer</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♌︎</span><span>Leo</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign" aria-pressed="false"><span class="g">♍︎</span><span>Virgo</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♎︎</span><span>Libra</span></button>
+        <button class="sign selected" aria-pressed="true"><span class="g">♏︎</span><span>Scorpio</span><svg class="tick"><use href="#i-check"/></svg></button>
+        <button class="sign" aria-pressed="false"><span class="g">♐︎</span><span>Sagittarius</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♑︎</span><span>Capricorn</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♒︎</span><span>Aquarius</span></button>
+        <button class="sign" aria-pressed="false"><span class="g">♓︎</span><span>Pisces</span></button>
+      </div>
+
+      <div class="banner" style="margin-top:var(--s-5)"><svg><use href="#i-info"/></svg><div>Astrology compatibility is calculated from zodiac signs. <a href="#" class="how">How it works</a></div></div>
+      <div style="height:112px"></div>
+    </div>
+  </div>
+  <div class="footer"><button class="btn btn-primary">Save</button></div>
+  <div class="overlay"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="how-title">
+    <div class="grab"></div>
+    <h2 class="t-h2" id="how-title">How compatibility works</h2>
+    <p class="muted" style="font-size:14px">The score on each profile card comes from your zodiac signs.</p>
+    <ul class="how-list">
+      <li><span class="n">1</span><span><b>Sign pair score.</b> Your sun sign and theirs give a base score.</span></li>
+      <li><span class="n">2</span><span><b>Small bonus.</b> A few extra points if their sign is one you vibe with.</span></li>
+    </ul>
+    <div class="example" aria-label="Example: Pisces plus Leo equals 92 percent">
+      <div class="eq"><span><span class="zg">♓︎</span> Pisces</span><span class="op">+</span><span><span class="zg">♌︎</span> Leo</span><span class="op">=</span><span class="score">92%</span></div>
+      <div class="break"><span>Sign pair 87</span><span>+5 · Leo is in your signs</span></div>
+    </div>
+    <p class="note"><svg><use href="#i-heart"/></svg><span>It's just for fun. It never decides who you can see or who can message you.</span></p>
+    <button class="btn btn-primary" style="margin-top:var(--s-5)">Got it</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>How compatibility works</b> (<b>Proposed</b>; today it's a one-line tooltip). Tapping "How it works" opens a short sheet: the sign pair score plus a small bonus for preferred signs, a worked example, and a clear note that it's for fun and never limits who you see. Example numbers are illustrative.</p>
+</div>
+
+</div></body></html>

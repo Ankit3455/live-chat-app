@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>05 · Chats — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .head { display: flex; align-items: center; padding: 4px var(--s-2) 0 var(--s-5); height: var(--appbar-h); }
+  .head h1 { flex: 1; }
+  .tabs-wrap { padding: var(--s-2) var(--s-5) var(--s-2); }
+  .hint { margin: var(--s-2) var(--s-5) var(--s-2); }
+  .muted-ic { width: 14px; height: 14px; color: var(--text-subtle); vertical-align: -2px; margin-left: 4px; }
+  .bg1 { background-color: #3B1F6E; } .bg2 { background-color: #7A2160; } .bg3 { background-color: #283E7A; } .bg4 { background-color: #6B3D12; } .bg5 { background-color: #155C4F; }
+  .swipe { position: relative; overflow: hidden; }
+  .swipe .actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+  .swipe .actions button { width: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 600 11px var(--font-body); }
+  .swipe .actions svg { width: 20px; height: 20px; }
+  .swipe .slide { transform: translateX(-152px); background: var(--bg); padding-left: 168px !important; }
+  .toast { position: absolute; left: var(--s-4); right: var(--s-4); bottom: 104px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 12px 8px 12px 16px; display: flex; align-items: center; justify-content: space-between; z-index: 6; box-shadow: var(--shadow-2); font-size: 14px; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="head"><h1 class="t-h1">Chats</h1></div>
+  <div class="tabs-wrap">
+    <div class="tabs" role="tablist">
+      <button class="active" role="tab" aria-selected="true">Active</button>
+      <button role="tab" aria-selected="false">New <span class="count">2</span></button>
+    </div>
+  </div>
+  <div class="screen">
+    <div class="list-item unread">
+      <div class="avatar bg2" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div>
+      <div class="body"><div class="row1"><span class="name">Meera</span><span class="time" style="color:var(--pink-300)">2m</span></div>
+        <div class="row1"><span class="preview">Haha yes! Saturday works for me 🌙</span><span class="badge">2</span></div></div>
+    </div>
+    <div class="list-item">
+      <div class="avatar bg3" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Rohan&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"></div>
+      <div class="body"><div class="row1"><span class="name">Rohan</span><span class="time">1h</span></div>
+        <div class="row1"><span class="preview">You: Ludo rematch tonight?</span></div></div>
+    </div>
+    <div class="list-item">
+      <div class="avatar bg5" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Isha&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div>
+      <div class="body"><div class="row1"><span class="name">Isha<svg class="muted-ic" aria-label="Muted"><use href="#i-bell"/></svg></span><span class="time">Yesterday</span></div>
+        <div class="row1"><span class="preview">🎤 Voice message · 0:18</span></div></div>
+    </div>
+    <div class="list-item swipe">
+      <div class="actions">
+        <button style="background:#3F3654" aria-label="Mute chat"><svg><use href="#i-bell"/></svg>Mute</button>
+        <button style="background:#9F2D3C" aria-label="Delete chat"><svg><use href="#i-block"/></svg>Delete</button>
+      </div>
+      <div class="list-item slide" style="padding:0;width:100%">
+        <div class="avatar bg4" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Kabir&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"></div>
+        <div class="body"><div class="row1"><span class="name">Kabir</span><span class="time">Mon</span></div>
+          <div class="row1"><span class="preview">📞 Missed voice call</span></div></div>
+      </div>
+    </div>
+    <div class="list-item">
+      <div class="avatar bg1" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Ananya&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div>
+      <div class="body"><div class="row1"><span class="name">Ananya</span><span class="time">Sep 28</span></div>
+        <div class="row1"><span class="preview">That playlist was 🔥</span></div></div>
+    </div>
+  </div>
+  <div class="toast" role="status"><span>Chat with Ananya deleted</span><button class="btn btn-ghost btn-sm">Undo</button></div>
+  <nav class="bottom-nav" aria-label="Main">
+    <a href="screen-03-discover.html"><svg><use href="#i-discover"/></svg>Discover</a>
+    <a href="#" class="active" aria-current="page"><svg><use href="#i-chat"/></svg>Chats<span class="n">3</span></a>
+    <a href="#"><svg><use href="#i-games"/></svg>Games</a>
+    <a href="screen-07-my-profile.html"><svg><use href="#i-user"/></svg>Profile</a>
+  </nav>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Active tab.</b> The title "Chats" now matches the tab name (it used to say "Messages"), and the header matches the rest of the app. Unread chats get bold text and a pink time, plus presence dots. Swipe actions are labelled, and Delete offers Undo.</p>
+</div>
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="head"><h1 class="t-h1">Chats</h1></div>
+  <div class="tabs-wrap">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="false">Active</button>
+      <button class="active" role="tab" aria-selected="true">New <span class="count">2</span></button>
+    </div>
+  </div>
+  <div class="screen">
+    <div class="banner hint"><svg><use href="#i-info"/></svg><span>New chats are silent. Reply to move a chat to Active and turn on notifications.</span></div>
+    <div class="list-item unread">
+      <div class="avatar bg2" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Zara&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div>
+      <div class="body"><div class="row1"><span class="name">Zara</span><span class="time">10m</span></div>
+        <div class="row1"><span class="preview">Hey! Saw you're into astrology too ✨</span><span class="badge">1</span></div></div>
+    </div>
+    <div class="list-item unread">
+      <div class="avatar bg3" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Arjun&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"></div>
+      <div class="body"><div class="row1"><span class="name">Arjun</span><span class="time">3h</span></div>
+        <div class="row1"><span class="preview">Hi Aanya 👋</span><span class="badge">1</span></div></div>
+    </div>
+    <div class="t-caption center" style="margin-top:28px">Loading state uses skeleton rows ↓</div>
+    <div class="list-item"><div class="avatar skeleton" style="border-radius:50%"></div><div class="body stack-2"><div class="skeleton" style="height:12px;width:40%"></div><div class="skeleton" style="height:10px;width:75%"></div></div></div>
+  </div>
+  <nav class="bottom-nav" aria-label="Main">
+    <a href="#"><svg><use href="#i-discover"/></svg>Discover</a>
+    <a href="#" class="active"><svg><use href="#i-chat"/></svg>Chats<span class="n">3</span></a>
+    <a href="#"><svg><use href="#i-games"/></svg>Games</a>
+    <a href="#"><svg><use href="#i-user"/></svg>Profile</a>
+  </nav>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>New tab.</b> One line explains the existing silent-new-chat rule, so users aren't confused about missing notifications. Loading uses the skeleton row component that exists in the code but was never used.</p>
+</div>
+
+</div></body></html>

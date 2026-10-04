@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>07 · My Profile — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .head { display: flex; align-items: center; padding: 4px var(--s-2) 0 var(--s-5); height: var(--appbar-h); }
+  .head h1 { flex: 1; }
+  .me { display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--s-4) var(--s-5) 0; }
+  .me .avatar.lg { width: 112px; height: 112px; background-color: #3B1F6E; background-size: 100%; }
+  .me .edit-photo { position: absolute; right: -2px; bottom: -2px; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); border: 3px solid var(--bg); display: grid; place-items: center; }
+  .me .edit-photo svg { width: 16px; height: 16px; }
+  .me h2 { margin-top: var(--s-3); }
+  .me .row { justify-content: center; margin-top: 6px; color: var(--text-muted); font-size: 14px; gap: 12px; }
+  .actions2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); padding: var(--s-5) var(--s-5) 0; }
+  .complete { margin: var(--s-5) var(--s-5) 0; }
+  .todo { display: flex; align-items: center; gap: var(--s-3); min-height: 52px; }
+  .todo .tick { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border-strong); display: grid; place-items: center; flex: none; }
+  .todo .tick.done { background: var(--success); border-color: var(--success); }
+  .todo .tick.done svg { width: 14px; height: 14px; color: #0F0A1A; }
+  .todo .lbl { flex: 1; font-size: 14px; }
+  .todo.done .lbl { color: var(--text-subtle); text-decoration: line-through; }
+  .todo .go { color: var(--violet-300); font: 600 13px var(--font-body); }
+  .sec { padding: 0 var(--s-5); }
+  .zodiac { display: flex; align-items: center; gap: var(--s-4); }
+  .zodiac .sign { width: 56px; height: 56px; border-radius: 18px; background: rgba(245,194,107,.12); border: 1px solid rgba(245,194,107,.35); display: grid; place-items: center; font-size: 28px; flex: none; }
+  .tile { display: flex; align-items: center; gap: var(--s-3); min-height: 56px; padding: 0 var(--s-4); }
+  .tile svg { width: 20px; height: 20px; color: var(--text-muted); }
+  .tile span { flex: 1; font-weight: 500; }
+  .chev { transform: rotate(180deg); width: 16px !important; height: 16px !important; color: var(--text-subtle) !important; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="head"><h1 class="t-h1">Profile</h1><button class="icon-btn" aria-label="Settings"><svg><use href="#i-settings"/></svg></button></div>
+  <div class="screen">
+    <div class="me">
+      <div class="avatar lg ring" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Aanya&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')">
+        <button class="edit-photo" aria-label="Change photo or avatar"><svg><use href="#i-camera"/></svg></button>
+      </div>
+      <h2 class="t-h1">Aanya, 25</h2>
+      <div class="row"><span>♓︎ Pisces</span><span>·</span><span>Mumbai</span><span>·</span><span>Product Manager</span></div>
+    </div>
+    <div class="actions2">
+      <button class="btn btn-secondary btn-sm" style="width:100%"><svg width="16" height="16"><use href="#i-edit"/></svg>Edit profile</button>
+      <button class="btn btn-secondary btn-sm" style="width:100%"><svg width="16" height="16"><use href="#i-eye"/></svg>Preview</button>
+    </div>
+
+    <div class="card complete">
+      <div class="row between"><b class="t-h3">Profile 72% complete</b><span class="t-caption">3 left</span></div>
+      <div class="progress" style="margin:12px 0 4px"><i style="width:72%"></i></div>
+      <div class="todo done"><span class="tick done"><svg><use href="#i-check"/></svg></span><span class="lbl">Basic profile</span></div>
+      <div class="todo"><span class="tick"></span><span class="lbl">Record a voice intro</span><a class="go" href="#">Add</a></div>
+      <div class="todo"><span class="tick"></span><span class="lbl">Complete astrology profile</span><a class="go" href="#">Start</a></div>
+      <div class="todo"><span class="tick"></span><span class="lbl">Height, education &amp; body type</span><a class="go" href="#">Add</a></div>
+    </div>
+
+    <div class="sec">
+      <div class="section-title"><h3>About me</h3><a href="#" class="t-label" style="color:var(--violet-300)">Edit</a></div>
+      <p class="muted">Coffee-fuelled product person. Weekend hiker, weeknight reader. Ask me about my tarot deck. 🔮</p>
+      <div class="section-title"><h3>Cosmic profile</h3></div>
+      <div class="card zodiac">
+        <div class="sign">♓︎</div>
+        <div style="flex:1"><b>Pisces sun</b><p class="muted" style="font-size:13px;margin-top:2px">Most compatible with ♋︎ Cancer, ♏︎ Scorpio, ♉︎ Taurus</p></div>
+      </div>
+      <div class="section-title"><h3>Interests</h3></div>
+      <div class="chip-row"><span class="chip">🎵 Music</span><span class="chip">📚 Reading</span><span class="chip">🌙 Astrology</span><span class="chip">🥾 Hiking</span></div>
+      <div class="section-title"><h3>More</h3></div>
+      <div class="card" style="padding:0">
+        <a class="tile" href="#"><svg><use href="#i-discover"/></svg><span>Discovery settings</span><svg class="chev"><use href="#i-back"/></svg></a>
+        <div class="divider"></div>
+        <a class="tile" href="#"><svg><use href="#i-shield"/></svg><span>Privacy &amp; safety</span><svg class="chev"><use href="#i-back"/></svg></a>
+        <div class="divider"></div>
+        <a class="tile" href="#"><svg><use href="#i-info"/></svg><span>Help &amp; app tour</span><svg class="chev"><use href="#i-back"/></svg></a>
+      </div>
+      <div style="height:24px"></div>
+    </div>
+  </div>
+  <nav class="bottom-nav" aria-label="Main">
+    <a href="screen-03-discover.html"><svg><use href="#i-discover"/></svg>Discover</a>
+    <a href="screen-05-chats.html"><svg><use href="#i-chat"/></svg>Chats<span class="n">3</span></a>
+    <a href="#"><svg><use href="#i-games"/></svg>Games</a>
+    <a href="#" class="active" aria-current="page"><svg><use href="#i-user"/></svg>Profile</a>
+  </nav>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>My Profile.</b> One completion checklist replaces 3 duplicate prompts, and Change photo/avatar sits on the photo itself. "Preview" shows how others see you, and Settings appears once. The misleading green "verified" badge is gone.</p>
+</div>
+
+</div></body></html>

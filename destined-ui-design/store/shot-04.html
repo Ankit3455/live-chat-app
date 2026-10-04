@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1080">
+<title>Store 04 · Calls only when you both say yes — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<link rel="stylesheet" href="store.css">
+<style>
+  /* from screens/screen-06-chat.html (call consent sheet) */
+  .chatbar { height: 60px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-bottom: 1px solid var(--border); background: var(--bg-elev); flex: none; position: relative; z-index: 3; }
+  .chatbar .who { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .chatbar .who b { font: 600 16px/1.2 var(--font-body); display: block; }
+  .chatbar .who small { font-size: 12px; color: var(--online); }
+  .bg2 { background-color: #7A2160; }
+  .perm-row { display: flex; align-items: center; gap: var(--s-3); min-height: 64px; }
+  .perm-row .txt { flex: 1; }
+  .perm-row .txt b { display: block; font-weight: 600; }
+  .perm-row .txt small { color: var(--text-muted); font-size: 13px; }
+  .status-pill { font: 600 11px var(--font-body); padding: 3px 8px; border-radius: var(--r-pill); }
+  .status-pill.ok { background: rgba(52,211,153,.14); color: var(--success); }
+  .status-pill.wait { background: rgba(251,191,36,.12); color: var(--warning); }
+  .sheet-ic { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: rgba(139,92,246,.18); margin-bottom: 12px; }
+  .sheet-ic svg { width: 22px; height: 22px; color: var(--violet-300); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script>
+<div class="shot">
+  <div class="stars"></div>
+  <span class="sparkle" style="top:110px;left:100px"></span>
+  <span class="sparkle gold sm" style="top:520px;right:100px"></span>
+  <span class="sparkle sm" style="top:1240px;left:72px"></span>
+
+  <header class="shot-head">
+    <div class="brand"><svg><use href="#i-moon"/></svg>Destined</div>
+    <h1 class="shot-title">Calls only when<br><span class="hl">you both say yes</span></h1>
+    <p class="shot-sub">Both of you turn calls on. No surprises.</p>
+  </header>
+
+  <div class="phone-wrap">
+  <div class="device">
+    <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+    <div class="chatbar">
+      <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+      <div class="who"><div class="avatar sm bg2" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div><div><b>Meera</b><small>Online</small></div></div>
+      <button class="icon-btn" aria-label="Voice call"><svg><use href="#i-phone"/></svg></button>
+      <button class="icon-btn" aria-label="Video call" disabled><svg><use href="#i-video"/></svg></button>
+      <button class="icon-btn" aria-label="Chat options"><svg><use href="#i-more"/></svg></button>
+    </div>
+    <div class="screen">
+      <div class="day-sep"><span>Today</span></div>
+      <div class="bubble-row"><div class="bubble them">Hey Aanya! Loved your answer about late-night stargazing 🌌<div class="meta">8:12 PM</div></div></div>
+      <div class="bubble-row me"><div class="bubble me">Haha thank you! Do you actually have a telescope?<div class="meta">8:14 PM</div></div></div>
+      <div class="bubble-row"><div class="bubble them">A tiny one 😄 Saturn's rings look unreal through it.<div class="meta">8:15 PM</div></div></div>
+      <div class="bubble-row me"><div class="bubble me">Okay you have to show me sometime!<div class="meta">8:16 PM</div></div></div>
+    </div>
+    <div class="overlay"></div>
+    <div class="sheet" role="dialog" aria-labelledby="perm-title">
+      <div class="grab"></div>
+      <div class="sheet-ic"><svg><use href="#i-shield"/></svg></div>
+      <h2 class="t-h2" id="perm-title">Calls with Meera</h2>
+      <p class="muted" style="font-size:14px;margin:6px 0 8px">A call type is available only when you <b>both</b> turn it on. You can turn it off any time.</p>
+      <div class="perm-row">
+        <span class="avatar sm" style="display:grid;place-items:center;background:var(--surface-2)"><svg width="20" height="20"><use href="#i-phone"/></svg></span>
+        <div class="txt"><b>Voice calls</b><small>You: on · Meera: <span class="status-pill ok">on</span></small></div>
+        <span class="switch on" role="switch" aria-checked="true" aria-label="Allow voice calls"></span>
+      </div>
+      <div class="divider"></div>
+      <div class="perm-row">
+        <span class="avatar sm" style="display:grid;place-items:center;background:var(--surface-2)"><svg width="20" height="20"><use href="#i-video"/></svg></span>
+        <div class="txt"><b>Video calls</b><small>You: on · Meera: <span class="status-pill wait">not yet</span></small></div>
+        <span class="switch on" role="switch" aria-checked="true" aria-label="Allow video calls"></span>
+      </div>
+      <button class="btn btn-primary" style="margin-top:16px">Done</button>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+  </div>
+</div>
+</body></html>

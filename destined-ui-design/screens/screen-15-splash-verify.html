@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>15 · Splash + Verify email — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  /* Splash */
+  .splash { flex: 1; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 60px; }
+  .starfield { position: absolute; inset: 0; pointer-events: none; background-image:
+      radial-gradient(1.5px 1.5px at 42px 92px, #fff9, transparent), radial-gradient(1px 1px at 118px 40px, #fff6, transparent),
+      radial-gradient(1px 1px at 186px 150px, #fff5, transparent), radial-gradient(1.5px 1.5px at 302px 84px, #fff8, transparent),
+      radial-gradient(1px 1px at 350px 210px, #fff5, transparent), radial-gradient(1px 1px at 64px 268px, #fff4, transparent),
+      radial-gradient(1.5px 1.5px at 248px 300px, #fff6, transparent), radial-gradient(1px 1px at 30px 470px, #fff4, transparent),
+      radial-gradient(1px 1px at 340px 520px, #fff5, transparent), radial-gradient(1.5px 1.5px at 96px 610px, #fff6, transparent),
+      radial-gradient(1px 1px at 280px 660px, #fff4, transparent), radial-gradient(1px 1px at 170px 720px, #fff5, transparent),
+      radial-gradient(1px 1px at 360px 760px, #fff4, transparent), radial-gradient(1.5px 1.5px at 214px 560px, #fff3, transparent); }
+  .halo { position: absolute; top: 50%; left: 50%; width: 320px; height: 320px; transform: translate(-50%, -62%); border-radius: 50%; background: radial-gradient(circle, rgba(192,38,211,.20) 0%, rgba(124,58,237,.08) 45%, transparent 70%); pointer-events: none; }
+  .logo { width: 88px; height: 88px; border-radius: 28px; background: var(--grad-primary); display: grid; place-items: center; box-shadow: var(--shadow-glow); position: relative; }
+  .logo svg { width: 44px; height: 44px; color: #fff; }
+  .splash h1 { margin-top: var(--s-6); position: relative; }
+  .splash p { margin-top: var(--s-2); color: var(--text-muted); position: relative; }
+  .loader { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 2; }
+  .loader i { width: 6px; height: 6px; border-radius: 50%; background: var(--violet-300); opacity: .35; animation: pulse 1.2s ease-in-out infinite; }
+  .loader i:nth-child(2) { animation-delay: .2s; }
+  .loader i:nth-child(3) { animation-delay: .4s; }
+  @keyframes pulse { 40% { opacity: 1; } }
+
+  /* Verify */
+  .verify { padding: var(--s-8) var(--s-6) 240px; text-align: center; }
+  .mail-art { width: 136px; height: 136px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; position: relative; background: radial-gradient(circle at 50% 45%, rgba(236,72,153,.26), rgba(124,58,237,.12) 55%, transparent 72%); }
+  .mail-art .disc { width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border-strong); }
+  .mail-art svg { width: 34px; height: 34px; color: var(--pink-300); }
+  .mail-art .spark { position: absolute; top: 22px; right: 26px; width: 18px; height: 18px; color: var(--gold-400); }
+  .verify h1 { margin-top: var(--s-5); }
+  .verify .lede { margin-top: var(--s-2); color: var(--text-muted); }
+  .verify .lede b { color: var(--text); font-weight: 600; word-break: break-all; }
+  .tips { margin-top: var(--s-8); text-align: left; }
+  .tips li { list-style: none; display: flex; gap: var(--s-3); align-items: flex-start; font-size: 14px; line-height: 20px; color: var(--text-muted); }
+  .tips li + li { margin-top: var(--s-3); }
+  .tips .n { width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--violet-300); font: 700 12px/1 var(--font-body); }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-6) var(--s-6) 26px; background: linear-gradient(180deg, transparent, var(--bg) 22%); z-index: 3; display: flex; flex-direction: column; gap: var(--s-3); align-items: center; }
+  .btn .timer { font-variant-numeric: tabular-nums; }
+  .btn-secondary.waiting { color: var(--text-subtle); cursor: not-allowed; }
+  .btn-secondary.waiting:hover { background: var(--surface); }
+  .ring { width: 18px; height: 18px; flex: none; }
+  .sent-note { display: flex; gap: 6px; align-items: center; justify-content: center; font-size: var(--fs-caption); color: var(--success); margin-top: -4px; }
+  .sent-note svg { width: 14px; height: 14px; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- State A: splash -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="splash">
+    <div class="starfield"></div>
+    <div class="halo"></div>
+    <div class="logo"><svg><use href="#i-sparkle"/></svg></div>
+    <h1 class="t-display">Destined</h1>
+    <p>Find your cosmic connection.</p>
+  </div>
+  <div class="loader" role="status" aria-label="Loading"><i></i><i></i><i></i></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Splash.</b> The same brand mark and tagline as Login, so the hand-off after 2 seconds feels seamless. There's no button because the screen moves on by itself. Three soft dots show it's working, and they stop animating when reduced motion is on.</p>
+</div>
+
+<!-- State B: verify email, resend countdown -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="verify">
+      <div class="mail-art" aria-hidden="true">
+        <span class="disc"><svg><use href="#i-mail"/></svg></span>
+        <svg class="spark"><use href="#i-sparkle"/></svg>
+      </div>
+      <h1 class="t-h1">Check your inbox</h1>
+      <p class="lede">We sent a verification link to <b style="white-space:nowrap">aanya.k@gmail.com</b></p>
+
+      <ol class="tips">
+        <li><span class="n">1</span><span>Open the email from Destined and tap <b style="color:var(--text);font-weight:600">Verify email</b>.</span></li>
+        <li><span class="n">2</span><span>Come back here and tap "I've verified".</span></li>
+        <li><span class="n">3</span><span>Nothing yet? Check Spam or Promotions.</span></li>
+      </ol>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary">I've verified</button>
+    <button class="btn btn-secondary waiting" disabled aria-disabled="true" aria-live="polite">
+      <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--surface-2)" stroke-width="2.5"/><circle cx="10" cy="10" r="8" fill="none" stroke="var(--violet-300)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="10" transform="rotate(-90 10 10)"/></svg>
+      <span>Resend in <span class="timer">0:24</span></span>
+    </button>
+    <span class="sent-note"><svg><use href="#i-check"/></svg>Email sent just now</span>
+    <button class="btn btn-ghost t-label">Use a different email</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Verify email, resend cooling down.</b> The address is in bold so a typo is easy to spot, and "Use a different email" is right there if there is one. Resend is locked for 30 seconds with a visible countdown, so people don't spam it. <i>Proposed:</i> the three-step tips and the "Email sent just now" confirmation.</p>
+</div>
+
+</div></body></html>

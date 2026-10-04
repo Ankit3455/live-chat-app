@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>13 · Calls — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  /* Call surfaces: deeper, more immersive than regular screens */
+  .device.call { background: radial-gradient(120% 70% at 50% 28%, #2A1446 0%, #160A26 48%, #0A0612 100%); }
+  .device.call::before { background: radial-gradient(55% 40% at 50% 30%, rgba(236,72,153,.20) 0%, rgba(124,58,237,.12) 50%, transparent 100%); }
+  .call-body { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; padding: 0 var(--s-5) 40px; }
+  .call-top { width: 100%; height: var(--appbar-h); display: flex; align-items: center; justify-content: space-between; }
+  .call-top .ghost-slot { width: var(--tap); }
+  .kind { font: 600 var(--fs-label)/1 var(--font-body); color: var(--text-muted); letter-spacing: .02em; display: inline-flex; align-items: center; gap: 6px; }
+  .kind svg { width: 16px; height: 16px; }
+  .brand-mark { font: 700 12px/1 var(--font-display); letter-spacing: .18em; text-transform: uppercase; color: var(--text-subtle); display: inline-flex; gap: 6px; align-items: center; }
+  .brand-mark svg { width: 14px; height: 14px; color: var(--pink-300); }
+
+  /* Avatar with glow */
+  .halo { position: relative; width: 220px; height: 220px; display: grid; place-items: center; margin-top: var(--s-8); }
+  .halo .ring { position: absolute; inset: 40px; border-radius: 50%; border: 2px solid rgba(236,72,153,.55); box-shadow: 0 0 24px rgba(236,72,153,.35), inset 0 0 24px rgba(124,58,237,.25); animation: ripple 2.4s cubic-bezier(.2,.6,.3,1) infinite; }
+  .halo .ring:nth-child(2) { animation-delay: .8s; border-color: rgba(167,139,250,.5); }
+  .halo .ring:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes ripple { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.55); opacity: 0; } }
+  .halo .glow { position: absolute; inset: 20px; border-radius: 50%; background: radial-gradient(circle, rgba(236,72,153,.35) 0%, rgba(124,58,237,.18) 45%, transparent 70%); filter: blur(6px); }
+  .call-avatar { width: 140px; height: 140px; border-radius: 50%; position: relative; background: linear-gradient(160deg, #5B1A4A, #EC4899); box-shadow: 0 0 0 3px rgba(15,10,26,.9), 0 0 0 5px rgba(236,72,153,.7), 0 16px 48px rgba(236,72,153,.35); overflow: hidden; }
+  .call-avatar { background-size: 104%, cover; background-position: center 10px, center; background-repeat: no-repeat; }
+  .halo.static .call-avatar { box-shadow: 0 0 0 3px rgba(15,10,26,.9), 0 0 0 5px rgba(196,181,253,.35), 0 16px 48px rgba(124,58,237,.3); }
+
+  .who-name { font: 800 32px/38px var(--font-display); letter-spacing: -.01em; margin-top: var(--s-4); text-align: center; }
+  .who-sub { color: var(--text-muted); font-size: var(--fs-body); margin-top: 6px; text-align: center; }
+  .timer { font: 600 40px/1 var(--font-body); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; letter-spacing: .02em; margin-top: var(--s-3); color: var(--text); }
+  .status-chip { height: 30px; padding: 0 12px; border-radius: var(--r-pill); display: inline-flex; align-items: center; gap: 8px; font: 600 var(--fs-label)/1 var(--font-body); }
+  .status-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .status-chip.ok { background: rgba(52,211,153,.14); color: var(--success); border: 1px solid rgba(52,211,153,.32); }
+
+  /* ---------- Shared call control (audio + video use the same one) ---------- */
+  .controls { display: flex; justify-content: center; align-items: flex-start; gap: var(--s-6); width: 100%; }
+  .ctl { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 68px; }
+  .ctl .disc { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: rgba(246,242,255,.12); border: 1px solid rgba(246,242,255,.16); color: var(--text); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform .12s ease, background .12s ease; }
+  .ctl .disc svg { width: 26px; height: 26px; }
+  .ctl:active .disc { transform: scale(.94); }
+  .ctl .lbl { font: 600 12px/16px var(--font-body); color: var(--text-muted); white-space: nowrap; }
+  .ctl[aria-pressed="true"] .disc { background: var(--text); color: #1A1029; border-color: transparent; }
+  .ctl[aria-pressed="true"] .lbl { color: var(--text); }
+  .ctl.end .disc { width: 68px; height: 68px; margin-top: -4px; background: #E5484D; border-color: transparent; color: #fff; box-shadow: 0 10px 28px rgba(229,72,77,.45); }
+  .ctl.end .disc svg { width: 30px; height: 30px; }
+  .ctl.end .lbl { color: var(--text); margin-top: -4px; }
+  .hangup { transform: rotate(135deg); }
+
+  /* Incoming: big answer buttons */
+  .answer-row { display: flex; justify-content: space-between; width: 100%; padding: 0 var(--s-6); }
+  .answer { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .answer .disc { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .answer .disc svg { width: 32px; height: 32px; }
+  .answer.decline .disc { background: #E5484D; box-shadow: 0 10px 28px rgba(229,72,77,.4); }
+  .answer.accept .disc { background: #22C55E; box-shadow: 0 10px 32px rgba(34,197,94,.45); animation: nudge 1.6s ease-in-out infinite; }
+  @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .answer .lbl { font: 600 var(--fs-label)/1 var(--font-body); color: var(--text); }
+  .msg-instead { display: inline-flex; align-items: center; gap: 8px; height: var(--tap); padding: 0 var(--s-4); border-radius: var(--r-pill); background: rgba(246,242,255,.06); border: 1px solid var(--border); color: var(--text-muted); font: 600 var(--fs-label)/1 var(--font-body); margin-bottom: var(--s-8); }
+  .msg-instead svg { width: 18px; height: 18px; }
+  .proposed { font: 700 10px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--gold-400); background: rgba(245,194,107,.12); border: 1px solid rgba(245,194,107,.4); border-radius: var(--r-pill); padding: 3px 7px; }
+  .safe-note { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-caption); color: var(--text-subtle); margin-top: var(--s-3); }
+  .safe-note svg { width: 14px; height: 14px; }
+
+  /* ---------- Video ---------- */
+  .device.video { background: #0A0612; }
+  .device.video::before { display: none; }
+  .remote { position: absolute; inset: 0; background: radial-gradient(90% 60% at 50% 40%, #8A2A6E 0%, #4A1A5C 45%, #1A0B2A 100%); overflow: hidden; }
+  .remote .feed { position: absolute; width: 360px; height: 360px; left: 50%; top: 200px; transform: translateX(-50%); background: center/contain no-repeat; }
+  .remote.unstable { filter: blur(6px) saturate(.7) brightness(.7); transform: scale(1.04); }
+  .vscrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,6,18,.75) 0%, rgba(10,6,18,0) 26%, rgba(10,6,18,0) 62%, rgba(10,6,18,.85) 100%); z-index: 1; }
+  .vtop { position: relative; z-index: 3; display: flex; align-items: center; gap: 4px; padding: 0 var(--s-2); height: 60px; }
+  .vtop .icon-btn { background: rgba(15,10,26,.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .vtop .meta { flex: 1; padding-left: 6px; }
+  .vtop .meta b { display: block; font: 700 17px/22px var(--font-display); }
+  .vtop .meta span { font: 600 14px/18px var(--font-body); font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; color: var(--text-muted); }
+  .recon { position: relative; z-index: 3; margin: 0 var(--s-4); display: flex; align-items: center; gap: var(--s-3); padding: 10px 14px; border-radius: var(--r-md); background: rgba(40,28,6,.72); border: 1px solid rgba(251,191,36,.45); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-size: 14px; line-height: 19px; width: 238px; }
+  .recon .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(251,191,36,.3); border-top-color: var(--warning); animation: spin .9s linear infinite; flex: none; }
+  .recon b { color: var(--warning); display: block; font-weight: 600; }
+  .recon small { color: #E9DFC8; font-size: 12px; }
+  .local { position: absolute; z-index: 4; top: 116px; right: var(--s-4); width: 104px; height: 148px; border-radius: var(--r-lg); overflow: hidden; background: linear-gradient(160deg, #2E3A8C, #7C3AED); border: 2px solid rgba(246,242,255,.35); box-shadow: var(--shadow-2); }
+  .local .feed { position: absolute; width: 130px; height: 130px; left: 50%; bottom: -14px; transform: translateX(-50%); background: center/contain no-repeat; }
+  .local .tag { position: absolute; left: 8px; bottom: 8px; font: 600 11px/1 var(--font-body); padding: 4px 7px; border-radius: var(--r-pill); background: rgba(15,10,26,.6); }
+  .vbar { position: absolute; z-index: 4; left: var(--s-3); right: var(--s-3); bottom: 30px; padding: 16px 8px 14px; border-radius: var(--r-xl); background: rgba(22,15,37,.62); border: 1px solid rgba(246,242,255,.12); backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2); }
+  .vbar .controls { gap: 2px; justify-content: space-between; }
+
+  /* ---------- Ended ---------- */
+  .ended-avatar { filter: grayscale(.65) brightness(.6); box-shadow: 0 0 0 3px rgba(15,10,26,.9), 0 0 0 5px rgba(196,181,253,.18) !important; }
+  .ended-badge { position: absolute; right: 36px; bottom: 36px; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); border: 3px solid #160A26; display: grid; place-items: center; color: var(--error); z-index: 2; }
+  .ended-badge svg { width: 20px; height: 20px; }
+  .reason { height: 30px; padding: 0 12px; border-radius: var(--r-pill); display: inline-flex; align-items: center; gap: 6px; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.32); color: #FCA5A5; font: 600 var(--fs-label)/1 var(--font-body); margin-top: var(--s-4); }
+  .reason svg { width: 14px; height: 14px; }
+  .end-actions { width: 100%; display: flex; flex-direction: column; gap: var(--s-3); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script>
+<!-- Page-local call icons (stroke 1.8, currentColor) -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="c-mic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3"/><path d="M9 9v2a3 3 0 0 0 4.9 2.3"/><path d="M19 11a7 7 0 0 1-1.1 3.8"/><path d="M5 11a7 7 0 0 0 11.2 5.6"/><path d="M12 18v3"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="c-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></symbol>
+  <symbol id="c-speaker" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+  <symbol id="c-cam-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2"/><path d="M10 6h4a1 1 0 0 1 1 1v3.5L21 7v10"/></symbol>
+  <symbol id="c-flip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/><path d="M8.5 13a3.5 3.5 0 0 1 6-2.4"/><path d="M15.5 13a3.5 3.5 0 0 1-6 2.4"/><path d="M14.8 8.6v2.2h-2.2"/><path d="M9.2 17.4v-2.2h2.2"/></symbol>
+</svg>
+<div class="stage">
+
+<!-- a) Incoming voice call -->
+<div>
+<div class="device call">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="call-body" role="dialog" aria-labelledby="in-name" aria-describedby="in-kind">
+    <div class="call-top" style="justify-content:center"><span class="brand-mark"><svg><use href="#i-sparkle"/></svg>Destined</span></div>
+    <span class="kind" id="in-kind" style="margin-top:var(--s-4)"><svg><use href="#i-phone"/></svg>Incoming voice call</span>
+    <div class="halo" aria-hidden="true">
+      <span class="ring"></span><span class="ring"></span><span class="ring"></span><span class="glow"></span>
+      <div class="call-avatar" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0'), linear-gradient(160deg, #5B1A4A, #EC4899)"></div>
+    </div>
+    <h1 class="who-name" id="in-name">Meera</h1>
+    <p class="who-sub">is calling you on Destined</p>
+    
+
+    <div style="flex:1"></div>
+    <button class="msg-instead" aria-label="Decline and message Meera instead (proposed)"><svg><use href="#i-chat"/></svg>Message instead <span class="proposed">Proposed</span></button>
+    <div class="answer-row">
+      <button class="answer decline" aria-label="Decline call"><span class="disc"><svg class="hangup"><use href="#i-phone"/></svg></span><span class="lbl">Decline</span></button>
+      <button class="answer accept" aria-label="Accept call"><span class="disc"><svg><use href="#i-phone"/></svg></span><span class="lbl">Accept</span></button>
+    </div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Incoming voice call.</b> A full-screen, lock-screen-style surface with a soft pink/violet pulse around Meera, so it is clear at a glance who is calling and what kind of call it is. Decline and Accept are 72px with text labels instead of tooltips; back still means Decline. "Message instead" is a proposed shortcut that declines and opens the chat.</p>
+</div>
+
+<!-- b) Audio call connected -->
+<div>
+<div class="device call">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="call-body">
+    <div class="call-top">
+      <button class="icon-btn" aria-label="Back (asks to end the call)"><svg><use href="#i-back"/></svg></button>
+      <span class="kind"><svg><use href="#i-lock"/></svg>Voice call</span>
+      <span class="ghost-slot"></span>
+    </div>
+    <div class="halo static" aria-hidden="true">
+      <span class="glow"></span>
+      <div class="call-avatar" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0'), linear-gradient(160deg, #5B1A4A, #EC4899)"></div>
+    </div>
+    <h1 class="who-name">Meera</h1>
+    <div class="timer" role="timer" aria-label="Call duration 8 minutes 42 seconds">08:42</div>
+    <span class="status-chip ok" style="margin-top:var(--s-4)" role="status">Connected</span>
+
+    <div style="flex:1"></div>
+    <div class="controls" role="group" aria-label="Call controls">
+      <button class="ctl" aria-pressed="true" aria-label="Mute, on"><span class="disc"><svg><use href="#c-mic-off"/></svg></span><span class="lbl">Muted</span></button>
+      <button class="ctl end" aria-label="End call"><span class="disc"><svg class="hangup"><use href="#i-phone"/></svg></span><span class="lbl">End</span></button>
+      <button class="ctl" aria-pressed="false" aria-label="Speaker, off"><span class="disc"><svg><use href="#c-speaker"/></svg></span><span class="lbl">Speaker</span></button>
+    </div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Voice call, connected.</b> The duration is now a large 40px timer with tabular numerals, so the digits don't shift as they tick, and a "Connected" chip shows the call phase (the same spot reads Connecting, Ringing or Reconnecting). Every control has a 60px target and a visible label. Mute is shown switched on: a filled white disc, a mic-off icon and the label "Muted". End is red, larger and centred.</p>
+</div>
+
+<!-- c) Video call, reconnecting -->
+<div>
+<div class="device video">
+  <div class="remote unstable" aria-label="Meera's video"><i class="feed" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></i></div>
+  <div class="vscrim"></div>
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="vtop">
+    <button class="icon-btn" aria-label="Back (asks to end the call)"><svg><use href="#i-back"/></svg></button>
+    <div class="meta"><b>Meera</b><span role="timer" aria-label="Call duration 12 minutes 07 seconds">12:07</span></div>
+  </div>
+  <div class="recon" role="status" aria-live="polite">
+    <span class="spin" aria-hidden="true"></span>
+    <div><b>Reconnecting…</b><small>Weak connection. Hold on.</small></div>
+  </div>
+  <div class="local" aria-label="Your camera preview">
+    <i class="feed" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Aanya&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></i>
+    <span class="tag">You</span>
+  </div>
+  <div class="vbar">
+    <div class="controls" role="group" aria-label="Video call controls">
+      <button class="ctl" aria-pressed="false" aria-label="Turn camera off"><span class="disc"><svg><use href="#i-video"/></svg></span><span class="lbl">Camera</span></button>
+      <button class="ctl" aria-pressed="false" aria-label="Mute"><span class="disc"><svg><use href="#c-mic"/></svg></span><span class="lbl">Mute</span></button>
+      <button class="ctl end" aria-label="End call"><span class="disc"><svg class="hangup"><use href="#i-phone"/></svg></span><span class="lbl">End</span></button>
+      <button class="ctl" aria-label="Flip camera"><span class="disc"><svg><use href="#c-flip"/></svg></span><span class="lbl">Flip</span></button>
+      <button class="ctl" aria-pressed="true" aria-label="Speaker, on"><span class="disc"><svg><use href="#c-speaker"/></svg></span><span class="lbl">Speaker</span></button>
+    </div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Video call, reconnecting.</b> Meera's video fills the screen and your preview is a rounded tile in the top right. Name and timer sit top left, just as the voice call puts them near the top. While the connection drops, her video blurs and an amber "Reconnecting…" banner appears; the banner goes away by itself once the call recovers. The bottom bar uses the same labelled 60px controls as voice, with End in the middle. Speaker is shown on (filled).</p>
+</div>
+
+<!-- d) Call ended for caller: No answer -->
+<div>
+<div class="device call">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="call-body">
+    <div class="call-top">
+      <button class="icon-btn" aria-label="Close and go back to chat"><svg><use href="#i-back"/></svg></button>
+      <span class="kind"><svg><use href="#i-phone"/></svg>Voice call</span>
+      <span class="ghost-slot"></span>
+    </div>
+    <div class="halo static" aria-hidden="true">
+      <div class="call-avatar ended-avatar" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0'), linear-gradient(160deg, #5B1A4A, #EC4899)"></div>
+      <span class="ended-badge"><svg class="hangup"><use href="#i-phone"/></svg></span>
+    </div>
+    <h1 class="who-name" style="font-size:28px;line-height:34px" role="status">Meera didn't answer</h1>
+    <p class="who-sub">She may be busy right now. Try again later or send her a message.</p>
+    <span class="reason"><svg><use href="#i-info"/></svg>No answer</span>
+
+    <div style="flex:1"></div>
+    <div class="end-actions">
+      <button class="btn btn-secondary"><svg><use href="#i-phone"/></svg>Call again</button>
+      <button class="btn btn-primary"><svg><use href="#i-chat"/></svg>Send a message</button>
+    </div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Call ended (caller side): No answer.</b> The end reason is now a clear headline instead of a toast that disappears. There's no duration because the call never connected, and the dimmed avatar shows the call is over. "Send a message" is the main button because a missed call usually leads to a chat. The same layout covers Declined ("Meera declined the call") and Busy ("Meera is on another call").</p>
+</div>
+
+</div></body></html>

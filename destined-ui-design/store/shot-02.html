@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1080">
+<title>Store 02 · Your answers become your avatar — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<link rel="stylesheet" href="store.css">
+<style>
+  /* from screens/screen-18-avatar-story.html (3 · reveal) */
+  .eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--pink-300); }
+  .av { border-radius: 50%; background: var(--surface) center / cover no-repeat; flex: none; }
+  .reveal { text-align: center; padding: 20px var(--s-6) 0; }
+  .reveal .av { width: 168px; height: 168px; margin: 18px auto 0; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--pink-500), 0 18px 50px rgba(236,72,153,.35); }
+  .unique { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 6px 12px; border-radius: var(--r-pill); font: 600 12px var(--font-body); color: var(--gold-400); background: rgba(245,194,107,.1); border: 1px solid rgba(245,194,107,.4); }
+  .unique svg { width: 14px; height: 14px; }
+  .why { margin: 18px var(--s-5) 0; padding: 6px 4px; }
+  .why h3 { font: 700 15px var(--font-display); padding: 8px 12px 4px; display: flex; justify-content: space-between; align-items: baseline; }
+  .why h3 small { font: 500 12px var(--font-body); color: var(--text-subtle); }
+  .trait { display: flex; align-items: center; gap: 12px; padding: 9px 12px; }
+  .trait .ic { width: 34px; height: 34px; border-radius: 11px; background: var(--surface-2); display: grid; place-items: center; font-size: 17px; flex: none; }
+  .trait .from { flex: 1; font-size: 14px; }
+  .trait .from small { display: block; color: var(--text-subtle); font-size: 12px; }
+  .trait .arrow { color: var(--text-subtle); font-size: 13px; }
+  .trait .to { font: 600 13px var(--font-body); color: var(--violet-300); text-align: right; min-width: 96px; }
+  .reveal-cta { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px var(--s-5) 34px; background: linear-gradient(180deg, transparent, var(--bg) 25%); z-index: 3; display: grid; gap: 10px; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script>
+<div class="shot">
+  <div class="stars"></div>
+  <span class="sparkle" style="top:96px;right:110px"></span>
+  <span class="sparkle gold sm" style="top:540px;left:120px"></span>
+  <span class="sparkle sm" style="top:1260px;right:70px"></span>
+
+  <header class="shot-head">
+    <div class="brand"><svg><use href="#i-moon"/></svg>Destined</div>
+    <h1 class="shot-title">Your answers<br><span class="hl">become your avatar</span></h1>
+    <p class="shot-sub">No one else gets your face.</p>
+  </header>
+
+  <div class="phone-wrap">
+  <div class="device">
+    <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+    <div class="screen">
+      <div class="reveal">
+        <span class="eyebrow">Your avatar</span>
+        <h1 class="t-h1" style="margin-top:8px">This is you ✨</h1>
+        <div class="av" style="background-image:url('https://api.dicebear.com/9.x/avataaars/png?seed=aanya-uid&amp;size=256&amp;backgroundType=gradientLinear&amp;backgroundColor=112e5e%2C332d6c&amp;topProbability=100&amp;top=bun&amp;hairColor=b58143&amp;skinColor=ffdbb4&amp;eyes=squint&amp;eyebrows=defaultNatural&amp;mouth=default&amp;clothing=graphicShirt&amp;clothesColor=5a9dea&amp;clothingGraphic=diamond&amp;facialHairProbability=0&amp;accessories=prescription01&amp;accessoriesColor=ffffff&amp;accessoriesProbability=100')" role="img" aria-label="Your avatar"></div>
+        <span class="unique"><svg><use href="#i-sparkle"/></svg>One of a kind · no one else has this face</span>
+      </div>
+      <div class="card why">
+        <h3>Why you look like this <small>from your answers</small></h3>
+        <div class="trait"><span class="ic">♓︎</span><span class="from">Pisces<small>from your birth date</small></span><span class="arrow">→</span><span class="to">Ocean colours</span></div>
+        <div class="trait"><span class="ic">🌙</span><span class="from">Night owl<small>your habit</small></span><span class="arrow">→</span><span class="to">Night-sky colours</span></div>
+        <div class="trait"><span class="ic">📚</span><span class="from">Reading<small>your interest</small></span><span class="arrow">→</span><span class="to">Glasses</span></div>
+        <div class="trait"><span class="ic">💻</span><span class="from">Engineer<small>your profession</small></span><span class="arrow">→</span><span class="to">Casual tee</span></div>
+        <div class="trait"><span class="ic">🔮</span><span class="from">Astrology<small>your interest</small></span><span class="arrow">→</span><span class="to">Diamond print</span></div>
+      </div>
+    </div>
+    <div class="reveal-cta">
+      <button class="btn btn-primary"><svg><use href="#i-check"/></svg>Use this avatar</button>
+      <button class="btn btn-secondary"><svg><use href="#i-camera"/></svg>Upload a photo instead</button>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+  </div>
+</div>
+</body></html>

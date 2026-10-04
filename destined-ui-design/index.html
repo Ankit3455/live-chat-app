@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Destined — UI design proposal</title>
+<link rel="stylesheet" href="css/design-system.css">
+<style>
+  body { background: var(--bg); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 48px 24px 80px; position: relative; }
+  .wrap::before { content: ''; position: absolute; inset: 0 0 auto; height: 420px; background: var(--grad-glow); pointer-events: none; }
+  header { position: relative; }
+  header p { max-width: 640px; margin-top: 10px; }
+  .tag { display: inline-flex; gap: 6px; align-items: center; font: 600 12px var(--font-body); color: var(--pink-300); letter-spacing: .08em; text-transform: uppercase; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 32px; position: relative; }
+  .tile { display: block; text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; transition: border-color .15s, transform .15s; }
+  .tile:hover { border-color: var(--violet-500); transform: translateY(-2px); }
+  .tile .n { font: 800 13px var(--font-display); color: var(--violet-300); }
+  .tile h3 { font: 700 18px/1.3 var(--font-display); margin: 6px 0; }
+  .tile p { font-size: 14px; color: var(--text-muted); }
+  h2.sec { margin: 56px 0 16px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .sw { border-radius: var(--r-md); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
+  .sw i { display: block; height: 64px; }
+  .sw div { padding: 10px 12px; font-size: 12px; }
+  .sw b { display: block; font-size: 13px; }
+  .type > * { margin-bottom: 10px; }
+  .comp { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .comp .card { display: flex; flex-direction: column; gap: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; }
+</style></head>
+<body>
+<script src="assets/icons.js"></script><div class="wrap">
+<header>
+  <span class="tag">Design proposal · not yet in the app</span>
+  <h1 class="t-display" style="margin-top:8px">Destined <span class="grad-text">UI direction</span></h1>
+  <p class="muted">All main screens redesigned on one shared design system. Every screen uses only features that already exist in Destined. Items marked <b>proposed</b> in the captions are UI-only additions built on data the app already has.</p>
+</header>
+
+<div class="grid">
+  <a class="tile" href="screens/screen-01-login.html"><span class="n">01</span><h3>Login</h3><p>Default + inline error/loading states.</p></a>
+  <a class="tile" href="screens/screen-02-onboarding.html"><span class="n">02</span><h3>Onboarding question</h3><p>Single and multi choice, sticky CTA, progress.</p></a>
+  <a class="tile" href="screens/screen-03-discover.html"><span class="n">03</span><h3>Discover</h3><p>Feed cards with age, city, compatibility; empty + loading.</p></a>
+  <a class="tile" href="screens/screen-04-profile.html"><span class="n">04</span><h3>Profile details</h3><p>Full profile with compatibility, voice intro, safety.</p></a>
+  <a class="tile" href="screens/screen-05-chats.html"><span class="n">05</span><h3>Chats</h3><p>Active / New tabs, swipe actions with undo.</p></a>
+  <a class="tile" href="screens/screen-06-chat.html"><span class="n">06</span><h3>Chat</h3><p>Visible call consent, voice notes, reply quotes.</p></a>
+  <a class="tile" href="screens/screen-07-my-profile.html"><span class="n">07</span><h3>My Profile</h3><p>Single completion checklist, photo edit, cosmic card.</p></a>
+</div>
+
+<h2 class="t-h1 sec">More screens</h2>
+<div class="grid" style="margin-top:0">
+  <a class="tile" href="screens/screen-08-signup.html"><span class="n">08</span><h3>Signup</h3><p>Account + natal details, inline validation.</p></a>
+  <a class="tile" href="screens/screen-09-age-gate.html"><span class="n">09</span><h3>Age gate</h3><p>18+ confirmation and the blocked state.</p></a>
+  <a class="tile" href="screens/screen-10-avatar.html"><span class="n">10</span><h3>Avatar</h3><p>Ready, creating and error, photo as an equal choice.</p></a>
+  <a class="tile" href="screens/screen-11-voice-intro.html"><span class="n">11</span><h3>Voice intro</h3><p>Record with prompts, then preview.</p></a>
+  <a class="tile" href="screens/screen-12-astrology.html"><span class="n">12</span><h3>Cosmic profile</h3><p>One-screen astrology + how compatibility works.</p></a>
+  <a class="tile" href="screens/screen-13-calls.html"><span class="n">13</span><h3>Calls</h3><p>Incoming, audio, video and call-ended states.</p></a>
+  <a class="tile" href="screens/screen-14-settings.html"><span class="n">14</span><h3>Settings</h3><p>Settings, discovery filters, delete account.</p></a>
+  <a class="tile" href="screens/screen-15-splash-verify.html"><span class="n">15</span><h3>Splash & verify email</h3><p>Brand launch and email verification.</p></a>
+  <a class="tile" href="screens/screen-16-edit-profile.html"><span class="n">16</span><h3>Edit profile & blocked users</h3><p>Grouped fields, dirty-state save, unblock.</p></a>
+  <a class="tile" href="screens/screen-17-games.html"><span class="n">17</span><h3>Games</h3><p>Game list with stats, Carrom matchmaking.</p></a>
+  <a class="tile" href="screens/screen-18-avatar-story.html"><span class="n">18</span><h3>Avatar from your answers</h3><p>Intro promise, live preview, "why you look like this" reveal.</p></a>
+</div>
+
+<h2 class="t-h1 sec">Colour</h2>
+<div class="swatches">
+  <div class="sw"><i style="background:var(--grad-primary)"></i><div><b>Primary gradient</b>#7C3AED → #EC4899 · CTAs, sent bubbles</div></div>
+  <div class="sw"><i style="background:var(--violet-600)"></i><div><b>Violet 600</b>#7C3AED · selection, toggles</div></div>
+  <div class="sw"><i style="background:var(--violet-300)"></i><div><b>Violet 300</b>#C4B5FD · links on dark</div></div>
+  <div class="sw"><i style="background:var(--pink-500)"></i><div><b>Pink 500</b>#EC4899 · badges, glow</div></div>
+  <div class="sw"><i style="background:var(--gold-400)"></i><div><b>Gold 400</b>#F5C26B · zodiac & compatibility only</div></div>
+  <div class="sw"><i style="background:var(--bg)"></i><div><b>Background</b>#0F0A1A</div></div>
+  <div class="sw"><i style="background:var(--surface)"></i><div><b>Surface</b>#1E1531 · cards, inputs</div></div>
+  <div class="sw"><i style="background:var(--surface-2)"></i><div><b>Surface 2</b>#2A1F42 · received bubbles</div></div>
+  <div class="sw"><i style="background:var(--text)"></i><div><b>Text</b>#F6F2FF · 17.6:1</div></div>
+  <div class="sw"><i style="background:var(--text-muted)"></i><div><b>Muted</b>#B9AED3 · 9.1:1</div></div>
+  <div class="sw"><i style="background:var(--success)"></i><div><b>Success / online</b>#34D399</div></div>
+  <div class="sw"><i style="background:var(--warning)"></i><div><b>Warning</b>#FBBF24</div></div>
+  <div class="sw"><i style="background:var(--error)"></i><div><b>Error</b>#F87171</div></div>
+</div>
+
+<h2 class="t-h1 sec">Typography</h2>
+<div class="card type">
+  <div class="t-display">Display 32 · Montserrat 800</div>
+  <div class="t-h1">Heading 1 · 26 / 700</div>
+  <div class="t-h2">Heading 2 · 20 / 700</div>
+  <div class="t-h3">Heading 3 · 17 / 600</div>
+  <div class="t-body">Body 15 / 22 · Inter 400. Designer by day, stargazer by night.</div>
+  <div class="t-label">Label 13 · Inter 600</div>
+  <div class="t-caption">Caption 12 · Inter 400 (never used for important information)</div>
+</div>
+
+<h2 class="t-h1 sec">Components</h2>
+<div class="comp">
+  <div class="card"><b>Buttons</b><button class="btn btn-primary">Primary</button><button class="btn btn-secondary">Secondary</button><button class="btn btn-primary" disabled>Disabled</button><button class="btn btn-primary btn-loading">Loading</button></div>
+  <div class="card"><b>Inputs</b>
+    <div class="field"><label>Default</label><div class="input"><svg><use href="#i-mail"/></svg><input placeholder="you@example.com"></div></div>
+    <div class="field"><label>Focus</label><div class="input focus"><svg><use href="#i-mail"/></svg><input value="aanya@"></div></div>
+    <div class="field"><label>Error</label><div class="input error"><svg><use href="#i-lock"/></svg><input value="short"></div><span class="err">At least 8 characters</span></div>
+  </div>
+  <div class="card"><b>Chips & tabs</b>
+    <div class="chip-row"><span class="chip">Default</span><span class="chip selected">Selected</span><span class="chip compat">♌ 92%</span></div>
+    <div class="tabs"><button class="active">Active</button><button>New <span class="count">2</span></button></div>
+    <div class="row"><span class="switch"></span><span class="switch on"></span></div>
+  </div>
+  <div class="card"><b>Chat bubbles</b>
+    <div class="bubble-row" style="padding:0"><div class="bubble them">Received<div class="meta">8:12 PM</div></div></div>
+    <div class="bubble-row me" style="padding:0"><div class="bubble me">Sent<div class="meta">8:14 PM</div></div></div>
+    <div class="banner"><svg><use href="#i-info"/></svg><span>Info banner</span></div>
+  </div>
+</div>
+
+<h2 class="t-h1 sec">Rules</h2>
+<div class="card" style="padding:0">
+<table>
+  <tr><th>Token</th><th>Value</th><th>Rule</th></tr>
+  <tr><td>Spacing</td><td>4 · 8 · 12 · 16 · 20 · 24 · 32 · 40</td><td>4pt grid; 20px screen gutters</td></tr>
+  <tr><td>Radius</td><td>10 · 14 · 20 · 28 · pill</td><td>Inputs 14, cards 20, hero cards 28, buttons pill</td></tr>
+  <tr><td>Touch target</td><td>48 × 48 min</td><td>Every icon button, chip-selectable 40h with 8px gap</td></tr>
+  <tr><td>Icons</td><td>22 default · 18 small · 24 nav</td><td>One outline icon set, 1.8 stroke</td></tr>
+  <tr><td>Elevation</td><td>shadow-1, shadow-2, glow</td><td>Glow only on the primary CTA and send button</td></tr>
+  <tr><td>Gold</td><td>#F5C26B</td><td>Reserved for zodiac and compatibility, never decoration</td></tr>
+  <tr><td>States</td><td>default · hover · pressed · focus · disabled · loading · error</td><td>Every interactive component defines all of them</td></tr>
+  <tr><td>Motion</td><td>120–200 ms ease</td><td>No perpetual floating animations; respect reduced motion</td></tr>
+</table>
+</div>
+</div></body></html>

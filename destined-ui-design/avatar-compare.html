@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Avatar mapping — current vs proposed</title>
+<link rel="stylesheet" href="css/design-system.css">
+<style>
+  body { background: var(--bg); padding: 32px; }
+  table { border-collapse: separate; border-spacing: 16px 12px; }
+  td, th { vertical-align: top; text-align: left; font-size: 13px; color: var(--text-muted); }
+  th { color: var(--text); font: 700 15px var(--font-display); }
+  img { width: 150px; height: 150px; border-radius: 50%; background: var(--surface); }
+  .persona { max-width: 260px; line-height: 1.5; }
+  .persona b { color: var(--text); }
+</style></head>
+<body>
+<h1 class="t-h1">Avatar from answers — current vs proposed</h1>
+<p class="muted" style="margin:8px 0 16px">Same answers, same seed. Left = what the app generates today. Right = proposed mapping.</p>
+<table id="t"><tr><th>Answers</th><th>Current</th><th>Proposed</th></tr></table>
+<script>
+const P = [
+  { name:'aanya', gender:'female', habits:'Night Owl', interests:['Reading','Astrology','Music'], profession:'Engineer', activity:'Moderate', age:25 },
+  { name:'rohan', gender:'male', habits:'Early Riser', interests:['Sports','Travel','Cooking'], profession:'Doctor', activity:'High', age:29 },
+  { name:'meera', gender:'female', habits:'Balanced', interests:['Art','Photography','Dancing'], profession:'Artist', activity:'High', age:24 },
+  { name:'kabir', gender:'male', habits:'Night Owl', interests:['Gaming','Tech','Stargazing'], profession:'Student', activity:'Low', age:21 },
+  { name:'sam', gender:'other', habits:'Balanced', interests:['Meditation','Yoga','Deep Conversations'], profession:'Astrology Consultant', activity:'Moderate', age:38 },
+  { name:'vikram', gender:'male', habits:'Balanced', interests:['Reading','Romance','Mysticism'], profession:'Other', activity:'Moderate', age:41 },
+];
+const maleTops='shortFlat,shortRound,shortWaved,shortCurly,theCaesar,theCaesarAndSidePart,sides,shavedSides,frizzle,dreads01';
+const femaleTops='bigHair,bob,bun,curly,curvy,frida,longButNotTooLong,miaWallace,straight01,straight02,straightAndStrand';
+const seedOf=p=>[p.gender.toUpperCase(),p.name,p.habits.toLowerCase().replace(/[^a-z0-9]/g,'_'),[...p.interests].map(s=>s.toLowerCase()).sort().join('_')].join('_');
+
+function current(p){
+  const has=k=>p.interests.some(i=>i.toLowerCase().includes(k));
+  const bg = p.habits.includes('Night')?'65c9ff,5199e4,c0aede':p.habits.includes('Early')?'ffdfbf,ffd5dc,fff2b3':'b6e3f4,d1d4f9,c0aede';
+  const q={seed:seedOf(p),size:'400',scale:'180',translateY:'-10',backgroundColor:bg,topProbability:'100'};
+  if(p.gender==='male'){q.top=maleTops;q.facialHair='beardLight,beardMedium,moustacheFancy';q.facialHairProbability=p.age>35?'60':'35';}
+  else{ if(p.gender==='female') q.top=femaleTops; q.facialHairProbability='0'; }
+  if(has('reading')){q.accessories='prescription01,prescription02,round';q.accessoriesProbability='70';} else q.accessoriesProbability='10';
+  if(has('sport')||has('yoga')||has('danc')) q.clothing='hoodie,shirtCrewNeck,shirtVNeck';
+  else if(has('art')||has('photo')) q.clothing='graphicShirt,overall,collarAndSweater';
+  else if(p.age>35) q.clothing='blazerAndShirt,blazerAndSweater,collarAndSweater';
+  return 'https://api.dicebear.com/7.x/avataaars/svg?'+new URLSearchParams(q);
+}
+
+function proposed(p){
+  const has=(...ks)=>p.interests.some(i=>ks.some(k=>i.toLowerCase().includes(k)));
+  const adult=p.age>35, night=p.habits.includes('Night'), early=p.habits.includes('Early');
+  const q={seed:seedOf(p),size:'256',radius:'50',topProbability:'100'};
+  q.backgroundColor = night?'3b2a6b,4c2f7a':early?'ffd5dc,ffe3c2':'d1d4f9,c0aede';
+  q.backgroundType='gradientLinear';
+  const neutralTops='bob,curly,frizzle,shortCurly,shortWaved,straight02,bun,shaggy,shaggyMullet';
+  if(p.gender==='male'){ q.top=maleTops+(adult?'':',shaggy'); q.facialHair='beardLight,beardMedium,beardMajestic,moustacheFancy'; q.facialHairProbability=adult?'70':'30'; }
+  else if(p.gender==='female'){ q.top=femaleTops; q.facialHairProbability='0'; }
+  else { q.top=neutralTops; q.facialHairProbability='0'; }
+  q.hairColor = adult?'2c1b18,4a312c,724133,a55728,b58143,e8e1e1':'2c1b18,4a312c,724133,a55728,b58143,c93305';
+  // expression from activity level (no vomit / cry / x-eyes / angry brows)
+  const act=p.activity;
+  q.mouth = act==='High'?'smile,twinkle':act==='Low'?'default,smile':'smile,default,twinkle';
+  q.eyes = has('romance')?'hearts,happy':act==='High'?'happy,wink,default':night?'squint,default':'default,happy';
+  q.eyebrows = act==='High'?'raisedExcited,raisedExcitedNatural,defaultNatural':'default,defaultNatural,upDownNatural';
+  // accessories from interests
+  if(has('reading')) { q.accessories='prescription01,prescription02'; q.accessoriesProbability='100'; }
+  else if(has('tech','gaming')) { q.accessories='round,prescription02'; q.accessoriesProbability='80'; }
+  else if(has('travel')) { q.accessories='wayfarers,sunglasses'; q.accessoriesProbability='80'; }
+  else if(has('astrology','mysticism','stargazing')) { q.accessories='kurt'; q.accessoriesProbability='50'; }
+  else q.accessoriesProbability='0';
+  // clothing from profession, then interests
+  const prof={Engineer:'hoodie,graphicShirt',Doctor:'collarAndSweater,blazerAndShirt',Artist:'overall,graphicShirt',Student:'hoodie,shirtCrewNeck','Astrology Consultant':'blazerAndSweater,collarAndSweater'}[p.profession];
+  q.clothing = prof || (has('sport','yoga','danc')?'shirtVNeck,hoodie':adult?'blazerAndShirt,collarAndSweater':'shirtCrewNeck,shirtScoopNeck,shirtVNeck');
+  q.clothesColor = night?'262e33,3c4f5c,5199e4':early?'ff5c5c,ffafb9,ffdeb5':'a7ffc4,b1e2ff,ffffb1';
+  return 'https://api.dicebear.com/9.x/avataaars/svg?'+new URLSearchParams(q);
+}
+
+const t=document.getElementById('t');
+for(const p of P){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td class="persona"><b>${p.name}</b> · ${p.gender} · ${p.age}<br>${p.habits} · activity ${p.activity}<br>${p.profession}<br>${p.interests.join(', ')}</td>
+  <td><img src="${current(p)}" alt="current"></td><td><img src="${proposed(p)}" alt="proposed"></td>`;
+  t.appendChild(tr);
+}
+</script>
+</body></html>

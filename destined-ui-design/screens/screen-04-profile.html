@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>04 · Profile details — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .hero { position: relative; height: 420px; margin-top: -44px; }
+  .hero .media { position: absolute; inset: 0; background: linear-gradient(160deg, #5B1A4A, #EC4899) ; }
+  .hero .media::after { content: ''; position: absolute; inset: 0; background: url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0') center 70px / 300px no-repeat; }
+  .hero .scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,10,26,.45) 0%, transparent 25%, transparent 55%, var(--bg) 100%); }
+  .hero .bar { position: absolute; top: 44px; left: 8px; right: 8px; display: flex; justify-content: space-between; z-index: 2; }
+  .hero .bar .icon-btn { background: rgba(15,10,26,.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .hero .id { position: absolute; left: var(--s-5); right: var(--s-5); bottom: var(--s-4); }
+  .hero .id h1 { font: 800 30px/1.1 var(--font-display); display: flex; align-items: center; gap: 10px; }
+  .hero .id .online-pill { font: 600 12px var(--font-body); color: var(--online); display: inline-flex; align-items: center; gap: 6px; }
+  .hero .id .online-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--online); }
+  .facts { display: flex; gap: 14px; margin-top: 8px; color: var(--text-muted); font-size: 14px; flex-wrap: wrap; }
+  .facts span { display: inline-flex; gap: 5px; align-items: center; }
+  .facts svg { width: 15px; height: 15px; }
+  .content { padding: 0 var(--s-5) 120px; }
+  .compat { display: flex; gap: var(--s-4); align-items: center; background: linear-gradient(135deg, rgba(245,194,107,.12), rgba(236,72,153,.08)); border-color: rgba(245,194,107,.3); }
+  .compat .score { width: 64px; height: 64px; border-radius: 50%; flex: none; background: conic-gradient(var(--gold-400) 0 92%, rgba(245,194,107,.15) 92%); display: grid; place-items: center; }
+  .compat .score span { width: 54px; height: 54px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font: 800 17px var(--font-display); color: var(--gold-400); }
+  .voice { display: flex; align-items: center; gap: var(--s-3); }
+  .voice .play { width: 44px; height: 44px; border-radius: 50%; background: var(--grad-primary); display: grid; place-items: center; flex: none; }
+  .voice .play svg { width: 18px; height: 18px; color: #fff; }
+  .wave { flex: 1; height: 28px; display: flex; align-items: center; gap: 3px; }
+  .wave i { flex: 1; border-radius: 2px; background: var(--violet-300); opacity: .45; }
+  .wave i.on { opacity: 1; background: var(--pink-300); }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+  .kv div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; }
+  .kv small { display: block; color: var(--text-subtle); font-size: 12px; }
+  .kv b { font-weight: 600; font-size: 14px; }
+  .safety { display: flex; gap: var(--s-2); margin-top: var(--s-8); }
+  .safety .btn { color: var(--text-muted); }
+  .cta { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-4) var(--s-5) 34px; background: linear-gradient(180deg, transparent, var(--bg) 35%); z-index: 4; display: flex; gap: var(--s-3); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="hero">
+      <div class="media"></div><div class="scrim"></div>
+      <div class="bar">
+        <button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+        <button class="icon-btn" aria-label="More: block or report"><svg><use href="#i-more"/></svg></button>
+      </div>
+      <div class="id">
+        <span class="online-pill">Online now</span>
+        <h1>Meera, 26</h1>
+        <div class="facts">
+          <span><svg><use href="#i-pin"/></svg>Mumbai</span>
+          <span><svg><use href="#i-briefcase"/></svg>UX Designer</span>
+          <span><svg><use href="#i-ruler"/></svg>5′5″</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="card compat">
+        <div class="score" aria-label="92 percent compatible"><span>92%</span></div>
+        <div>
+          <div class="t-h3">You’re a cosmic match</div>
+          <p class="muted" style="font-size:14px;margin-top:4px">Your ♓︎ Pisces and her ♌︎ Leo sun signs score high together. <a href="#" style="color:var(--gold-400)">How it works</a></p>
+        </div>
+      </div>
+
+      <div class="section-title"><h3>Voice intro</h3><span class="t-caption">0:24</span></div>
+      <div class="card voice">
+        <button class="play" aria-label="Play voice intro"><svg><use href="#i-play"/></svg></button>
+        <div class="wave" aria-hidden="true">
+          <i class="on" style="height:40%"></i><i class="on" style="height:70%"></i><i class="on" style="height:55%"></i><i class="on" style="height:90%"></i><i style="height:60%"></i><i style="height:35%"></i><i style="height:75%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:40%"></i><i style="height:65%"></i><i style="height:30%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:45%"></i><i style="height:60%"></i><i style="height:35%"></i><i style="height:70%"></i>
+        </div>
+      </div>
+
+      <div class="section-title"><h3>About</h3></div>
+      <p class="t-body" style="color:var(--text)">Designer by day, stargazer by night. Looking for someone who enjoys long chai conversations and spontaneous weekend trips. 🌙</p>
+
+      <div class="section-title"><h3>Looking for</h3></div>
+      <div class="chip-row"><span class="chip">💞 Long-term relationship</span><span class="chip">🤝 New friends</span></div>
+
+      <div class="section-title"><h3>Basics</h3></div>
+      <div class="kv">
+        <div><small>Education</small><b>Master’s degree</b></div>
+        <div><small>Relationship</small><b>Single</b></div>
+        <div><small>Body type</small><b>Athletic</b></div>
+        <div><small>Sleep</small><b>Night owl</b></div>
+      </div>
+
+      <div class="section-title"><h3>Interests</h3></div>
+      <div class="chip-row"><span class="chip">🎵 Music</span><span class="chip">📚 Reading</span><span class="chip">✈️ Travel</span><span class="chip">🧘 Yoga</span><span class="chip">☕ Cafés</span></div>
+
+      <div class="section-title"><h3>Lifestyle</h3></div>
+      <div class="chip-row"><span class="chip">🥗 Vegetarian</span><span class="chip">🍷 Socially</span><span class="chip">🚭 Never smokes</span><span class="chip">🐶 Dog lover</span></div>
+
+      <div class="section-title"><h3>Astrology</h3></div>
+      <div class="chip-row"><span class="chip compat">♌︎ Leo</span><span class="chip">Believes in astrology</span><span class="chip">Likes ♈︎ ♐︎ ♓︎</span></div>
+
+      <div class="safety">
+        <button class="btn btn-secondary btn-sm"><svg width="16" height="16"><use href="#i-block"/></svg>Block</button>
+        <button class="btn btn-secondary btn-sm"><svg width="16" height="16"><use href="#i-flag"/></svg>Report</button>
+      </div>
+    </div>
+  </div>
+  <div class="cta"><button class="btn btn-primary"><svg><use href="#i-chat"/></svg>Message Meera</button></div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Full profile (replaces the cramped quick sheet).</b> A big hero image, the compatibility score with a plain-language reason, voice intro, and grouped facts. Block and Report are on the profile, and one sticky Message button sits at the bottom. The duplicate name row and the empty "Other: Discoverable" section are gone.</p>
+</div>
+
+</div></body></html>

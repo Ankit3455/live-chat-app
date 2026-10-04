@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1080">
+<title>Store 01 · Find your cosmic connection — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<link rel="stylesheet" href="store.css">
+<style>
+  /* from screens/screen-03-discover.html */
+  .head { display: flex; align-items: center; padding: 4px var(--s-2) 0 var(--s-5); height: var(--appbar-h); }
+  .head h1 { flex: 1; }
+  .online { display: flex; gap: var(--s-4); overflow: hidden; padding: 0 var(--s-5) var(--s-2); }
+  .online .p { width: 60px; flex: none; text-align: center; font-size: 12px; color: var(--text-muted); }
+  .online .avatar { width: 60px; height: 60px; margin-bottom: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); padding: 0 var(--s-5) var(--s-6); }
+  .gcard .top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .gcard .pres { width: 10px; height: 10px; border-radius: 50%; background: var(--online); box-shadow: 0 0 0 2px rgba(15,10,26,.7); }
+  .gcard .chip.compat { height: 26px; font-size: 12.5px; padding: 0 9px; background: rgba(15,10,26,.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .gcard .voice { position: absolute; right: 10px; bottom: 54px; width: 28px; height: 28px; border-radius: 50%; background: rgba(15,10,26,.6); display: grid; place-items: center; }
+  .gcard .voice svg { width: 14px; height: 14px; color: var(--pink-300); }
+  .gcard .meta { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+  .gcard .meta svg { width: 12px; height: 12px; }
+  .bg1 { background: linear-gradient(160deg, #3B1F6E, #7C3AED); } .bg2 { background: linear-gradient(160deg, #5B1A4A, #EC4899); }
+  .bg3 { background: linear-gradient(160deg, #1E3A5F, #6366F1); } .bg4 { background: linear-gradient(160deg, #4A2A12, #F59E0B); }
+  .bg5 { background: linear-gradient(160deg, #13403A, #10B981); } .bg6 { background: linear-gradient(160deg, #3A1C5C, #C026D3); }
+  .gcard .media { background-size: 92%; background-repeat: no-repeat; background-position: center 30%; }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script>
+<div class="shot">
+  <div class="stars"></div>
+  <span class="sparkle" style="top:96px;left:96px"></span>
+  <span class="sparkle gold sm" style="top:520px;right:110px"></span>
+  <span class="sparkle sm" style="top:1180px;left:70px"></span>
+
+  <header class="shot-head">
+    <div class="brand"><svg><use href="#i-moon"/></svg>Destined</div>
+    <h1 class="shot-title">Find your<br><span class="hl">cosmic connection</span></h1>
+    <p class="shot-sub">See how compatible you are, at a glance.</p>
+  </header>
+
+  <div class="phone-wrap">
+  <div class="device">
+    <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+    <div class="head">
+      <h1 class="t-h1">Discover</h1>
+      <button class="icon-btn" aria-label="Discovery filters"><svg><use href="#i-filter"/></svg></button>
+    </div>
+    <div class="screen">
+      <div class="section-title px" style="margin-top:8px"><h3>Online now</h3><span class="t-caption">5 people</span></div>
+      <div class="online">
+        <div class="p"><div class="avatar bg2" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div>Meera</div>
+        <div class="p"><div class="avatar bg3" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Rohan&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"><span class="presence"></span></div>Rohan</div>
+        <div class="p"><div class="avatar bg5" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Isha&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div>Isha</div>
+        <div class="p"><div class="avatar bg4" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Kabir&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"><span class="presence"></span></div>Kabir</div>
+        <div class="p"><div class="avatar bg6" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Zara&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"><span class="presence"></span></div>Zara</div>
+      </div>
+
+      <div class="section-title px"><h3>For you</h3><span class="t-caption">Recently active</span></div>
+      <div class="grid">
+        <div class="gcard">
+          <div class="media bg2" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Meera&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♌︎ 92%</span><span class="pres"></span></div>
+          <span class="voice"><svg><use href="#i-mic"/></svg></span>
+          <div class="info"><div class="name">Meera, 26</div><div class="meta"><svg><use href="#i-pin"/></svg>Mumbai</div></div>
+        </div>
+        <div class="gcard">
+          <div class="media bg3" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Rohan&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♐︎ 81%</span><span class="pres"></span></div>
+          <div class="info"><div class="name">Rohan, 28</div><div class="meta"><svg><use href="#i-pin"/></svg>Pune</div></div>
+        </div>
+        <div class="gcard">
+          <div class="media bg5" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Isha&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♎︎ 88%</span><span class="pres"></span></div>
+          <span class="voice"><svg><use href="#i-mic"/></svg></span>
+          <div class="info"><div class="name">Isha, 25</div><div class="meta"><svg><use href="#i-pin"/></svg>Jaipur</div></div>
+        </div>
+        <div class="gcard">
+          <div class="media bg4" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Kabir&top=shortFlat,shortWaved,shortCurly,theCaesar,sides,shortRound&facialHairProbability=40')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♈︎ 68%</span><span class="pres"></span></div>
+          <div class="info"><div class="name">Kabir, 29</div><div class="meta"><svg><use href="#i-pin"/></svg>Delhi</div></div>
+        </div>
+        <div class="gcard">
+          <div class="media bg1" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Ananya&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♓︎ 76%</span></div>
+          <div class="info"><div class="name">Ananya, 24</div><div class="meta"><svg><use href="#i-pin"/></svg>Bengaluru</div></div>
+        </div>
+        <div class="gcard">
+          <div class="media bg6" style="background-image:url('https://api.dicebear.com/9.x/avataaars/svg?seed=Zara&top=bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,bigHair,frida,straightAndStrand&facialHairProbability=0')"></div><div class="scrim"></div>
+          <div class="top"><span class="chip compat">♏︎ 71%</span></div>
+          <div class="info"><div class="name">Zara, 27</div><div class="meta"><svg><use href="#i-pin"/></svg>Hyderabad</div></div>
+        </div>
+      </div>
+    </div>
+    <nav class="bottom-nav" aria-label="Main">
+      <a class="active"><svg><use href="#i-discover"/></svg>Discover</a>
+      <a><svg><use href="#i-chat"/></svg>Chats<span class="n">3</span></a>
+      <a><svg><use href="#i-games"/></svg>Games</a>
+      <a><svg><use href="#i-user"/></svg>Profile</a>
+    </nav>
+    <div class="home-indicator"></div>
+  </div>
+  </div>
+</div>
+</body></html>

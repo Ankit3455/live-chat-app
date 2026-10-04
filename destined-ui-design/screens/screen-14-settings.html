@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14 · Settings — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .appbar.center .title { margin-right: var(--tap); }
+  .group-label { font: 600 var(--fs-caption)/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--text-subtle); margin: var(--s-6) var(--s-2) var(--s-2); }
+  .group-label:first-child { margin-top: var(--s-3); }
+  .group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .srow { display: flex; align-items: center; gap: var(--s-3); min-height: 56px; padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4); position: relative; }
+  .srow + .srow::before { content: ''; position: absolute; top: 0; left: 64px; right: 0; height: 1px; background: var(--border); }
+  a.srow:hover { background: rgba(196,181,253,.04); }
+  .srow .ic { width: 32px; height: 32px; border-radius: var(--r-sm); background: rgba(139,92,246,.16); display: grid; place-items: center; flex: none; }
+  .srow .ic svg { width: 18px; height: 18px; color: var(--violet-300); }
+  .srow .txt { flex: 1; min-width: 0; }
+  .srow .ttl { font: 500 15px/20px var(--font-body); }
+  .srow .sub { font-size: 13px; line-height: 18px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .srow .val { font-size: 14px; color: var(--text-muted); }
+  .chev { transform: rotate(180deg); width: 16px; height: 16px; color: var(--text-subtle); flex: none; }
+  .srow.danger .ic { background: rgba(248,113,113,.14); }
+  .srow.danger .ic svg { color: var(--error); }
+  .srow.danger .ttl { color: var(--error); font-weight: 600; }
+  .srow.neutral .ic { background: var(--surface-2); }
+  .srow.neutral .ic svg { color: var(--text-muted); }
+  .danger-zone { margin-top: var(--s-8); }
+  .footer { text-align: center; color: var(--text-subtle); font-size: var(--fs-caption); padding: var(--s-6) 0 var(--s-10); }
+  .footer b { font: 700 13px var(--font-display); color: var(--text-muted); letter-spacing: .02em; }
+
+  /* Discovery */
+  .unsaved { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--fs-caption)/1 var(--font-body); color: var(--pink-300); padding-right: var(--s-3); }
+  .unsaved i { width: 8px; height: 8px; border-radius: 50%; background: var(--pink-500); box-shadow: 0 0 0 3px rgba(236,72,153,.22); }
+  .helper { font-size: 13px; line-height: 18px; color: var(--text-muted); padding: 0 var(--s-4) var(--s-3) var(--s-4); margin-top: -4px; }
+  .fblock { padding: var(--s-4); border-top: 1px solid var(--border); }
+  .fblock .lbl { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--s-3); }
+  .fblock .lbl b { font: 600 15px var(--font-body); }
+  .fblock .lbl span { font: 600 14px var(--font-body); color: var(--violet-300); }
+  .group.off .fblock { opacity: .4; pointer-events: none; }
+  .range { position: relative; height: 28px; }
+  .range .rail { position: absolute; left: 0; right: 0; top: 12px; height: 4px; border-radius: 2px; background: var(--surface-2); }
+  .range .fill { position: absolute; top: 12px; height: 4px; border-radius: 2px; background: var(--grad-primary); }
+  .range .thumb { position: absolute; top: 2px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45), 0 0 0 4px rgba(139,92,246,.25); }
+  .range .thumb.active { box-shadow: 0 2px 8px rgba(0,0,0,.45), 0 0 0 8px rgba(139,92,246,.28); }
+  .scale { display: flex; justify-content: space-between; font-size: var(--fs-caption); color: var(--text-subtle); margin-top: 6px; }
+  .changed { position: relative; }
+  .changed::after { content: ''; position: absolute; top: 20px; left: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--pink-500); }
+  .sticky-cta { flex: none; padding: var(--s-3) var(--s-5) 34px; background: var(--bg-elev); border-top: 1px solid var(--border); position: relative; z-index: 2; }
+  .sticky-cta .note { font-size: var(--fs-caption); color: var(--text-muted); text-align: center; margin-bottom: var(--s-2); }
+  .sticky-cta .note a { color: var(--violet-300); font-weight: 600; margin-left: 6px; }
+
+  /* Delete sheet */
+  .sheet .warn-ic { width: 56px; height: 56px; border-radius: 50%; background: rgba(248,113,113,.14); border: 1px solid rgba(248,113,113,.35); display: grid; place-items: center; margin: 0 auto var(--s-3); }
+  .sheet .warn-ic svg { width: 26px; height: 26px; color: var(--error); }
+  .sheet h2 { text-align: center; }
+  .sheet .lead { text-align: center; color: var(--text-muted); font-size: 14px; margin-top: 6px; }
+  .del-list { margin-top: var(--s-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s-2) var(--s-4); }
+  .del-list li { list-style: none; display: flex; gap: var(--s-3); align-items: flex-start; font-size: 14px; padding: 6px 0; }
+  .del-list li svg { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--error); }
+  .del-list li.keep svg { color: var(--text-subtle); }
+  .del-list li.keep { color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
+  .del-list b { color: var(--text); font-weight: 600; }
+  .btn-danger { background: var(--error); color: #2A0A0F; }
+  .btn-danger:hover { filter: brightness(1.05); }
+  .dim { filter: saturate(.8); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- ============ A: Settings ============ -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="appbar center"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button><span class="title">Settings</span></div>
+  <div class="screen px">
+
+    <div class="group-label">Account</div>
+    <div class="group">
+      <div class="srow"><span class="ic"><svg><use href="#i-mail"/></svg></span><span class="txt"><div class="ttl">Email</div><div class="sub">aanya.k@gmail.com</div></span></div>
+      <a class="srow" href="#"><span class="ic"><svg><use href="#i-lock"/></svg></span><span class="txt"><div class="ttl">Change password</div><div class="sub">Update the password you sign in with</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+      <a class="srow" href="#discovery"><span class="ic"><svg><use href="#i-discover"/></svg></span><span class="txt"><div class="ttl">Discovery</div><div class="sub">Who you see and who can see you</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+    </div>
+
+    <div class="group-label">Notifications</div>
+    <div class="group">
+      <div class="srow"><span class="ic"><svg><use href="#i-bell"/></svg></span><span class="txt"><div class="ttl">Push notifications</div><div class="sub">New messages and calls</div></span><span class="switch on" role="switch" aria-checked="true" aria-label="Push notifications"></span></div>
+      <div class="srow"><span class="ic"><svg><use href="#i-chat"/></svg></span><span class="txt"><div class="ttl">Message notifications</div><div class="sub">New messages in Active chats</div></span><span class="switch on" role="switch" aria-checked="true" aria-label="Message notifications"></span></div>
+    </div>
+
+    <div class="group-label">Help &amp; Support</div>
+    <div class="group">
+      <a class="srow" href="#"><span class="ic"><svg><use href="#i-sparkle"/></svg></span><span class="txt"><div class="ttl">App tour</div><div class="sub">Replay the quick intro to Destined</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+      <a class="srow" href="#"><span class="ic"><svg><use href="#i-mail"/></svg></span><span class="txt"><div class="ttl">Contact support</div><div class="sub">Email the Destined team</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+    </div>
+
+    <div class="group-label">Privacy &amp; Safety</div>
+    <div class="group">
+      <a class="srow" href="screen-16-edit-profile.html"><span class="ic"><svg><use href="#i-block"/></svg></span><span class="txt"><div class="ttl">Blocked users</div><div class="sub">They can't see or message you</div></span><span class="val">2</span><svg class="chev"><use href="#i-back"/></svg></a>
+      <a class="srow" href="#"><span class="ic"><svg><use href="#i-shield"/></svg></span><span class="txt"><div class="ttl">Privacy Policy</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+      <a class="srow" href="#"><span class="ic"><svg><use href="#i-info"/></svg></span><span class="txt"><div class="ttl">Terms of Service</div></span><svg class="chev"><use href="#i-back"/></svg></a>
+    </div>
+
+    <div class="group danger-zone">
+      <button class="srow neutral" style="width:100%;text-align:left"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></span><span class="txt"><div class="ttl">Sign out</div></span></button>
+      <button class="srow danger" style="width:100%;text-align:left"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg></span><span class="txt"><div class="ttl">Delete account</div><div class="sub">Permanently remove your profile</div></span></button>
+    </div>
+
+    <div class="footer"><b>Destined</b><br>v1.0.0</div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Settings.</b> The same sections as today, but each row is a grouped inset card with an icon, a one-line subtitle and a chevron, so it's easy to scan. Language and FAQs (still marked "SOON") are hidden until they work. Sign out and Delete account sit apart in their own danger area, and the footer now says "Destined v1.0.0" instead of "AvailChat".</p>
+</div>
+
+<!-- ============ B: Discovery settings ============ -->
+<div id="discovery">
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="appbar"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button><span class="title" style="font-size:var(--fs-h3)">Discovery</span><span class="unsaved" role="status"><i></i>Unsaved</span></div>
+  <div class="screen px">
+
+    <div class="group-label">Visibility</div>
+    <div class="group">
+      <div class="srow"><span class="ic"><svg><use href="#i-eye"/></svg></span><span class="txt"><div class="ttl">Show me on Discover</div></span><span class="switch on" role="switch" aria-checked="true" aria-label="Show me on Discover"></span></div>
+      <p class="helper">When off, you won't appear to new people. Your existing chats keep working.</p>
+    </div>
+
+    <div class="group-label">Filters</div>
+    <div class="group">
+      <div class="srow"><span class="ic"><svg><use href="#i-filter"/></svg></span><span class="txt"><div class="ttl">Apply discovery filters</div><div class="sub">Off shows everyone, recently active first</div></span><span class="switch on" role="switch" aria-checked="true" aria-label="Apply discovery filters"></span></div>
+
+      <div class="fblock">
+        <div class="lbl"><b>Show me</b></div>
+        <div class="tabs" role="radiogroup" aria-label="Show me">
+          <button role="radio" aria-checked="false">Everyone</button>
+          <button role="radio" aria-checked="false">Men</button>
+          <button class="active" role="radio" aria-checked="true">Women</button>
+        </div>
+      </div>
+
+      <div class="fblock changed">
+        <div class="lbl"><b>Age range</b><span>22 – 30</span></div>
+        <div class="range" role="group" aria-label="Age range, 22 to 30">
+          <div class="rail"></div>
+          <div class="fill" style="left:9.52%;width:19.05%"></div>
+          <div class="thumb" style="left:9.52%" role="slider" aria-valuemin="18" aria-valuemax="60" aria-valuenow="22" aria-label="Minimum age"></div>
+          <div class="thumb active" style="left:28.57%" role="slider" aria-valuemin="18" aria-valuemax="60" aria-valuenow="30" aria-label="Maximum age"></div>
+        </div>
+        <div class="scale"><span>18</span><span>60</span></div>
+      </div>
+
+      <div class="fblock">
+        <div class="lbl"><b>Distance</b><span>Up to 10 km</span></div>
+        <div class="range" role="slider" aria-valuemin="5" aria-valuemax="100" aria-valuenow="10" aria-label="Maximum distance in km">
+          <div class="rail"></div>
+          <div class="fill" style="left:0;width:5.26%"></div>
+          <div class="thumb" style="left:5.26%"></div>
+        </div>
+        <div class="scale"><span>5 km</span><span>100 km</span></div>
+        <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:var(--s-4)"><svg width="16" height="16"><use href="#i-pin"/></svg>Use current location</button>
+        <p class="t-caption center" style="margin-top:8px">Currently: Mumbai</p>
+      </div>
+
+      <div class="srow" style="border-top:1px solid var(--border)"><span class="ic"><span style="width:10px;height:10px;border-radius:50%;background:var(--online);box-shadow:0 0 0 3px rgba(52,211,153,.25)"></span></span><span class="txt"><div class="ttl">Online only</div><div class="sub">Only people active right now</div></span><span class="switch" role="switch" aria-checked="false" aria-label="Online only"></span></div>
+    </div>
+    <div style="height:24px"></div>
+  </div>
+  <div class="sticky-cta">
+    <p class="note">You changed Age range.<a href="#">Discard</a></p>
+    <button class="btn btn-primary">Save &amp; apply</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Discovery settings.</b> Visibility and filters are now on one screen. When "Apply discovery filters" is off, the filter controls fade out so it's clear they don't apply. A pink "Unsaved" dot and a short line above the sticky "Save &amp; apply" button stop people leaving without saving. <i>Proposed:</i> the unsaved hint and Discard link.</p>
+</div>
+
+<!-- ============ C: Delete account sheet ============ -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="appbar center dim"><button class="icon-btn" aria-label="Back"><svg><use href="#i-back"/></svg></button><span class="title">Settings</span></div>
+  <div class="screen px dim" aria-hidden="true">
+    <div class="group-label">Privacy &amp; Safety</div>
+    <div class="group">
+      <div class="srow"><span class="ic"><svg><use href="#i-block"/></svg></span><span class="txt"><div class="ttl">Blocked users</div><div class="sub">They can't see or message you</div></span><svg class="chev"><use href="#i-back"/></svg></div>
+      <div class="srow"><span class="ic"><svg><use href="#i-shield"/></svg></span><span class="txt"><div class="ttl">Privacy Policy</div></span><svg class="chev"><use href="#i-back"/></svg></div>
+      <div class="srow"><span class="ic"><svg><use href="#i-info"/></svg></span><span class="txt"><div class="ttl">Terms of Service</div></span><svg class="chev"><use href="#i-back"/></svg></div>
+    </div>
+    <div class="group danger-zone">
+      <div class="srow neutral"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></span><span class="txt"><div class="ttl">Sign out</div></span></div>
+      <div class="srow danger"><span class="ic"><svg><use href="#i-alert"/></svg></span><span class="txt"><div class="ttl">Delete account</div><div class="sub">Permanently remove your profile</div></span></div>
+    </div>
+  </div>
+  <div class="overlay"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="del-title">
+    <div class="grab"></div>
+    <div class="warn-ic"><svg><use href="#i-alert"/></svg></div>
+    <h2 class="t-h2" id="del-title">Delete your account?</h2>
+    <p class="lead">This can't be undone.</p>
+    <ul class="del-list">
+      <li><svg><use href="#i-block"/></svg><span><b>Your profile</b> and answers are removed from Discover</span></li>
+      <li><svg><use href="#i-block"/></svg><span><b>Your photos</b> and voice intro are deleted</span></li>
+      <li><svg><use href="#i-block"/></svg><span><b>Your login</b> stops working for aanya.k@gmail.com</span></li>
+      <li class="keep"><svg><use href="#i-chat"/></svg><span>Messages you already sent stay in other people's chats, shown from "Deleted user".</span></li>
+    </ul>
+    <div class="field" style="margin-top:var(--s-4)">
+      <label for="pw">Enter your password to confirm</label>
+      <div class="input focus"><svg><use href="#i-lock"/></svg><input id="pw" type="password" value="••••••••••" aria-label="Password"><button class="icon-btn" aria-label="Show password" style="width:40px;height:40px"><svg><use href="#i-eye"/></svg></button></div>
+    </div>
+    <div class="stack-2" style="margin-top:var(--s-5)">
+      <button class="btn btn-danger">Delete my account</button>
+      <button class="btn btn-ghost" style="width:100%;color:var(--text)">Cancel</button>
+    </div>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Delete account sheet.</b> Before anything is deleted, the sheet lists what goes (profile, photos, login) and what stays (sent messages, shown as "Deleted user"). Typing your password confirms it's really you. The red button names the action, and Cancel is the easy way out.</p>
+</div>
+
+</div></body></html>

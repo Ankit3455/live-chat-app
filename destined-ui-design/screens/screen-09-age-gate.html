@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>09 · Age gate — Destined</title>
+<link rel="stylesheet" href="../css/design-system.css">
+<style>
+  .wrap { padding: var(--s-10) var(--s-6) 180px; }
+  .badge18 { width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border-strong); position: relative; }
+  .badge18 b { font: 800 22px/1 var(--font-display); letter-spacing: -.02em; }
+  .badge18 b sup { font-size: 13px; color: var(--pink-300); margin-left: 1px; vertical-align: 7px; }
+  .wrap h1 { margin-top: var(--s-6); }
+  .wrap .lede { margin-top: var(--s-2); color: var(--text-muted); }
+  .private { display: flex; gap: var(--s-3); align-items: center; margin-top: var(--s-6); padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--bg-elev); border: 1px solid var(--border); font-size: var(--fs-label); line-height: var(--lh-label); color: var(--text-muted); }
+  .private svg { width: 18px; height: 18px; color: var(--violet-300); flex: none; }
+  .private .seen { color: var(--gold-400); font-weight: 600; white-space: nowrap; }
+  .input .val { flex: 1; font: 500 var(--fs-body) var(--font-body); color: var(--text); }
+  .help.zodiac { color: var(--gold-400); font-weight: 600; display: flex; gap: 6px; align-items: center; }
+  .help.zodiac svg { width: 14px; height: 14px; }
+  .check { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-4); margin-top: var(--s-5); border-radius: var(--r-md); background: rgba(139,92,246,.10); border: 1px solid rgba(139,92,246,.5); cursor: pointer; font-size: 14px; line-height: 20px; }
+  .check .box { width: 22px; height: 22px; border-radius: 7px; flex: none; display: grid; place-items: center; margin-top: 1px; background: var(--violet-600); border: 2px solid var(--violet-500); }
+  .check .box svg { width: 14px; height: 14px; color: #fff; }
+  .check a { color: var(--violet-300); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-6) var(--s-6) 30px; background: linear-gradient(180deg, transparent, var(--bg) 26%); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: var(--s-2); }
+  .signed { font-size: var(--fs-caption); color: var(--text-subtle); }
+
+  /* Blocked */
+  .blocked { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 var(--s-8) 120px; }
+  .moon-art { width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(139,92,246,.22), rgba(139,92,246,.06) 60%, transparent 72%); }
+  .moon-art span { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border-strong); }
+  .moon-art svg { width: 28px; height: 28px; color: var(--violet-300); }
+  .blocked h1 { margin-top: var(--s-6); }
+  .blocked p { margin-top: var(--s-3); color: var(--text-muted); }
+</style></head>
+<body>
+<script src="../assets/icons.js"></script><div class="stage">
+
+<!-- State A: confirm age -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="screen">
+    <div class="wrap">
+      <div class="badge18" aria-hidden="true"><b>18<sup>+</sup></b></div>
+      <h1 class="t-h1">Confirm your age</h1>
+      <p class="lede">Destined is for adults 18 and over. Your date of birth is private; others only see your age and zodiac sign.</p>
+
+      <div class="field" style="margin-top:var(--s-8)">
+        <label>Date of birth</label>
+        <button class="input focus" type="button" aria-label="Date of birth, 17/11/1998, opens date picker" style="width:100%;text-align:left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+          <span class="val">17/11/1998</span>
+        </button>
+        <span class="help zodiac"><svg><use href="#i-sparkle"/></svg>27 · Scorpio ♏︎</span>
+      </div>
+
+      <div class="private">
+        <svg><use href="#i-eye"/></svg>
+        <span>On your profile: <span class="seen">27 · Scorpio ♏︎</span>. Never the full date.</span>
+      </div>
+
+      <label class="check" role="checkbox" aria-checked="true" tabindex="0">
+        <span class="box"><svg><use href="#i-check"/></svg></span>
+        <span>I confirm I am 18 or older and agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></span>
+      </label>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary">Continue</button>
+    <button class="btn btn-ghost t-label">Sign out</button>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Confirm your age.</b> Shown before the app opens when the account has no date of birth on file. Picking a date shows the age and sign straight away, and the links inside the checkbox open without ticking it. Sign out is a quiet text button, so it doesn't compete with Continue. <i>Proposed:</i> the "On your profile" preview row.</p>
+</div>
+
+<!-- State B: blocked -->
+<div>
+<div class="device">
+  <div class="statusbar"><span>9:41</span><span class="icons"><i></i><i></i></span></div>
+  <div class="blocked" role="main">
+    <div class="moon-art" aria-hidden="true"><span><svg><use href="#i-moon"/></svg></span></div>
+    <h1 class="t-h1">Destined is only for adults</h1>
+    <p>You must be 18 or older to use Destined.</p>
+  </div>
+  <div class="footer">
+    <button class="btn btn-secondary">Sign out</button>
+    <span class="signed">Signed in as aanya.k@gmail.com</span>
+  </div>
+  <div class="home-indicator"></div>
+</div>
+<p class="caption-under"><b>Blocked.</b> No red, no warning icon, nothing that sounds like a punishment: just a calm moon, one plain sentence and a single way out. Sign out uses the secondary style because it is the only action, not a reward. <i>Proposed:</i> the "Signed in as" line, so people on shared devices know which account is affected.</p>
+</div>
+
+</div></body></html>
