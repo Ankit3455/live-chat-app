@@ -21,6 +21,7 @@ import '../../features/onboarding/tour_prefs.dart';
 import 'blocked_users_screen.dart';
 import 'discovery_settings_screen.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 /// Shown in the footer; keep in step with pubspec `version`.
 const String _appVersion = '1.0.0';
@@ -29,6 +30,7 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({Key? key}) : super(key: key);
 
   Future<void> _handleSignOut(BuildContext context) async {
+    Haptics.warning();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -95,7 +97,7 @@ class SettingsScreen extends StatelessWidget {
                     _SettingsRow(
                       icon: Icons.lock_outline,
                       title: 'Change password',
-                      subtitle: 'Update the password you sign in with',
+                      subtitle: 'Update the password you log in with',
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -120,7 +122,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const _GroupLabel('Notifications'),
               const _NotificationSettingsTiles(),
-              const _GroupLabel('Help & Support'),
+              const _GroupLabel('Help & support'),
               _SettingsGroup(
                 children: [
                   _SettingsRow(
@@ -137,7 +139,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const _GroupLabel('Privacy & Safety'),
+              const _GroupLabel('Privacy & safety'),
               _SettingsGroup(
                 children: [
                   const _BlockedUsersRow(),
@@ -249,7 +251,9 @@ class SettingsScreen extends StatelessWidget {
     } catch (_) {}
     if (!opened) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open the page.')),
+        const SnackBar(
+          content: Text("Couldn't open this page. Please try again later."),
+        ),
       );
     }
   }
@@ -281,7 +285,7 @@ class SettingsScreen extends StatelessWidget {
               Icon(Icons.check_circle, color: AppColors.white),
               SizedBox(width: 12),
               Expanded(
-                child: Text('Tutorial has been reset and will show again!'),
+                child: Text('Tutorial reset. It will show again next time.'),
               ),
             ],
           ),
@@ -291,7 +295,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           action: SnackBarAction(
-            label: 'VIEW NOW',
+            label: 'View now',
             textColor: AppColors.white,
             onPressed: () {
               if (context.mounted) _showTutorial(context);
@@ -316,7 +320,7 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Icon(Icons.bug_report, color: AppColors.brandPurpleLight),
             SizedBox(width: 12),
-            Flexible(child: Text('Tour Debug Info')),
+            Flexible(child: Text('Tour debug info')),
           ],
         ),
         content: Container(
@@ -368,11 +372,11 @@ class SettingsScreen extends StatelessWidget {
               Navigator.pop(dialogContext);
               await TourPrefs.resetAll();
               messenger.showSnackBar(
-                const SnackBar(content: Text('All tour data cleared!')),
+                const SnackBar(content: Text('All tour data cleared.')),
               );
             },
             child: const Text(
-              'Clear All',
+              'Clear all',
               style: TextStyle(color: AppColors.warning),
             ),
           ),
@@ -392,14 +396,14 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _deleteAccount(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    Haptics.warning();
     final deleted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       enableDrag: false,
       useSafeArea: true,
-      builder: (_) => _DeleteAccountSheet(
-        email: FirebaseAuth.instance.currentUser?.email,
-      ),
+      builder: (_) =>
+          _DeleteAccountSheet(email: FirebaseAuth.instance.currentUser?.email),
     );
     if (deleted != true) return;
     unawaited(
@@ -441,6 +445,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
   Future<void> _submit() async {
     if (_busy) return;
     if (_method == ReauthMethod.password && _password.text.isEmpty) {
+      Haptics.error();
       setState(() => _error = 'Enter your password to confirm.');
       return;
     }
@@ -470,6 +475,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } on AccountDeletionException catch (e) {
       if (!mounted) return;
+      Haptics.error();
       setState(() {
         _busy = false;
         _error = e.message;
@@ -523,6 +529,10 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
   Widget build(BuildContext context) {
     final email = widget.email;
     final emailText = (email == null || email.isEmpty) ? 'this account' : email;
+    final error = _error;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
     return PopScope(
       canPop: !_busy,
       child: Padding(
@@ -608,7 +618,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                     ),
                     _item(
                       Icons.block,
-                      'Your login',
+                      'Logging in',
                       'stops working for $emailText',
                     ),
                     const Divider(height: 12),
@@ -651,10 +661,19 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                   ),
                 ),
               ],
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                AppBanner(message: _error!, tone: AppBannerTone.error),
-              ],
+              AnimatedSwitcher(
+                duration: duration,
+                child: error == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        key: ValueKey(error),
+                        padding: const EdgeInsets.only(top: 12),
+                        child: AppBanner(
+                          message: error,
+                          tone: AppBannerTone.error,
+                        ),
+                      ),
+              ),
               const SizedBox(height: 20),
               ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 52),
@@ -668,23 +687,28 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
-                  child: _busy
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            semanticsLabel: 'Deleting account',
-                            color: AppColors.backgroundDeep,
-                            strokeWidth: 2.5,
+                  child: AnimatedSwitcher(
+                    duration: duration,
+                    child: _busy
+                        ? const SizedBox(
+                            key: ValueKey('busy'),
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              semanticsLabel: 'Deleting account',
+                              color: AppColors.backgroundDeep,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            'Delete my account',
+                            key: const ValueKey('idle'),
+                            style: GoogleFonts.montserrat(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        )
-                      : Text(
-                          'Delete my account',
-                          style: GoogleFonts.montserrat(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -970,6 +994,7 @@ class _NotificationSettingsTilesState
   Future<void> _save(String key, bool value) async {
     final ref = _ref;
     if (ref == null || _saving) return;
+    Haptics.selection();
     final previous = key == _push ? _pushEnabled : _messagesEnabled;
     setState(() {
       _saving = true;
@@ -1001,8 +1026,13 @@ class _NotificationSettingsTilesState
           _messagesEnabled = previous;
         }
       });
+      Haptics.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save. Try again.')),
+        const SnackBar(
+          content: Text(
+            "Couldn't save your notification setting. Check your connection and try again.",
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

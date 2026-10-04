@@ -5,6 +5,7 @@ import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dar
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/custom_button.dart';
 
 class ProfileCompletionScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   final Set<String> _completedSections = {};
   bool _isSaving = false;
   int _completionPercentage = 60;
+  // Section whose Save button briefly shows a check.
+  String? _savedSection;
 
   @override
   void initState() {
@@ -59,8 +62,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   /// Load current completion percentage
   Future<void> _loadCompletionPercentage() async {
     try {
-      final percentage = await ProfileCompletionManager()
-          .getCompletionPercentage();
+      final percentage =
+          await ProfileCompletionManager().getCompletionPercentage();
       if (mounted) setState(() => _completionPercentage = percentage);
     } catch (e) {
       debugPrint('Error loading completion: $e');
@@ -105,7 +108,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        throw const _SectionError('Please sign in again.');
+        throw const _SectionError('Please log in again.');
       }
 
       // ✅ Step 1: Collect ONLY answered questions for this section
@@ -145,7 +148,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
 
       if (sectionData.length < minimumRequired) {
         throw _SectionError(
-          'Please answer at least $minimumRequired questions (currently answered: ${sectionData.length})',
+          'Please answer at least $minimumRequired questions in this section. '
+          "You've answered ${sectionData.length} so far.",
         );
       }
 
@@ -163,12 +167,19 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       }
 
       // ✅ Step 5: Update completion percentage (also written back)
-      final percentage = await ProfileCompletionManager()
-          .getCompletionPercentage();
+      final percentage =
+          await ProfileCompletionManager().getCompletionPercentage();
       if (!mounted) return;
+      Haptics.success();
       setState(() {
         _completedSections.add(sectionTitle);
         _completionPercentage = percentage;
+        _savedSection = sectionTitle;
+      });
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted && _savedSection == sectionTitle) {
+          setState(() => _savedSection = null);
+        }
       });
 
       // ✅ Step 6: Show success message with answer count
@@ -176,9 +187,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '✅ $sectionTitle saved!\n'
-              'Answered: ${sectionData.length}/${questions.length} questions\n'
-              'Profile: $_completionPercentage% complete',
+              '$sectionTitle saved. Your profile is now '
+              '$_completionPercentage% complete.',
             ),
             duration: const Duration(seconds: 3),
           ),
@@ -187,12 +197,13 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
     } catch (e) {
       debugPrint('Save section failed: $e');
       if (mounted) {
+        Haptics.error();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               e is _SectionError
                   ? e.message
-                  : 'Could not save. Check your connection and try again.',
+                  : "We couldn't save this section. Check your connection and try again.",
             ),
             backgroundColor: AppColors.error,
             duration: const Duration(seconds: 4),
@@ -208,6 +219,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final animDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 400);
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
@@ -280,15 +294,23 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                       const SizedBox(height: 12),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _completionPercentage / 100,
-                          semanticsLabel: 'Profile strength',
-                          semanticsValue: '$_completionPercentage%',
-                          backgroundColor: AppColors.surface2,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.brandPurpleMid,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween<double>(
+                            end: _completionPercentage / 100,
                           ),
-                          minHeight: 10,
+                          duration: animDuration,
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, _) =>
+                              LinearProgressIndicator(
+                            value: value,
+                            semanticsLabel: 'Profile strength',
+                            semanticsValue: '$_completionPercentage%',
+                            backgroundColor: AppColors.surface2,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.brandPurpleMid,
+                            ),
+                            minHeight: 10,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -324,7 +346,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     return true;
                   }).length;
 
-                  return Container(
+                  return AnimatedContainer(
+                    duration: animDuration,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceCard,
@@ -426,16 +449,20 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                                 const SizedBox(height: 16),
 
                                 CustomButton(
-                                  text: isCompleted
-                                      ? 'Update ${section.title}'
-                                      : 'Save ${section.title}',
+                                  text: _savedSection == section.title
+                                      ? 'Saved'
+                                      : isCompleted
+                                          ? 'Update ${section.title}'
+                                          : 'Save ${section.title}',
                                   onPressed: _isSaving
                                       ? null
                                       : () => _saveSection(
-                                          section.title,
-                                          questions,
-                                        ),
-                                  isLoading: _isSaving,
+                                            section.title,
+                                            questions,
+                                          ),
+                                  isLoading: _isSaving &&
+                                      _savedSection != section.title,
+                                  isSuccess: _savedSection == section.title,
                                 ),
                               ],
                             ),

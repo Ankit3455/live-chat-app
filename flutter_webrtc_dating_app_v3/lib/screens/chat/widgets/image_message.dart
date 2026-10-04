@@ -33,10 +33,10 @@ class _ImageMessageState extends State<ImageMessage> {
   }
 
   BoxDecoration get _frame => BoxDecoration(
-    color: widget.isMe ? null : AppColors.surface2,
-    gradient: widget.isMe ? AppColors.primaryGradient : null,
-    borderRadius: BorderRadius.circular(20),
-  );
+        color: widget.isMe ? null : AppColors.surface2,
+        gradient: widget.isMe ? AppColors.primaryGradient : null,
+        borderRadius: BorderRadius.circular(20),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +142,7 @@ class _ImageMessageState extends State<ImageMessage> {
               minimumSize: const Size(48, 48),
             ),
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Retry'),
+            label: const Text('Try again'),
           ),
         ],
       ),
@@ -163,7 +163,7 @@ class _ImageMessageState extends State<ImageMessage> {
           Icon(Icons.broken_image_rounded, color: AppColors.lavender),
           SizedBox(width: 8),
           Text(
-            'Image unavailable',
+            'Photo unavailable',
             style: TextStyle(color: AppColors.lavender, fontSize: 13),
           ),
         ],
@@ -188,7 +188,7 @@ class FullScreenImageView extends StatelessWidget {
   final String imageUrl;
 
   const FullScreenImageView({Key? key, required this.imageUrl})
-    : super(key: key);
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +204,8 @@ class FullScreenImageView extends StatelessWidget {
             icon: const Icon(Icons.download_rounded),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Download coming soon')),
+                const SnackBar(
+                    content: Text("Saving photos isn't available yet.")),
               );
             },
           ),

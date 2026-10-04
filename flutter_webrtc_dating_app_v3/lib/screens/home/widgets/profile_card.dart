@@ -5,6 +5,7 @@ import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/widgets/motion.dart';
 
 import 'profile_quick_sheet.dart';
 
@@ -89,6 +90,13 @@ class _ProfileCardState extends State<ProfileCard>
     return km <= 5 ? 'Nearby' : '~$km km away';
   }
 
+  // Shared with ProfileDetailsScreen's hero photo.
+  Widget _heroPhoto() {
+    final uid = widget.user.uid;
+    if (uid == null || uid.isEmpty) return _photo();
+    return Hero(tag: 'profile-photo-$uid', child: _photo());
+  }
+
   Widget _photo() {
     final fallback = DecoratedBox(
       decoration: const BoxDecoration(
@@ -169,7 +177,7 @@ class _ProfileCardState extends State<ProfileCard>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _photo(),
+                  _heroPhoto(),
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -189,7 +197,11 @@ class _ProfileCardState extends State<ProfileCard>
                     right: 10,
                     child: Row(
                       children: [
-                        if (score != null) _CompatChip(score: score, user: user),
+                        if (score != null)
+                          FadeSlideIn(
+                            duration: const Duration(milliseconds: 420),
+                            child: _CompatChip(score: score, user: user),
+                          ),
                         const Spacer(),
                         if (user.online) const _OnlineDot(),
                       ],
@@ -222,7 +234,9 @@ class _ProfileCardState extends State<ProfileCard>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          age != null ? '${user.username}, $age' : user.username,
+                          age != null
+                              ? '${user.username}, $age'
+                              : user.username,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: nameStyle,

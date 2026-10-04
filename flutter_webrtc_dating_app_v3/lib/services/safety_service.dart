@@ -94,7 +94,7 @@ class SafetyService {
   String get _me {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
-      throw StateError('Sign in required');
+      throw StateError('Log in required');
     }
     return uid;
   }

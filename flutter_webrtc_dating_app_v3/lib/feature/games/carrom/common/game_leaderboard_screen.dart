@@ -1,5 +1,4 @@
 // lib/feature/games/common/game_leaderboard_screen.dart
-// STATUS: NEW FILE ✅
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,12 +13,12 @@ class CarromLeaderboardScreen extends StatefulWidget {
   const CarromLeaderboardScreen({Key? key}) : super(key: key);
 
   @override
-  State<CarromLeaderboardScreen> createState() => _CarromLeaderboardScreenState();
+  State<CarromLeaderboardScreen> createState() =>
+      _CarromLeaderboardScreenState();
 }
 
 class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
     with SingleTickerProviderStateMixin {
-
   late TabController _tabController;
   final _auth = FirebaseAuth.instance;
 
@@ -156,10 +155,14 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
         }
 
         if (snapshot.hasError) {
-          return const AppEmptyState(
+          return AppEmptyState(
             icon: Icons.error_outline,
-            title: 'Couldn\'t load the leaderboard',
-            message: 'Check your connection and try again.',
+            illustration: AppIllustrationKind.offline,
+            title: "Couldn't load the leaderboard",
+            message: 'Check your internet connection and try again.',
+            actionLabel: 'Try again',
+            // Rebuilding resubscribes to the leaderboard stream.
+            onAction: () => setState(() {}),
           );
         }
 
@@ -168,8 +171,9 @@ class _CarromLeaderboardScreenState extends State<CarromLeaderboardScreen>
         if (entries.isEmpty) {
           return const AppEmptyState(
             icon: Icons.emoji_events_outlined,
+            illustration: AppIllustrationKind.stars,
             title: 'No rankings yet',
-            message: 'Play games to appear here!',
+            message: 'Play a game of Carrom to get on the board.',
           );
         }
 

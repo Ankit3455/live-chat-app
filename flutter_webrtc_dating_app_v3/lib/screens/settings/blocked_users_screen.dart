@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../services/safety_service.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/app_states.dart';
 
 /// Settings > Blocked users: list with unblock (DEST-003).
@@ -44,6 +45,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   }
 
   Future<void> _unblock(BlockedUser user, String name) async {
+    Haptics.warning();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -74,10 +76,16 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await SafetyService.instance.unblock(user.uid);
+      Haptics.success();
       messenger.showSnackBar(SnackBar(content: Text('Unblocked $name')));
     } catch (e) {
+      Haptics.error();
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not unblock. Try again.')),
+        const SnackBar(
+          content: Text(
+            "Couldn't unblock right now. Check your connection and try again.",
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy.remove(user.uid));
@@ -120,9 +128,10 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
           if (snap.hasError) {
             return AppEmptyState(
               icon: Icons.cloud_off_outlined,
-              title: 'Could not load blocked users',
+              illustration: AppIllustrationKind.offline,
+              title: "Couldn't load blocked users",
               message: 'Check your connection and try again.',
-              actionLabel: 'Retry',
+              actionLabel: 'Try again',
               onAction: _retry,
             );
           }
@@ -135,6 +144,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
           if (users.isEmpty) {
             return const AppEmptyState(
               icon: Icons.shield_outlined,
+              illustration: AppIllustrationKind.noBlocked,
               title: 'No blocked users',
               message:
                   "If you block someone from their profile or a chat, they'll show up here.",
@@ -229,43 +239,53 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                if (busy)
-                  const SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          semanticsLabel: 'Unblocking',
-                          strokeWidth: 2,
-                          color: AppColors.brandPurpleLight,
+                AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  child: busy
+                      ? const SizedBox(
+                          key: ValueKey('busy'),
+                          width: 48,
+                          height: 48,
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                semanticsLabel: 'Unblocking',
+                                strokeWidth: 2,
+                                color: AppColors.brandPurpleLight,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Tooltip(
+                          key: const ValueKey('idle'),
+                          message: 'Unblock $name',
+                          child: OutlinedButton(
+                            onPressed: () => _unblock(user, name),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.white,
+                              backgroundColor: AppColors.surfaceCard,
+                              side: const BorderSide(
+                                color: AppColors.borderStrong,
+                              ),
+                              shape: const StadiumBorder(),
+                              minimumSize: const Size(48, 40),
+                              tapTargetSize: MaterialTapTargetSize.padded,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            child: const Text('Unblock'),
+                          ),
                         ),
-                      ),
-                    ),
-                  )
-                else
-                  Tooltip(
-                    message: 'Unblock $name',
-                    child: OutlinedButton(
-                      onPressed: () => _unblock(user, name),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.white,
-                        backgroundColor: AppColors.surfaceCard,
-                        side: const BorderSide(color: AppColors.borderStrong),
-                        shape: const StadiumBorder(),
-                        minimumSize: const Size(48, 40),
-                        tapTargetSize: MaterialTapTargetSize.padded,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      child: const Text('Unblock'),
-                    ),
-                  ),
+                ),
               ],
             ),
           ),

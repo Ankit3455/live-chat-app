@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../managers/unread_manager.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
+import '../../../widgets/motion.dart';
 
 /// Tabs: 0 Discover, 1 Chats, 2 Games, 3 Profile (see MainShell).
 class CustomBottomNav extends StatelessWidget {
@@ -18,6 +20,12 @@ class CustomBottomNav extends StatelessWidget {
     required this.onTap,
     this.itemKeys,
   });
+
+  // Haptic tick only when the tab actually changes.
+  void _select(int index) {
+    if (index != currentIndex) Haptics.selection();
+    onTap(index);
+  }
 
   GlobalKey? _keyAt(int index) {
     final keys = itemKeys;
@@ -55,39 +63,39 @@ class CustomBottomNav extends StatelessWidget {
       child: MediaQuery.withClampedTextScaling(
         maxScaleFactor: 1.3,
         child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(
-            icon: Icons.explore,
-            label: 'Discover',
-            isSelected: currentIndex == 0,
-            itemKey: _keyAt(0),
-            onTap: () => onTap(0),
-          ),
-          _NavItem(
-            icon: Icons.chat_bubble,
-            label: 'Chats',
-            isSelected: currentIndex == 1,
-            badgeCount: unread,
-            itemKey: _keyAt(1),
-            onTap: () => onTap(1),
-          ),
-          _NavItem(
-            icon: Icons.games,
-            label: 'Games',
-            isSelected: currentIndex == 2,
-            itemKey: _keyAt(2),
-            onTap: () => onTap(2),
-          ),
-          _NavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: currentIndex == 3,
-            itemKey: _keyAt(3),
-            onTap: () => onTap(3),
-          ),
-        ],
-      ),
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _NavItem(
+              icon: Icons.explore,
+              label: 'Discover',
+              isSelected: currentIndex == 0,
+              itemKey: _keyAt(0),
+              onTap: () => _select(0),
+            ),
+            _NavItem(
+              icon: Icons.chat_bubble,
+              label: 'Chats',
+              isSelected: currentIndex == 1,
+              badgeCount: unread,
+              itemKey: _keyAt(1),
+              onTap: () => _select(1),
+            ),
+            _NavItem(
+              icon: Icons.games,
+              label: 'Games',
+              isSelected: currentIndex == 2,
+              itemKey: _keyAt(2),
+              onTap: () => _select(2),
+            ),
+            _NavItem(
+              icon: Icons.person,
+              label: 'Profile',
+              isSelected: currentIndex == 3,
+              itemKey: _keyAt(3),
+              onTap: () => _select(3),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -112,8 +120,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semanticLabel =
-        badgeCount > 0 ? '$label, $badgeCount unread' : label;
+    final semanticLabel = badgeCount > 0 ? '$label, $badgeCount unread' : label;
     return Expanded(
       child: Semantics(
         button: true,
@@ -139,8 +146,8 @@ class _NavItem extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: isSelected
             ? const LinearGradient(
-          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
-        )
+                colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
+              )
             : null,
         borderRadius: BorderRadius.circular(18),
       ),
@@ -168,31 +175,39 @@ class _NavItem extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Icon(
-          icon,
-          color: isSelected ? Colors.white : AppColors.lavender,
-          size: 22,
+        PopOnChange(
+          value: isSelected,
+          active: isSelected,
+          peak: 1.2,
+          child: Icon(
+            icon,
+            color: isSelected ? Colors.white : AppColors.lavender,
+            size: 22,
+          ),
         ),
         if (badgeCount > 0)
           Positioned(
             right: -8,
             top: -6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.error,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              child: Text(
-                badgeCount > 99 ? '99+' : '$badgeCount',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  height: 1.0,
+            child: PopOnChange(
+              value: badgeCount,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    height: 1.0,
+                  ),
                 ),
               ),
             ),

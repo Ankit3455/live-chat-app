@@ -4,6 +4,7 @@ import 'package:availchat/models/question_model.dart';
 import 'package:availchat/models/question_type.dart';
 import 'package:availchat/models/question_category.dart';
 import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/core/utils/haptics.dart';
 
 class QuestionWidget extends StatefulWidget {
   final Question question;
@@ -291,6 +292,7 @@ class _QuestionWidgetState extends State<QuestionWidget> {
               emoji: _emojiFor(option),
               selected: option == selected,
               onTap: () {
+                Haptics.selection();
                 setState(() => _currentAnswer = option);
                 widget.onAnswerChanged(option);
               },
@@ -315,6 +317,7 @@ class _QuestionWidgetState extends State<QuestionWidget> {
                 emoji: _optionEmoji[option],
                 selected: selectedList.contains(option),
                 onTap: () {
+                  Haptics.selection();
                   final newList = List<String>.from(selectedList);
                   if (!newList.remove(option)) newList.add(option);
                   setState(() => _currentAnswer = newList);
@@ -354,6 +357,9 @@ class _OptionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = emoji;
     final radius = BorderRadius.circular(14);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
     return Semantics(
       inMutuallyExclusiveGroup: true,
       checked: selected,
@@ -361,71 +367,81 @@ class _OptionRow extends StatelessWidget {
       label: label,
       excludeSemantics: true,
       onTap: onTap,
-      child: Material(
-        color: selected
-            ? AppColors.brandPurpleMid.withOpacity(0.12)
-            : AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
+      // Colour and border ease in on selection.
+      child: AnimatedContainer(
+        duration: duration,
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.brandPurpleMid.withOpacity(0.12)
+              : AppColors.surfaceCard,
           borderRadius: radius,
-          side: BorderSide(
+          border: Border.all(
             color: selected ? AppColors.brandPurpleMid : AppColors.border,
           ),
         ),
-        child: InkWell(
-          borderRadius: radius,
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 60),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  if (e != null) ...[
-                    Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.surface2,
-                        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 60),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    if (e != null) ...[
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.surface2,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(e, style: const TextStyle(fontSize: 18)),
                       ),
-                      child: Text(e, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 12),
+                    AnimatedContainer(
+                      duration: duration,
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected ? AppColors.brandPurple : null,
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.brandPurpleMid
+                              : AppColors.borderStrong,
+                          width: 2,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 14,
+                              color: AppColors.white,
+                            )
+                          : null,
+                    ),
                   ],
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: selected ? AppColors.brandPurple : null,
-                      border: Border.all(
-                        color: selected
-                            ? AppColors.brandPurpleMid
-                            : AppColors.borderStrong,
-                        width: 2,
-                      ),
-                    ),
-                    child: selected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 14,
-                            color: AppColors.white,
-                          )
-                        : null,
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -18,6 +18,7 @@ import 'package:availchat/services/voice_intro_service.dart';
 import 'package:availchat/widgets/custom_button.dart';
 import 'package:availchat/widgets/user_avatar.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final UserModel user;
@@ -55,6 +56,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final Map<String, Object> _pending = {};
 
   bool _isSaving = false;
+  bool _saved = false;
   Stream<DocumentSnapshot>? _voiceDocStream;
 
   @override
@@ -71,11 +73,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   List<TextEditingController> get _controllers => [
-    _usernameController,
-    _bioController,
-    _professionController,
-    _locationController,
-  ];
+        _usernameController,
+        _bioController,
+        _professionController,
+        _locationController,
+      ];
 
   void _onTextChanged() {
     if (mounted) setState(() {});
@@ -98,7 +100,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _saveChanges() async {
     final form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
+    if (form == null || !form.validate()) {
+      Haptics.error();
+      return;
+    }
     final uid = widget.user.uid;
     if (uid == null) return;
 
@@ -115,27 +120,39 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
       // City changed: re-geocode so distance follows the new city (DEST-081).
       final newCity = _locationController.text.trim();
-      final cityFound =
-          newCity.isEmpty ||
+      final cityFound = newCity.isEmpty ||
           newCity == (_user.location ?? '').trim() ||
           await LocationService.instance.updateFromCity(newCity);
 
       if (!mounted) return;
+      Haptics.success();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             cityFound
                 ? 'Profile updated'
-                : 'Profile updated. Could not find that city; distance may be inaccurate.',
+                : 'Profile updated. We couldn\'t find that city, so distance may be off.',
           ),
         ),
       );
+      // Brief success state on the button before going back.
+      setState(() {
+        _isSaving = false;
+        _saved = true;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       debugPrint('Profile save failed: $e');
+      Haptics.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save. Please try again.')),
+        const SnackBar(
+          content: Text(
+            'We couldn\'t save your changes. Check your connection and try again.',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -147,15 +164,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final uid = widget.user.uid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!mounted) return;
       if (!doc.exists) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Profile not found')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'We couldn\'t find your profile. Pull down to try again.',
+            ),
+          ),
+        );
         return;
       }
       final fresh = UserModel.fromFirestore(doc);
@@ -171,7 +190,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (!mounted) return;
       debugPrint('Profile refresh failed: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not refresh. Please try again.')),
+        const SnackBar(
+          content: Text(
+            'We couldn\'t refresh your profile. Check your connection and try again.',
+          ),
+        ),
       );
     }
   }
@@ -277,13 +300,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await VoiceIntroService.deleteVoice();
+      Haptics.success();
       messenger.showSnackBar(
         const SnackBar(content: Text('Voice intro removed')),
       );
     } catch (e) {
       debugPrint('Voice delete failed: $e');
+      Haptics.error();
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not remove. Please try again.')),
+        const SnackBar(
+          content: Text(
+            'We couldn\'t remove your voice intro. Please try again.',
+          ),
+        ),
       );
     }
   }
@@ -606,9 +635,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           ? AppColors.brandPurpleLight
                           : AppColors.lavender,
                       fontSize: 14,
-                      fontWeight: value == null
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      fontWeight:
+                          value == null ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -644,49 +672,52 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final uid = base.uid;
     if (uid == null) return _voiceGroup(base);
 
-    _voiceDocStream ??= FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .snapshots();
+    _voiceDocStream ??=
+        FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _voiceDocStream,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.brandPurpleLight,
-                ),
-              ),
-            ),
-          );
-        }
-
-        final doc = snap.data;
-        if (snap.hasError || doc == null || !doc.exists) {
-          return _voiceGroup(base);
-        }
-
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        final liveUser = UserModel.fromMap({
-          ...data,
-          'uid': doc.id,
-        }, uid: doc.id);
-
-        final mergedForVoice = base.copyWith(
-          voiceIntroUrl: liveUser.voiceIntroUrl,
-          voiceIntroDurationSeconds: liveUser.voiceIntroDurationSeconds,
-        );
-
-        return _voiceGroup(mergedForVoice);
-      },
+      builder: (context, snap) => AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 200),
+        child: _voiceSnapshot(base, snap),
+      ),
     );
+  }
+
+  Widget _voiceSnapshot(UserModel base, AsyncSnapshot<DocumentSnapshot> snap) {
+    if (snap.connectionState == ConnectionState.waiting) {
+      return const Padding(
+        key: ValueKey('voice-loading'),
+        padding: EdgeInsets.symmetric(vertical: 8.0),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.brandPurpleLight,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final doc = snap.data;
+    if (snap.hasError || doc == null || !doc.exists) {
+      return _voiceGroup(base);
+    }
+
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final liveUser = UserModel.fromMap({...data, 'uid': doc.id}, uid: doc.id);
+
+    final mergedForVoice = base.copyWith(
+      voiceIntroUrl: liveUser.voiceIntroUrl,
+      voiceIntroDurationSeconds: liveUser.voiceIntroDurationSeconds,
+    );
+
+    return _voiceGroup(mergedForVoice);
   }
 
   Widget _voiceGroup(UserModel user) {
@@ -701,7 +732,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Let people hear your vibe with a 10-20s intro.',
+                  'Let people hear your vibe with a 10–20 second voice intro.',
                   style: TextStyle(color: AppColors.lavender, fontSize: 14),
                 ),
               ),
@@ -770,7 +801,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!changed && !_isSaving)
+                  if (!changed && !_isSaving && !_saved)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 8),
                       child: Text(
@@ -784,7 +815,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   CustomButton(
                     text: 'Save changes',
                     isLoading: _isSaving,
-                    onPressed: changed && !_isSaving ? _saveChanges : null,
+                    isSuccess: _saved,
+                    onPressed:
+                        changed && !_isSaving && !_saved ? _saveChanges : null,
                   ),
                 ],
               ),
@@ -820,6 +853,7 @@ class _OptionSheetState extends State<_OptionSheet> {
   late final Set<String> _selected = {...widget.initial};
 
   void _tap(String option) {
+    Haptics.selection();
     if (!widget.multi) {
       Navigator.pop(context, {option});
       return;
@@ -911,8 +945,14 @@ class _OptionSheetState extends State<_OptionSheet> {
       button: true,
       child: InkWell(
         onTap: () => _tap(option),
-        child: ConstrainedBox(
+        child: AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 52),
+          color: selected
+              ? AppColors.brandPurple.withValues(alpha: 0.14)
+              : Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -932,11 +972,11 @@ class _OptionSheetState extends State<_OptionSheet> {
                 Icon(
                   widget.multi
                       ? (selected
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank)
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank)
                       : (selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked),
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked),
                   size: 22,
                   color: selected
                       ? AppColors.brandPurpleLight

@@ -3,11 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:simple_ripple_animation/simple_ripple_animation.dart';
 
+import '../../../../core/utils/haptics.dart';
 import '../constants.dart';
 import '../ludo_multiplayer_provider.dart';
 
 class DiceWidget extends StatelessWidget {
   const DiceWidget({super.key});
+
+  // Local tap only, so the opponent's rolls never buzz.
+  void _roll(LudoMultiplayerProvider provider) {
+    Haptics.light();
+    provider.throwDice();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,64 +40,66 @@ class DiceWidget extends StatelessWidget {
           enabled: canThrow,
           label: label,
           excludeSemantics: true,
-          onTap: canThrow ? () => provider.throwDice() : null,
+          onTap: canThrow ? () => _roll(provider) : null,
           child: GestureDetector(
-          onTap: canThrow ? () => provider.throwDice() : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: canThrow
-                  ? [
-                BoxShadow(
-                  color: diceColor.withOpacity(0.5),
-                  blurRadius: 15,
-                  spreadRadius: 2,
-                ),
-              ]
-                  : [],
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Ripple animation when can throw (off for reduced motion)
-                if (canThrow && !reduceMotion)
-                  RippleAnimation(
-                    color: diceColor,
-                    ripplesCount: 3,
-                    minRadius: 25,
-                    repeat: true,
-                    child: const SizedBox.shrink(),
-                  ),
-
-                // Dice image
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: canThrow ? 1.0 : 0.5,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: canThrow
-                          ? Border.all(color: diceColor, width: 2)
-                          : null,
+            onTap: canThrow ? () => _roll(provider) : null,
+            child: AnimatedContainer(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: canThrow
+                    ? [
+                        BoxShadow(
+                          color: diceColor.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Ripple animation when can throw (off for reduced motion)
+                  if (canThrow && !reduceMotion)
+                    RippleAnimation(
+                      color: diceColor,
+                      ripplesCount: 3,
+                      minRadius: 25,
+                      repeat: true,
+                      child: const SizedBox.shrink(),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: provider.diceStarted
-                          ? Image.asset(
-                        "assets/images/dice/draw.gif",
-                        fit: BoxFit.contain,
-                      )
-                          : Image.asset(
-                        "assets/images/dice/${provider.diceResult}.png",
-                        fit: BoxFit.contain,
+
+                  // Dice image
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: canThrow ? 1.0 : 0.5,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: canThrow
+                            ? Border.all(color: diceColor, width: 2)
+                            : null,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: provider.diceStarted
+                            ? Image.asset(
+                                "assets/images/dice/draw.gif",
+                                fit: BoxFit.contain,
+                              )
+                            : Image.asset(
+                                "assets/images/dice/${provider.diceResult}.png",
+                                fit: BoxFit.contain,
+                              ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           ),
         );
       },

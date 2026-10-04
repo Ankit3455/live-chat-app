@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
@@ -44,7 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleEmailLogin() async {
     if (_isLoading) return;
     setState(() => _error = null);
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      Haptics.error();
+      return;
+    }
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -93,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       _showError(AuthValidators.messageFor(e));
     } catch (e) {
-      _showError('Google Sign-In failed');
+      _showError("Couldn't continue with Google. Please try again.");
     } finally {
       if (mounted) {
         setState(() {
@@ -165,6 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Errors show inline above the fields.
   void _showError(String message) {
     if (!mounted) return;
+    Haptics.error();
     setState(() => _error = message);
   }
 
@@ -187,6 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final error = _error;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -204,10 +210,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       const BrandHeader(),
                       const SizedBox(height: 36),
-                      if (error != null) ...[
-                        AppBanner(message: error, tone: AppBannerTone.error),
-                        const SizedBox(height: 16),
-                      ],
+                      AnimatedSwitcher(
+                        duration: reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 200),
+                        child: error == null
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                key: ValueKey(error),
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: AppBanner(
+                                  message: error,
+                                  tone: AppBannerTone.error,
+                                ),
+                              ),
+                      ),
                       _buildForm(),
                       Align(
                         alignment: Alignment.centerRight,
@@ -384,7 +401,7 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
           ),
           child: const Text(
-            'Create an account',
+            'Create account',
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
         ),

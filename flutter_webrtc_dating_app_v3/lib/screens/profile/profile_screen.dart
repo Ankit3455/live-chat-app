@@ -25,6 +25,7 @@ import 'package:availchat/widgets/custom_button.dart';
 import 'package:availchat/widgets/user_avatar.dart';
 import 'package:availchat/widgets/avatar_story.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -37,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? _currentUser;
   bool _isLoading = true;
   String? _loadError;
+  bool _loadFailedOffline = false;
   bool _avatarBusy = false;
   int _completionPercentage = 0;
   // Raw profile doc; drives the completion checklist.
@@ -56,7 +58,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           setState(() {
             _currentUser = null;
-            _loadError = 'You are signed out. Please sign in again.';
+            _loadError = 'You\'re logged out. Please log in again.';
+            _loadFailedOffline = false;
           });
         }
         return;
@@ -71,7 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!doc.exists) {
         setState(() {
           _currentUser = null;
-          _loadError = 'We could not find your profile.';
+          _loadError = 'We couldn\'t find your profile. Please try again.';
+          _loadFailedOffline = false;
         });
         return;
       }
@@ -82,18 +86,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _loadError = null;
       });
 
-      final percentage = await ProfileCompletionManager()
-          .getCompletionPercentage();
+      final percentage =
+          await ProfileCompletionManager().getCompletionPercentage();
       if (!mounted) return;
       setState(() => _completionPercentage = percentage);
     } catch (e) {
       debugPrint('Error loading profile: $e');
       if (!mounted) return;
       if (_currentUser == null) {
-        setState(() => _loadError = 'Please check your connection.');
+        setState(() {
+          _loadError = 'Check your connection and try again.';
+          _loadFailedOffline = true;
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not refresh your profile.')),
+          const SnackBar(
+            content: Text(
+              'We couldn\'t refresh your profile. Pull down to try again.',
+            ),
+          ),
         );
       }
     } finally {
@@ -122,6 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (result == null) return;
       await _loadUserData();
       if (!mounted) return;
+      Haptics.success();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
@@ -129,8 +141,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       final message = e is ProfilePhotoException
           ? e.message
-          : 'Could not update your photo. Please try again.';
+          : 'We couldn\'t update your photo. Check your connection and try again.';
       debugPrint('Avatar action failed: $e');
+      Haptics.error();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -466,8 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final basics = QuestionnaireHelper.getMandatoryQuestions()
         .map((q) => q.fieldName)
         .where((f) => f.isNotEmpty);
-    final astrologyDone =
-        _answered(_profileData['preferredSigns']) ||
+    final astrologyDone = _answered(_profileData['preferredSigns']) ||
         _profileData['believesInAstrology'] != null;
     return [
       ProfileTodo(
@@ -501,8 +513,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       ProfileTodo(
         label: 'Lifestyle & personality',
-        done:
-            _sectionDone(
+        done: _sectionDone(
               'lifestyleCompleted',
               QuestionnaireHelper.getLifestyleQuestions(),
             ) &&
@@ -526,66 +537,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final hPad = width > 600 ? (width - 560) / 2 : 20.0;
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.brandPurple),
-            )
-          : user == null
-          ? SafeArea(
-              child: AppEmptyState(
-                icon: Icons.cloud_off_outlined,
-                title: 'Could not load your profile',
-                message: _loadError ?? 'Please try again.',
-                actionLabel: 'Retry',
-                onAction: _refreshProfile,
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _refreshProfile,
-              color: AppColors.brandPurple,
-              backgroundColor: AppColors.surfaceCard,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverAppBar(
-                    pinned: true,
-                    automaticallyImplyLeading: false,
-                    backgroundColor: AppColors.backgroundDeep,
-                    surfaceTintColor: Colors.transparent,
-                    centerTitle: false,
-                    titleSpacing: 20,
-                    title: Semantics(
-                      header: true,
-                      child: Text(
-                        'Profile',
-                        style: GoogleFonts.montserrat(
-                          color: AppColors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+      body: AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        child: _isLoading
+            ? const Center(
+                key: ValueKey('profile-loading'),
+                child: CircularProgressIndicator(color: AppColors.brandPurple),
+              )
+            : user == null
+                ? SafeArea(
+                    key: const ValueKey('profile-error'),
+                    child: AppEmptyState(
+                      icon: _loadFailedOffline
+                          ? Icons.cloud_off_outlined
+                          : Icons.error_outline,
+                      illustration: _loadFailedOffline
+                          ? AppIllustrationKind.offline
+                          : AppIllustrationKind.error,
+                      title: 'We couldn\'t load your profile',
+                      message: _loadError ?? 'Please try again.',
+                      actionLabel: 'Try again',
+                      onAction: _refreshProfile,
                     ),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.settings_outlined,
-                          color: AppColors.white,
+                  )
+                : RefreshIndicator(
+                    key: const ValueKey('profile-content'),
+                    onRefresh: _refreshProfile,
+                    color: AppColors.brandPurple,
+                    backgroundColor: AppColors.surfaceCard,
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverAppBar(
+                          pinned: true,
+                          automaticallyImplyLeading: false,
+                          backgroundColor: AppColors.backgroundDeep,
+                          surfaceTintColor: Colors.transparent,
+                          centerTitle: false,
+                          titleSpacing: 20,
+                          title: Semantics(
+                            header: true,
+                            child: Text(
+                              'Profile',
+                              style: GoogleFonts.montserrat(
+                                color: AppColors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.settings_outlined,
+                                color: AppColors.white,
+                              ),
+                              tooltip: 'Settings',
+                              onPressed: _openSettings,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                         ),
-                        tooltip: 'Settings',
-                        onPressed: _openSettings,
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 32),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate(_content(user)),
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 32),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate(_content(user)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
+      ),
     );
   }
 
@@ -600,9 +624,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         user: user,
         busy: _avatarBusy,
         onChangePhoto: _showChangeAvatarSheet,
-        onAvatarStoryTap: avatarTraitsFor(user).isEmpty
-            ? null
-            : _showAvatarStorySheet,
+        onAvatarStoryTap:
+            avatarTraitsFor(user).isEmpty ? null : _showAvatarStorySheet,
       ),
       const SizedBox(height: 20),
       Row(

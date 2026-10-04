@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../services/voice_intro_service.dart';
 import '../../widgets/custom_button.dart';
 import '../questionnaire/widgets/progress_header.dart';
@@ -37,6 +38,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
   Timer? _timer;
   bool _recording = false;
   bool _saving = false;
+  bool _saved = false;
 
   @override
   void dispose() {
@@ -53,12 +55,14 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
   Future<void> _start() async {
     final ok = await VoiceIntroService.hasMicPermission();
     if (!ok) {
-      _snack('Microphone permission required');
+      Haptics.error();
+      _snack('Allow microphone access in your phone settings to record.');
       return;
     }
     final p = await VoiceIntroService.startRecording();
     if (p == null || !mounted) return;
 
+    Haptics.light();
     setState(() {
       _tempPath = p;
       _elapsed = 0;
@@ -83,7 +87,9 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
     _pulse.stop();
     final path = _tempPath;
     if (path != null) await VoiceIntroService.stopRecording(tempPath: path);
-    if (mounted) setState(() => _recording = false);
+    if (!mounted) return;
+    Haptics.light();
+    setState(() => _recording = false);
   }
 
   Future<void> _playPreview() async {
@@ -95,7 +101,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
 
   Future<void> _save() async {
     final path = _tempPath;
-    if (path == null || _saving) return;
+    if (path == null || _saving || _saved) return;
     setState(() => _saving = true);
     try {
       final res = await VoiceIntroService.uploadAndSave(
@@ -104,13 +110,28 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
       );
       if (!mounted) return;
       if (res == null) {
-        _snack('Could not save. Check your connection and try again.');
+        Haptics.error();
+        _snack(
+          'We couldn\'t save your voice intro. Check your connection and try again.',
+        );
         return;
       }
+      Haptics.success();
       _snack('Voice intro saved');
+      // Brief success state on the button before going back.
+      setState(() {
+        _saving = false;
+        _saved = true;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
-      _snack('Failed to save: $e');
+      debugPrint('Voice intro save failed: $e');
+      Haptics.error();
+      _snack(
+        'We couldn\'t save your voice intro. Check your connection and try again.',
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -140,7 +161,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
     final hasClip = _tempPath != null && !_recording;
 
     return PopScope(
-      canPop: !_saving,
+      canPop: !_saving && !_saved,
       child: Scaffold(
         backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
@@ -153,7 +174,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
                     currentStep: 1,
                     totalSteps: 1,
                     stepLabel: 'Last step',
-                    onBack: _saving
+                    onBack: _saving || _saved
                         ? null
                         : () => Navigator.of(context).pop(false),
                   ),
@@ -207,7 +228,20 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
                             ],
                           ),
                           const SizedBox(height: 32),
-                          if (hasClip) _previewCard() else _recorder(),
+                          AnimatedSwitcher(
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 200),
+                            child: hasClip
+                                ? KeyedSubtree(
+                                    key: const ValueKey('voice-preview'),
+                                    child: _previewCard(),
+                                  )
+                                : KeyedSubtree(
+                                    key: const ValueKey('voice-recorder'),
+                                    child: _recorder(),
+                                  ),
+                          ),
                         ],
                       ),
                     ),
@@ -225,7 +259,8 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
                                   text: 'Re-record',
                                   type: ButtonType.outline,
                                   leftIcon: Icons.mic_rounded,
-                                  onPressed: _saving ? null : _discard,
+                                  onPressed:
+                                      _saving || _saved ? null : _discard,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -234,6 +269,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
                                   text: 'Save',
                                   onPressed: _save,
                                   isLoading: _saving,
+                                  isSuccess: _saved,
                                 ),
                               ),
                             ],
@@ -243,7 +279,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
                         CustomButton(
                           text: 'Skip for now',
                           type: ButtonType.text,
-                          onPressed: _saving || _recording
+                          onPressed: _saving || _saved || _recording
                               ? null
                               : () => Navigator.of(context).pop(false),
                         ),
@@ -259,6 +295,11 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
     );
   }
 
+  void _togglePrompt(String text) {
+    Haptics.selection();
+    setState(() => _prompt = _prompt == text ? null : text);
+  }
+
   // Visual suggestion only; selecting one just highlights it.
   Widget _promptChip(String text) {
     final selected = _prompt == text;
@@ -267,13 +308,16 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
       selected: selected,
       label: text,
       excludeSemantics: true,
-      onTap: () => setState(() => _prompt = selected ? null : text),
+      onTap: () => _togglePrompt(text),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _prompt = selected ? null : text),
+        onTap: () => _togglePrompt(text),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Container(
+          child: AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
             constraints: const BoxConstraints(minHeight: 40),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(

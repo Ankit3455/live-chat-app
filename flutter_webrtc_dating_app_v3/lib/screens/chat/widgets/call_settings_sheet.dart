@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../models/call_model.dart';
 import '../../../services/call/call_consent.dart';
 import '../../../widgets/app_states.dart';
@@ -69,6 +70,7 @@ class _CallSettingsSheetState extends State<CallSettingsSheet> {
   final Map<CallType, bool> _pending = {};
 
   Future<void> _toggle(CallType type, bool value) async {
+    Haptics.selection();
     setState(() => _pending[type] = value);
     await widget.onChanged(type, value);
     if (!mounted) return;
@@ -145,8 +147,7 @@ class _CallSettingsSheetState extends State<CallSettingsSheet> {
   Widget _buildRow(Map<String, dynamic>? data, CallType type) {
     final isVideo = type == CallType.video;
     final label = isVideo ? 'Video calls' : 'Voice calls';
-    final mine =
-        _pending[type] ??
+    final mine = _pending[type] ??
         (data != null && CallConsent.isEnabledFor(data, widget.myUid, type));
     final theirs =
         data != null && CallConsent.isEnabledFor(data, widget.otherUid, type);

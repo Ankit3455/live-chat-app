@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../models/call_model.dart';
 import '../../../services/call/call_service.dart';
 import '../../../widgets/custom_button.dart';
@@ -213,11 +214,11 @@ class CallBackdrop extends StatelessWidget {
 
 /// Display-font heading used for the other person's name.
 TextStyle callNameStyle({double size = 30}) => GoogleFonts.montserrat(
-  color: AppColors.white,
-  fontSize: size,
-  fontWeight: FontWeight.w800,
-  height: 1.2,
-);
+      color: AppColors.white,
+      fontSize: size,
+      fontWeight: FontWeight.w800,
+      height: 1.2,
+    );
 
 /// Shown instead of a SnackBar when an outgoing call was not picked up.
 class CallEndedView extends StatelessWidget {
@@ -497,6 +498,7 @@ mixin ActiveCallScreenMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> hangUp() async {
+    Haptics.warning();
     _hungUpLocally = true;
     await callService.endCall();
     closeCallScreen();

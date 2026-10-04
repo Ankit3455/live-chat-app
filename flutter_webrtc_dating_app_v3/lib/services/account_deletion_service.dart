@@ -29,7 +29,7 @@ class AccountDeletionService {
   static User get _user {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw const AccountDeletionException('You are not signed in.');
+      throw const AccountDeletionException('You are not logged in.');
     }
     return user;
   }
@@ -84,7 +84,7 @@ class AccountDeletionService {
     } on FirebaseAuthException catch (e) {
       throw AccountDeletionException(
         e.code == 'user-mismatch'
-            ? 'Choose the Google account you signed in with.'
+            ? 'Choose the Google account you used to log in.'
             : AuthValidators.messageFor(e),
       );
     }
@@ -112,7 +112,7 @@ class AccountDeletionService {
         case 'failed-precondition':
         case 'unauthenticated':
           throw const AccountDeletionException(
-            'For your security, please confirm your sign-in again and retry.',
+            'For your security, please log in again and retry.',
           );
         case 'not-found':
         case 'unimplemented':

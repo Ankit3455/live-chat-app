@@ -158,7 +158,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   void _navigateToChat(UserModel user) {
     if (!_controller.isValidUserForChat(user)) {
-      _showSnackBar('Unable to open chat. Invalid user.');
+      _showSnackBar("Couldn't open this chat. Please try again.");
       return;
     }
 
@@ -190,8 +190,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
     final columns = width >= 900
         ? 4
         : width >= 600
-        ? 3
-        : 2;
+            ? 3
+            : 2;
     return SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: columns,
       childAspectRatio: 4 / 5,
@@ -378,8 +378,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
           hasScrollBody: false,
           child: AppEmptyState(
             icon: Icons.cloud_off_outlined,
+            illustration: AppIllustrationKind.offline,
             title: "Couldn't load people",
-            message: 'Check your connection and try again.',
+            message: 'Check your internet connection, then try again.',
             actionLabel: 'Try again',
             onAction: _onRefresh,
           ),
@@ -486,8 +487,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
               header: true,
               child: Text(
                 title,
-                style: textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style:
+                    textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -590,6 +591,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
     return AppEmptyState(
       icon: Icons.nights_stay_outlined,
+      illustration: AppIllustrationKind.noResults,
       title: 'No one new right now',
       message: message,
       actionLabel: 'Adjust filters',

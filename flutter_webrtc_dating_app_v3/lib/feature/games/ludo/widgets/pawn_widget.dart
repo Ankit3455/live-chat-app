@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:simple_ripple_animation/simple_ripple_animation.dart';
 
+import '../../../../core/utils/haptics.dart';
 import '../constants.dart';
 import '../ludo_multiplayer_provider.dart';
 
@@ -13,18 +14,19 @@ class PawnWidget extends StatefulWidget {
   final bool highlight;
 
   const PawnWidget(
-      this.index,
-      this.type, {
-        super.key,
-        this.highlight = false,
-        this.step = -1,
-      });
+    this.index,
+    this.type, {
+    super.key,
+    this.highlight = false,
+    this.step = -1,
+  });
 
   @override
   State<PawnWidget> createState() => _PawnWidgetState();
 }
 
-class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateMixin {
+class _PawnWidgetState extends State<PawnWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _bounceController;
   late Animation<double> _bounceAnimation;
   late Animation<double> _scaleAnimation;
@@ -38,17 +40,11 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
     );
 
     _bounceAnimation = Tween<double>(begin: 0, end: -8).animate(
-      CurvedAnimation(
-        parent: _bounceController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
     );
 
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _bounceController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
     );
   }
 
@@ -101,137 +97,142 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
       excludeSemantics: true,
       onTap: widget.highlight ? () => _handleTap(context) : null,
       child: IgnorePointer(
-      ignoring: !widget.highlight,
-      child: GestureDetector(
-        onTap: () => _handleTap(context),
-        child: AnimatedBuilder(
-          animation: _bounceController,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(0, widget.highlight ? _bounceAnimation.value : 0),
-              child: Transform.scale(
-                scale: widget.highlight ? _scaleAnimation.value : 1.0,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Glow effect when highlighted
-                    if (widget.highlight)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.8),
-                              blurRadius: 15,
-                              spreadRadius: 5,
-                            ),
-                            BoxShadow(
-                              color: color.withOpacity(0.6),
-                              blurRadius: 20,
-                              spreadRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    // Ripple animation
-                    if (widget.highlight && !reduceMotion)
-                      RippleAnimation(
-                        color: Colors.white,
-                        minRadius: 15,
-                        repeat: true,
-                        ripplesCount: 3,
-                        child: const SizedBox.shrink(),
-                      ),
-
-                    // Arrow indicator pointing down
-                    if (widget.highlight)
-                      Positioned(
-                        top: -20,
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: 1),
-                          duration: const Duration(milliseconds: 500),
-                          builder: (context, value, child) {
-                            return Opacity(
-                              opacity: value,
-                              child: const Icon(
-                                Icons.arrow_downward,
-                                color: Colors.white,
-                                size: 16,
+        ignoring: !widget.highlight,
+        child: GestureDetector(
+          onTap: () => _handleTap(context),
+          child: AnimatedBuilder(
+            animation: _bounceController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(
+                  0,
+                  widget.highlight ? _bounceAnimation.value : 0,
+                ),
+                child: Transform.scale(
+                  scale: widget.highlight ? _scaleAnimation.value : 1.0,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Glow effect when highlighted
+                      if (widget.highlight)
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.8),
+                                blurRadius: 15,
+                                spreadRadius: 5,
                               ),
-                            );
-                          },
-                        ),
-                      ),
-
-                    // Pawn body with enhanced border when highlighted
-                    Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: widget.highlight ? Colors.white : color,
-                          width: widget.highlight ? 3 : 2,
-                        ),
-                        boxShadow: widget.highlight
-                            ? [
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.5),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                            : null,
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          gradient: widget.highlight
-                              ? RadialGradient(
-                            colors: [
-                              color.withOpacity(1),
-                              color.withOpacity(0.7),
+                              BoxShadow(
+                                color: color.withOpacity(0.6),
+                                blurRadius: 20,
+                                spreadRadius: 8,
+                              ),
                             ],
-                          )
+                          ),
+                        ),
+
+                      // Ripple animation
+                      if (widget.highlight && !reduceMotion)
+                        RippleAnimation(
+                          color: Colors.white,
+                          minRadius: 15,
+                          repeat: true,
+                          ripplesCount: 3,
+                          child: const SizedBox.shrink(),
+                        ),
+
+                      // Arrow indicator pointing down
+                      if (widget.highlight)
+                        Positioned(
+                          top: -20,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: 1),
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 500),
+                            builder: (context, value, child) {
+                              return Opacity(
+                                opacity: value,
+                                child: const Icon(
+                                  Icons.arrow_downward,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+
+                      // Pawn body with enhanced border when highlighted
+                      Container(
+                        margin: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.highlight ? Colors.white : color,
+                            width: widget.highlight ? 3 : 2,
+                          ),
+                          boxShadow: widget.highlight
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                                ]
                               : null,
                         ),
-                      ),
-                    ),
-
-                    // "TAP" text indicator
-                    if (widget.highlight)
-                      Positioned(
-                        bottom: -20,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'TAP',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            gradient: widget.highlight
+                                ? RadialGradient(
+                                    colors: [
+                                      color.withOpacity(1),
+                                      color.withOpacity(0.7),
+                                    ],
+                                  )
+                                : null,
                           ),
                         ),
                       ),
-                  ],
+
+                      // "TAP" text indicator
+                      if (widget.highlight)
+                        Positioned(
+                          bottom: -20,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'TAP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -249,6 +250,7 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
       toStep = widget.step + provider.diceResult;
     }
 
+    Haptics.selection();
     provider.move(widget.type, widget.index, toStep);
   }
 }

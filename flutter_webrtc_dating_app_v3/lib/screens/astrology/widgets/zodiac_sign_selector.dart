@@ -57,74 +57,80 @@ class _SignTile extends StatelessWidget {
     final radius = BorderRadius.circular(14);
     // Gold is reserved for zodiac.
     final fg = selected ? AppColors.gold : AppColors.white;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
     return Semantics(
       button: true,
       selected: selected,
       label: sign,
       excludeSemantics: true,
       onTap: onTap,
-      child: Material(
-        color: selected
-            ? AppColors.gold.withOpacity(0.12)
-            : AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
+      // Tint and border ease in on selection.
+      child: AnimatedContainer(
+        duration: duration,
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.gold.withOpacity(0.12)
+              : AppColors.surfaceCard,
           borderRadius: radius,
-          side: BorderSide(
-            color: selected
-                ? AppColors.gold.withOpacity(0.5)
-                : AppColors.border,
+          border: Border.all(
+            color:
+                selected ? AppColors.gold.withOpacity(0.5) : AppColors.border,
           ),
         ),
-        child: InkWell(
-          borderRadius: radius,
-          onTap: onTap,
-          // Stacked glyph + name so long names (Sagittarius) fit at 13px.
-          child: Stack(
-            children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        AstrologyUtils.zodiacEmoji[sign] ?? '',
-                        style: TextStyle(
-                          fontSize: 18,
-                          height: 1.1,
-                          color: selected
-                              ? AppColors.gold
-                              : AppColors.textMuted,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            // Stacked glyph + name so long names (Sagittarius) fit at 13px.
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          AstrologyUtils.zodiacEmoji[sign] ?? '',
+                          style: TextStyle(
+                            fontSize: 18,
+                            height: 1.1,
+                            color:
+                                selected ? AppColors.gold : AppColors.textMuted,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        sign,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: fg,
-                          fontSize: 13,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
+                        const SizedBox(height: 2),
+                        Text(
+                          sign,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 13,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (selected)
-                const Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Icon(
-                    Icons.check_rounded,
-                    size: 14,
-                    color: AppColors.gold,
+                if (selected)
+                  const Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: AppColors.gold,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

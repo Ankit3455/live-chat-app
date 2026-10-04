@@ -9,10 +9,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../models/conversation_model.dart';
 import '../../models/user_model.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/app_states.dart';
+import '../../widgets/motion.dart';
 import '../../widgets/shimmers/shimmer_chat_row.dart';
 import '../chat/chat_screen.dart';
 import 'widgets/chat_list_selection_bar.dart';
@@ -74,7 +76,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   /// ChatListSelectionBar before this is called.
   Future<void> _bulk(
     Future<void> Function(String cid, String uid) action, {
-    required String done,
+    required String Function(int count) done,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || _selected.isEmpty) return;
@@ -89,19 +91,25 @@ class _ChatListScreenState extends State<ChatListScreen>
       }
     }
     if (!mounted) return;
-    _showSnack(failed == 0 ? done : 'Could not update $failed chat(s)');
+    _showSnack(
+      failed == 0
+          ? done(ids.length)
+          : failed == 1
+              ? "Couldn't update 1 chat. Please try again."
+              : "Couldn't update $failed chats. Please try again.",
+    );
     _exitSelection();
   }
 
   Future<void> _bulkClear() => _bulk(
-    (cid, uid) => _chatService.clearChat(cid, myUid: uid),
-    done: 'Chat cleared',
-  );
+        (cid, uid) => _chatService.clearChat(cid, myUid: uid),
+        done: (n) => n == 1 ? 'Chat cleared' : '$n chats cleared',
+      );
 
   Future<void> _bulkDeleteForMe() => _bulk(
-    (cid, uid) => _chatService.deleteForUser(cid, uid),
-    done: 'Deleted for you',
-  );
+        (cid, uid) => _chatService.deleteForUser(cid, uid),
+        done: (n) => n == 1 ? 'Chat deleted' : '$n chats deleted',
+      );
 
   @override
   void initState() {
@@ -138,17 +146,17 @@ class _ChatListScreenState extends State<ChatListScreen>
               break;
           }
         }
-        final newUnread = newList
-            .where((c) => c.visibleUnreadFor(myUid) > 0)
-            .length;
+        final newUnread =
+            newList.where((c) => c.visibleUnreadFor(myUid) > 0).length;
 
         Widget body;
         if (snap.hasError && !snap.hasData) {
           body = AppEmptyState(
             icon: Icons.cloud_off_rounded,
+            illustration: AppIllustrationKind.offline,
             title: "Couldn't load your chats",
-            message: 'Check your connection and try again.',
-            actionLabel: 'Retry',
+            message: 'Check your internet connection, then try again.',
+            actionLabel: 'Try again',
             onAction: _retry,
           );
         } else if (!snap.hasData) {
@@ -165,8 +173,10 @@ class _ChatListScreenState extends State<ChatListScreen>
                 selectionMode: _selectionMode,
                 selected: _selected,
                 onToggleSelect: _toggleSelect,
-                emptyTitle: 'No active chats',
-                emptySubtitle: 'Reply to move chats from New → Active',
+                emptyTitle: 'No active chats yet',
+                emptySubtitle:
+                    'Chats you reply to show up here. Say hello to someone '
+                    'from Discover to get started.',
               ),
               _ConversationsList(
                 items: newList,
@@ -177,9 +187,9 @@ class _ChatListScreenState extends State<ChatListScreen>
                 selected: _selected,
                 onToggleSelect: _toggleSelect,
                 emptyTitle: 'No new messages',
-                emptySubtitle: 'When someone new texts you, it shows up here',
-                banner:
-                    'New chats are silent. Reply to move a chat to '
+                emptySubtitle:
+                    'When someone new messages you, it shows up here.',
+                banner: 'New chats are silent. Reply to move a chat to '
                     'Active and turn on notifications.',
               ),
             ],
@@ -257,6 +267,7 @@ class _SegmentedTabs extends StatelessWidget {
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
         splashBorderRadius: pill,
+        onTap: (_) => Haptics.selection(),
         labelColor: AppColors.white,
         unselectedLabelColor: AppColors.lavender,
         tabs: [
@@ -282,7 +293,10 @@ class _TabLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(text),
-        if (badge > 0) ...[const SizedBox(width: 6), _CountBadge(count: badge)],
+        if (badge > 0) ...[
+          const SizedBox(width: 6),
+          PopOnChange(value: badge, child: _CountBadge(count: badge)),
+        ],
       ],
     );
   }
@@ -316,7 +330,7 @@ class _CountBadge extends StatelessWidget {
   }
 }
 
-class _ConversationsList extends StatelessWidget {
+class _ConversationsList extends StatefulWidget {
   final List<Conversation> items;
   final ChatService chat;
   final String myUid;
@@ -346,8 +360,86 @@ class _ConversationsList extends StatelessWidget {
   });
 
   @override
+  State<_ConversationsList> createState() => _ConversationsListState();
+}
+
+class _ConversationsListState extends State<_ConversationsList> {
+  static const _rowMotion = Duration(milliseconds: 260);
+
+  GlobalKey<SliverAnimatedListState> _listKey =
+      GlobalKey<SliverAnimatedListState>();
+
+  @override
+  void didUpdateWidget(_ConversationsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncRows(oldWidget.items, widget.items);
+  }
+
+  /// Animates removed / added rows. Reorders (a chat jumping to the top)
+  /// can't be expressed as insert/remove, so those rebuild without motion.
+  void _syncRows(List<Conversation> before, List<Conversation> after) {
+    final list = _listKey.currentState;
+    if (list == null) return;
+    final oldIds = [for (final c in before) c.id];
+    final newIds = [for (final c in after) c.id];
+    final newSet = newIds.toSet();
+    final oldSet = oldIds.toSet();
+    final keptOld = oldIds.where(newSet.contains).toList();
+    final keptNew = newIds.where(oldSet.contains).toList();
+    if (!_sameOrder(keptOld, keptNew)) {
+      _listKey = GlobalKey<SliverAnimatedListState>();
+      return;
+    }
+    final duration =
+        MediaQuery.disableAnimationsOf(context) ? Duration.zero : _rowMotion;
+    for (var i = before.length - 1; i >= 0; i--) {
+      final gone = before[i];
+      if (newSet.contains(gone.id)) continue;
+      list.removeItem(
+        i,
+        (context, animation) => _removedRow(gone, animation),
+        duration: duration,
+      );
+    }
+    for (var i = 0; i < after.length; i++) {
+      if (!oldSet.contains(after[i].id)) {
+        list.insertItem(i, duration: duration);
+      }
+    }
+  }
+
+  static bool _sameOrder(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  Widget _tile(Conversation conv) => _ConversationTile(
+        key: ValueKey(conv.id),
+        conv: conv,
+        chat: widget.chat,
+        myUid: widget.myUid,
+        user: widget.userFor(conv.getOtherParticipantId(widget.myUid)),
+        selectionMode: widget.selectionMode,
+        isSelected: widget.selected.contains(conv.id),
+        onToggleSelect: widget.onToggleSelect,
+      );
+
+  Widget _removedRow(Conversation conv, Animation<double> animation) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+    return IgnorePointer(
+      child: FadeTransition(
+        opacity: curved,
+        child: SizeTransition(sizeFactor: curved, child: _tile(conv)),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bannerText = banner;
+    final bannerText = widget.banner;
     final bannerWidget = bannerText == null
         ? null
         : Padding(
@@ -355,11 +447,12 @@ class _ConversationsList extends StatelessWidget {
             child: AppBanner(message: bannerText),
           );
 
-    if (items.isEmpty) {
+    if (widget.items.isEmpty) {
       final empty = AppEmptyState(
         icon: Icons.chat_bubble_outline_rounded,
-        title: emptyTitle,
-        message: emptySubtitle,
+        illustration: AppIllustrationKind.noChats,
+        title: widget.emptyTitle,
+        message: widget.emptySubtitle,
       );
       if (bannerWidget == null) return empty;
       return Column(
@@ -371,24 +464,30 @@ class _ConversationsList extends StatelessWidget {
       );
     }
 
-    final offset = bannerWidget == null ? 0 : 1;
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 16),
-      itemCount: items.length + offset,
-      itemBuilder: (context, i) {
-        if (bannerWidget != null && i == 0) return bannerWidget;
-        final conv = items[i - offset];
-        return _ConversationTile(
-          key: ValueKey(conv.id),
-          conv: conv,
-          chat: chat,
-          myUid: myUid,
-          user: userFor(conv.getOtherParticipantId(myUid)),
-          selectionMode: selectionMode,
-          isSelected: selected.contains(conv.id),
-          onToggleSelect: onToggleSelect,
-        );
-      },
+    return CustomScrollView(
+      slivers: [
+        if (bannerWidget != null) SliverToBoxAdapter(child: bannerWidget),
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: 16),
+          sliver: SliverAnimatedList(
+            key: _listKey,
+            initialItemCount: widget.items.length,
+            itemBuilder: (context, i, animation) {
+              final items = widget.items;
+              if (i >= items.length) return const SizedBox.shrink();
+              final curved =
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut);
+              return FadeTransition(
+                opacity: curved,
+                child: SizeTransition(
+                  sizeFactor: curved,
+                  child: _tile(items[i]),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -452,12 +551,13 @@ class _ConversationTile extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
+    Haptics.warning();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete this chat?'),
         content: const Text(
-          'The chat will be removed for you. It won’t affect the other user.',
+          'This chat will be removed for you only. The other person can still see it.',
         ),
         actions: [
           TextButton(
@@ -480,7 +580,7 @@ class _ConversationTile extends StatelessWidget {
     await _run(
       context,
       () => chat.deleteForUser(conv.id, myUid),
-      'Could not delete chat',
+      "Couldn't delete this chat. Please try again.",
     );
   }
 
@@ -505,9 +605,8 @@ class _ConversationTile extends StatelessWidget {
       builder: (context, snap) {
         final other = snap.data;
         final rawName = other?.username.trim() ?? '';
-        final name = deleted
-            ? 'Deleted user'
-            : (rawName.isNotEmpty ? rawName : 'User');
+        final name =
+            deleted ? 'Deleted user' : (rawName.isNotEmpty ? rawName : 'User');
         final avatarUrl = _avatarUrl(other);
         // From the cached profile read; no extra presence listener.
         final online = !deleted && (other?.online ?? false);
@@ -566,13 +665,15 @@ class _ConversationTile extends StatelessWidget {
                       _run(
                         context,
                         () => chat.markMessagesAsRead(conv.id, otherId),
-                        'Could not mark as read',
+                        "Couldn't mark this chat as read. Please try again.",
                       ),
                   CustomSemanticsAction(label: muted ? 'Unmute' : 'Mute'): () =>
                       _run(
                         context,
                         () => chat.toggleMute(conv.id, myUid, !muted),
-                        muted ? 'Could not unmute chat' : 'Could not mute chat',
+                        muted
+                            ? "Couldn't unmute this chat. Please try again."
+                            : "Couldn't mute this chat. Please try again.",
                       ),
                   const CustomSemanticsAction(label: 'Delete chat'): () =>
                       _confirmDelete(context),
@@ -617,10 +718,10 @@ class _ConversationTile extends StatelessWidget {
                                             name,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: textTheme.titleMedium
-                                                ?.copyWith(
-                                                  color: AppColors.white,
-                                                ),
+                                            style:
+                                                textTheme.titleMedium?.copyWith(
+                                              color: AppColors.white,
+                                            ),
                                           ),
                                         ),
                                         if (muted) ...[
@@ -674,7 +775,10 @@ class _ConversationTile extends StatelessWidget {
                                   ),
                                   if (unread) ...[
                                     const SizedBox(width: 8),
-                                    _CountBadge(count: displayUnread),
+                                    PopOnChange(
+                                      value: displayUnread,
+                                      child: _CountBadge(count: displayUnread),
+                                    ),
                                   ],
                                 ],
                               ),
@@ -711,7 +815,7 @@ class _ConversationTile extends StatelessWidget {
                 onPressed: (ctx) => _run(
                   ctx,
                   () => chat.markMessagesAsRead(conv.id, otherId),
-                  'Could not mark as read',
+                  "Couldn't mark this chat as read. Please try again.",
                 ),
                 backgroundColor: AppColors.brandPurple,
                 foregroundColor: AppColors.white,
@@ -722,13 +826,14 @@ class _ConversationTile extends StatelessWidget {
                 onPressed: (ctx) => _run(
                   ctx,
                   () => chat.toggleMute(conv.id, myUid, !muted),
-                  muted ? 'Could not unmute chat' : 'Could not mute chat',
+                  muted
+                      ? "Couldn't unmute this chat. Please try again."
+                      : "Couldn't mute this chat. Please try again.",
                 ),
                 backgroundColor: AppColors.surface2,
                 foregroundColor: AppColors.white,
-                icon: muted
-                    ? Icons.volume_up_rounded
-                    : Icons.volume_off_rounded,
+                icon:
+                    muted ? Icons.volume_up_rounded : Icons.volume_off_rounded,
                 label: muted ? 'Unmute' : 'Mute',
               ),
               SlidableAction(

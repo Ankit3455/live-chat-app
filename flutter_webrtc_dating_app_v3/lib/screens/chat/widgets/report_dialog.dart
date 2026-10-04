@@ -90,8 +90,7 @@ class _ReportDialogState extends State<ReportDialog> {
       if (!mounted) return;
       setState(() {
         _submitting = false;
-        _error =
-            'Could not send the report. Check your connection and '
+        _error = "Couldn't send the report. Check your connection and "
             'try again.';
       });
     }
@@ -159,9 +158,8 @@ class _ReportDialogState extends State<ReportDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _submitting
-              ? null
-              : () => Navigator.of(context).pop(false),
+          onPressed:
+              _submitting ? null : () => Navigator.of(context).pop(false),
           child: const Text(
             'Cancel',
             style: TextStyle(color: AppColors.hintPurple),
@@ -194,9 +192,8 @@ Future<bool> confirmAndBlockUser(
   String? displayName,
   String? avatarUrl,
 }) async {
-  final name = displayName == null || displayName.isEmpty
-      ? 'this user'
-      : displayName;
+  final name =
+      displayName == null || displayName.isEmpty ? 'this user' : displayName;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -206,9 +203,9 @@ Future<bool> confirmAndBlockUser(
         style: const TextStyle(color: AppColors.inputTextWhite),
       ),
       content: const Text(
-        'You will no longer see each other in discovery or chats, and '
-        'neither of you can message or call the other. You can unblock '
-        'from Settings > Blocked users.',
+        "You won't see each other in Discover or Chats, and neither of you "
+        'can message or call the other. You can unblock anytime from '
+        'Settings > Blocked users.',
         style: TextStyle(color: AppColors.hintPurple),
       ),
       actions: [
@@ -238,12 +235,12 @@ Future<bool> confirmAndBlockUser(
       displayName: displayName,
       avatarUrl: avatarUrl,
     );
-    messenger?.showSnackBar(SnackBar(content: Text('Blocked $name')));
+    messenger?.showSnackBar(SnackBar(content: Text('$name is blocked')));
     return true;
   } catch (e) {
     messenger?.showSnackBar(
       const SnackBar(
-        content: Text('Could not block. Check your connection and try again.'),
+        content: Text("Couldn't block. Check your connection and try again."),
         backgroundColor: AppColors.dangerRed,
       ),
     );

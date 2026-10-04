@@ -6,7 +6,7 @@ import 'package:availchat/models/user_model.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import '../../../core/constants/app_colors.dart';
 
-class AstrologyCompatibilityCard extends StatelessWidget {
+class AstrologyCompatibilityCard extends StatefulWidget {
   final UserModel user;
 
   /// Optional: opens the astrology questionnaire.
@@ -14,7 +14,26 @@ class AstrologyCompatibilityCard extends StatelessWidget {
 
   const AstrologyCompatibilityCard({super.key, required this.user, this.onTap});
 
+  @override
+  State<AstrologyCompatibilityCard> createState() =>
+      _AstrologyCompatibilityCardState();
+}
+
+class _AstrologyCompatibilityCardState
+    extends State<AstrologyCompatibilityCard> {
+  // Fetched once per user object, not on every rebuild.
+  late Future<Map<String, dynamic>?> _astrologyData = _getAstrologyData();
+
+  @override
+  void didUpdateWidget(AstrologyCompatibilityCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.user, widget.user)) {
+      _astrologyData = _getAstrologyData();
+    }
+  }
+
   Future<Map<String, dynamic>?> _getAstrologyData() async {
+    final user = widget.user;
     try {
       // Own doc for me; other users only expose public_profiles.
       final isMe = user.uid == FirebaseAuth.instance.currentUser?.uid;
@@ -52,8 +71,10 @@ class AstrologyCompatibilityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.user;
+    final onTap = widget.onTap;
     return FutureBuilder<Map<String, dynamic>?>(
-      future: _getAstrologyData(),
+      future: _astrologyData,
       builder: (context, snapshot) {
         final waiting = snapshot.connectionState == ConnectionState.waiting;
         final data = snapshot.data;
@@ -64,8 +85,8 @@ class AstrologyCompatibilityCard extends StatelessWidget {
         final String? believesInAstrology = beliefRaw == null
             ? null
             : (beliefRaw is bool
-                  ? (beliefRaw ? 'yes' : 'no')
-                  : beliefRaw.toString());
+                ? (beliefRaw ? 'Believes in astrology' : 'Not into astrology')
+                : 'Believes in astrology: $beliefRaw');
         final hasCompat = preferredSigns.isNotEmpty;
         final empty =
             zodiacSign == null && !hasCompat && believesInAstrology == null;
@@ -99,65 +120,72 @@ class AstrologyCompatibilityCard extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: waiting
-                    ? const Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.gold,
+                child: AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 200),
+                  child: waiting
+                      ? const Align(
+                          key: ValueKey('astro-loading'),
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.gold,
+                            ),
                           ),
+                        )
+                      : Column(
+                          key: const ValueKey('astro-content'),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              zodiacSign != null
+                                  ? '${_signName(zodiacSign)} sun'
+                                  : 'Cosmic profile',
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (hasCompat) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Most compatible with ${preferredSigns.map((s) => '${_getZodiacEmoji(s.toString())} ${_signName(s.toString())}').join(', ')}',
+                                style: const TextStyle(
+                                  color: AppColors.lavender,
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                            if (believesInAstrology != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                believesInAstrology,
+                                style: const TextStyle(
+                                  color: AppColors.textSubtle,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            if (empty) ...[
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Answer a few astrology questions to see your cosmic compatibility.',
+                                style: TextStyle(
+                                  color: AppColors.lavender,
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            zodiacSign != null
-                                ? '${_signName(zodiacSign)} sun'
-                                : 'Cosmic profile',
-                            style: const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (hasCompat) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              'Most compatible with ${preferredSigns.map((s) => '${_getZodiacEmoji(s.toString())} ${_signName(s.toString())}').join(', ')}',
-                              style: const TextStyle(
-                                color: AppColors.lavender,
-                                fontSize: 13,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                          if (believesInAstrology != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              'Believes in astrology: $believesInAstrology',
-                              style: const TextStyle(
-                                color: AppColors.textSubtle,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                          if (empty) ...[
-                            const SizedBox(height: 2),
-                            const Text(
-                              'Complete the astrology questionnaire to show cosmic compatibility.',
-                              style: TextStyle(
-                                color: AppColors.lavender,
-                                fontSize: 13,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                ),
               ),
               if (onTap != null)
                 const Icon(

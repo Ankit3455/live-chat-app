@@ -11,16 +11,22 @@ class DiscoveryOnboarding {
   // Global Keys - NOW WITH SEPARATE FILTER KEYS
   // ===========================================================================
 
-  static final GlobalKey discoveryToggleKey = GlobalKey(debugLabel: 'discoveryToggle');
-  static final GlobalKey filtersToggleKey = GlobalKey(debugLabel: 'filtersToggle');
+  static final GlobalKey discoveryToggleKey =
+      GlobalKey(debugLabel: 'discoveryToggle');
+  static final GlobalKey filtersToggleKey =
+      GlobalKey(debugLabel: 'filtersToggle');
 
   // ⭐ NEW: Separate keys for each filter
-  static final GlobalKey genderFilterKey = GlobalKey(debugLabel: 'genderFilter');
+  static final GlobalKey genderFilterKey =
+      GlobalKey(debugLabel: 'genderFilter');
   static final GlobalKey ageFilterKey = GlobalKey(debugLabel: 'ageFilter');
-  static final GlobalKey distanceFilterKey = GlobalKey(debugLabel: 'distanceFilter');
-  static final GlobalKey onlineFilterKey = GlobalKey(debugLabel: 'onlineFilter');
+  static final GlobalKey distanceFilterKey =
+      GlobalKey(debugLabel: 'distanceFilter');
+  static final GlobalKey onlineFilterKey =
+      GlobalKey(debugLabel: 'onlineFilter');
 
-  static final GlobalKey locationButtonKey = GlobalKey(debugLabel: 'locationButton');
+  static final GlobalKey locationButtonKey =
+      GlobalKey(debugLabel: 'locationButton');
   static final GlobalKey saveButtonKey = GlobalKey(debugLabel: 'saveButton');
 
   // ===========================================================================
@@ -72,7 +78,7 @@ class DiscoveryOnboarding {
     if (_isShowing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Tutorial is already running'),
+          content: Text('The tour is already running.'),
           backgroundColor: AppColors.surfaceCard,
         ),
       );
@@ -86,7 +92,7 @@ class DiscoveryOnboarding {
     if (!_validateKeys()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please wait for the screen to load'),
+          content: Text('This screen is still loading. Try again in a moment.'),
           backgroundColor: AppColors.surfaceCard,
         ),
       );
@@ -186,8 +192,9 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.visibility_rounded,
                   iconColor: AppColors.online,
-                  title: "Your Visibility 👁️",
-                  description: "Turn ON to appear in others' Discover feed",
+                  title: "Your visibility",
+                  description:
+                      "Turn this on to appear in other people's Discover feed.",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -224,8 +231,9 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.filter_alt_rounded,
                   iconColor: AppColors.gold,
-                  title: "Enable Filters 🎯",
-                  description: "Turn ON to filter by preferences below",
+                  title: "Use filters",
+                  description:
+                      "Turn this on to narrow Discover with the preferences below.",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -262,8 +270,9 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.people_rounded,
                   iconColor: AppColors.brandPink,
-                  title: "Gender Preference 👥",
-                  description: "Choose: Everyone, Men, or Women",
+                  title: "Show me",
+                  description:
+                      "Choose who you want to see: Everyone, Men or Women.",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -300,8 +309,9 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.cake_rounded,
                   iconColor: AppColors.brandPurpleLight,
-                  title: "Age Range 🎂",
-                  description: "Set minimum and maximum age (18-60)",
+                  title: "Age range",
+                  description:
+                      "Set the youngest and oldest age you want to see (18–60).",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -338,8 +348,8 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.social_distance_rounded,
                   iconColor: AppColors.warning,
-                  title: "Distance Limit 📏",
-                  description: "Max distance to find matches (5-100 km)",
+                  title: "Distance",
+                  description: "How far away people can be (5–100 km).",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -376,8 +386,8 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.circle,
                   iconColor: AppColors.success,
-                  title: "Online Only 🟢",
-                  description: "Show only users who are currently online",
+                  title: "Online only",
+                  description: "Show only people who are online right now.",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -419,8 +429,8 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.my_location_rounded,
                   iconColor: AppColors.error,
-                  title: "Update Location 📍",
-                  description: "Tap to use your current location",
+                  title: "Update location",
+                  description: "Tap to use your current location.",
                   onNext: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -462,8 +472,8 @@ class DiscoveryOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.check_circle_rounded,
                   iconColor: AppColors.online,
-                  title: "Save Settings ✅",
-                  description: "Don't forget to save your changes!",
+                  title: "Save",
+                  description: "Tap Save so your changes take effect.",
                   isLastStep: true,
                   onNext: () {
                     HapticFeedback.heavyImpact();
@@ -546,8 +556,11 @@ class DiscoveryOnboarding {
                     decoration: BoxDecoration(
                       gradient: isCompleted
                           ? const LinearGradient(
-                        colors: [AppColors.brandPurple, AppColors.brandMagenta],
-                      )
+                              colors: [
+                                AppColors.brandPurple,
+                                AppColors.brandMagenta
+                              ],
+                            )
                           : null,
                       color: isCompleted
                           ? null
@@ -654,8 +667,8 @@ class DiscoveryOnboarding {
                         boxShadow: [
                           BoxShadow(
                             color: (isLastStep
-                                ? AppColors.online
-                                : AppColors.brandPurple)
+                                    ? AppColors.online
+                                    : AppColors.brandPurple)
                                 .withOpacity(0.4),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
@@ -666,7 +679,7 @@ class DiscoveryOnboarding {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            isLastStep ? "Done!" : "Next",
+                            isLastStep ? "Done" : "Next",
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -721,7 +734,7 @@ class DiscoveryOnboarding {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Discovery tutorial complete!',
+                  "Tour complete. You're ready to go.",
                   style: TextStyle(color: Colors.white),
                 ),
               ),
@@ -746,7 +759,7 @@ class DiscoveryOnboarding {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Tap help button anytime to see tutorial',
+            'Tap the help button anytime to see this tour again.',
             style: TextStyle(color: Colors.white),
           ),
           backgroundColor: AppColors.surfaceCard,

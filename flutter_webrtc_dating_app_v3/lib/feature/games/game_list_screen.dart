@@ -10,6 +10,7 @@ import 'carrom/services/carrom_stats_service.dart';
 import 'love_physics/love_physics_game.dart' show LovePhysicsScreen;
 import 'ludo/ludo_lobby_screen.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 class GameListScreen extends StatefulWidget {
   const GameListScreen({super.key});
@@ -313,7 +314,7 @@ class _GameListScreenState extends State<GameListScreen> {
 
 // ===== GAME CARD WIDGET =====
 /// A null [onTap] renders the card disabled with a "Coming soon" badge.
-class _GameCard extends StatelessWidget {
+class _GameCard extends StatefulWidget {
   final String title;
   final String players;
   final String? record;
@@ -333,10 +334,33 @@ class _GameCard extends StatelessWidget {
   });
 
   @override
+  State<_GameCard> createState() => _GameCardState();
+}
+
+class _GameCardState extends State<_GameCard> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  void _handleTap() {
+    final onTap = widget.onTap;
+    if (onTap == null) return;
+    Haptics.selection();
+    onTap();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final available = onTap != null;
-    final desc = description;
-    final rec = record;
+    final title = widget.title;
+    final players = widget.players;
+    final icon = widget.icon;
+    final accent = widget.accent;
+    final available = widget.onTap != null;
+    final desc = widget.description;
+    final rec = widget.record;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final tileBg = available ? accent.withOpacity(0.14) : AppColors.surface2;
     final tileBorder = available ? accent.withOpacity(0.4) : AppColors.border;
 
@@ -345,124 +369,130 @@ class _GameCard extends StatelessWidget {
       enabled: available,
       label: available ? 'Play $title' : '$title, coming soon',
       excludeSemantics: true,
-      child: Material(
-        color: available ? AppColors.surfaceCard : AppColors.surfaceRaised,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.border),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 3,
-                child: ColoredBox(color: accent),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: tileBg,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: tileBorder),
+      child: AnimatedScale(
+        scale: _pressed && available && !reduceMotion ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: Material(
+          color: available ? AppColors.surfaceCard : AppColors.surfaceRaised,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.border),
+          ),
+          child: InkWell(
+            onTap: available ? _handleTap : null,
+            onHighlightChanged: _setPressed,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 3,
+                  child: ColoredBox(color: accent),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: tileBg,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: tileBorder),
+                        ),
+                        child: Icon(icon, color: accent, size: 34),
                       ),
-                      child: Icon(icon, color: accent, size: 34),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                title,
-                                style: GoogleFonts.montserrat(
-                                  color: available
-                                      ? AppColors.white
-                                      : AppColors.textSubtle,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (!available) const _SoonBadge(),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text.rich(
-                            TextSpan(
-                              text: players,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                if (rec != null) ...[
-                                  const TextSpan(text: '  ·  '),
-                                  TextSpan(
-                                    text: rec,
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                Text(
+                                  title,
+                                  style: GoogleFonts.montserrat(
+                                    color: available
+                                        ? AppColors.white
+                                        : AppColors.textSubtle,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                ],
+                                ),
+                                if (!available) const _SoonBadge(),
                               ],
                             ),
-                            style: TextStyle(
-                              color: available
-                                  ? AppColors.lavender
-                                  : AppColors.textSubtle,
-                              fontSize: 13,
-                            ),
-                          ),
-                          if (desc != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              desc,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.lavender,
+                            const SizedBox(height: 2),
+                            Text.rich(
+                              TextSpan(
+                                text: players,
+                                children: [
+                                  if (rec != null) ...[
+                                    const TextSpan(text: '  ·  '),
+                                    TextSpan(
+                                      text: rec,
+                                      style: TextStyle(
+                                        color: accent,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              style: TextStyle(
+                                color: available
+                                    ? AppColors.lavender
+                                    : AppColors.textSubtle,
                                 fontSize: 13,
                               ),
                             ),
+                            if (desc != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                desc,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.lavender,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: tileBg,
-                        border: Border.all(color: tileBorder),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: tileBg,
+                          border: Border.all(color: tileBorder),
+                        ),
+                        child: Icon(
+                          available
+                              ? Icons.play_arrow_rounded
+                              : Icons.lock_outline,
+                          color: available
+                              ? accent
+                              : AppColors.textSubtle.withOpacity(0.6),
+                          size: available ? 24 : 18,
+                        ),
                       ),
-                      child: Icon(
-                        available
-                            ? Icons.play_arrow_rounded
-                            : Icons.lock_outline,
-                        color: available
-                            ? accent
-                            : AppColors.textSubtle.withOpacity(0.6),
-                        size: available ? 24 : 18,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

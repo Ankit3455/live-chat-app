@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
@@ -59,10 +60,11 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
     setState(() => _error = null);
     final dob = _dob;
     if (dob == null) {
-      _showError('Please select your date of birth');
+      _showError('Please choose your date of birth');
       return;
     }
     if (!AgePolicy.isAdult(dob)) {
+      Haptics.warning();
       setState(() => _blocked = true);
       return;
     }
@@ -85,25 +87,25 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
       final zodiac = AstrologyUtils.zodiacFromDob(
         AgePolicy.legacyDobFormat.format(dob),
       );
-      await ref
-          .set({
-            if (!exists) ...{
-              'uid': user.uid,
-              'email': user.email,
-              'createdAt': FieldValue.serverTimestamp(),
-              'signupCompleted': false,
-              'mandatoryCompleted': false,
-              'discoveryEnabled': false,
-              'discoveryPendingOnboarding': true,
-            },
-            ...AgePolicy.dobFields(dob, zodiac),
-          }, SetOptions(merge: true))
-          .timeout(const Duration(seconds: 10));
+      await ref.set({
+        if (!exists) ...{
+          'uid': user.uid,
+          'email': user.email,
+          'createdAt': FieldValue.serverTimestamp(),
+          'signupCompleted': false,
+          'mandatoryCompleted': false,
+          'discoveryEnabled': false,
+          'discoveryPendingOnboarding': true,
+        },
+        ...AgePolicy.dobFields(dob, zodiac),
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
       await AuthRouter.routeCurrentUser(context);
     } catch (_) {
-      _showError('Could not save. Check your connection and try again.');
+      _showError(
+        "We couldn't save your date of birth. Check your connection and try again.",
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -112,16 +114,17 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
   // Errors show inline above Continue.
   void _showError(String message) {
     if (!mounted) return;
+    Haptics.error();
     setState(() => _error = message);
   }
 
   String _formatDob(DateTime d) => AgePolicy.legacyDobFormat.format(d);
 
   TextStyle get _titleStyle => GoogleFonts.montserrat(
-    color: AppColors.white,
-    fontSize: 26,
-    fontWeight: FontWeight.w700,
-  );
+        color: AppColors.white,
+        fontSize: 26,
+        fontWeight: FontWeight.w700,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +136,22 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: _constrained(_blocked ? _buildBlocked() : _buildForm()),
+                child: _constrained(
+                  AnimatedSwitcher(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 250),
+                    child: _blocked
+                        ? KeyedSubtree(
+                            key: const ValueKey('blocked'),
+                            child: _buildBlocked(),
+                          )
+                        : KeyedSubtree(
+                            key: const ValueKey('form'),
+                            child: _buildForm(),
+                          ),
+                  ),
+                ),
               ),
             ),
             _constrained(_buildFooter()),
@@ -277,8 +295,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
                     children: summary == null
                         ? const [
                             TextSpan(
-                              text:
-                                  'Others only see your age and sign. '
+                              text: 'Others only see your age and sign. '
                                   'Never the full date.',
                             ),
                           ]
@@ -309,7 +326,10 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
           value: _confirmedAdult,
           onChanged: _saving
               ? null
-              : (v) => setState(() => _confirmedAdult = v),
+              : (v) {
+                  Haptics.selection();
+                  setState(() => _confirmedAdult = v);
+                },
           label: const LegalText(
             prefix: 'I confirm I am 18 or older and agree to the ',
             suffix: '',
@@ -340,7 +360,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
                 if (email != null) ...[
                   const SizedBox(height: 12),
                   Text(
-                    'Signed in as $email',
+                    'Logged in as $email',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.textSubtle,
@@ -350,10 +370,21 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
                 ],
               ]
             : [
-                if (error != null) ...[
-                  AppBanner(message: error, tone: AppBannerTone.error),
-                  const SizedBox(height: 12),
-                ],
+                AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 200),
+                  child: error == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          key: ValueKey(error),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: AppBanner(
+                            message: error,
+                            tone: AppBannerTone.error,
+                          ),
+                        ),
+                ),
                 CustomButton(
                   text: 'Continue',
                   isLoading: _saving,
@@ -363,9 +394,8 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
                 CustomButton(
                   text: 'Sign out',
                   type: ButtonType.text,
-                  onPressed: _saving
-                      ? null
-                      : () => AuthRouter.signOutToLogin(context),
+                  onPressed:
+                      _saving ? null : () => AuthRouter.signOutToLogin(context),
                 ),
               ],
       ),

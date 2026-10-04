@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../services/voice_intro_service.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 class VoiceRecordSheet extends StatefulWidget {
   const VoiceRecordSheet({super.key});
@@ -33,7 +34,9 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
     if (!ok) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission required')),
+          const SnackBar(
+              content: Text(
+                  'Allow microphone access in Settings to record a voice intro.')),
         );
       }
       return;
@@ -78,15 +81,21 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
         durationSeconds: _elapsed,
       );
       if (res != null && mounted) {
+        Haptics.success();
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Voice intro saved')),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
+        Haptics.error();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
+          const SnackBar(
+            content: Text(
+              "Couldn't save your voice intro. Check your connection and try again.",
+            ),
+          ),
         );
       }
     } finally {
@@ -125,18 +134,26 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 42, height: 5, decoration: BoxDecoration(color: AppColors.borderStrong, borderRadius: BorderRadius.circular(4))),
+              Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                      color: AppColors.borderStrong,
+                      borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 12),
               Semantics(
                 header: true,
                 child: const Text(
                   "Add a short voice intro",
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(height: 6),
               const Text(
-                "Why voice? It helps others feel your vibe quickly — tone, energy, confidence.\nKeep it friendly and real. Max 20 seconds.",
+                "A voice intro lets people hear your tone and energy before you chat.\nKeep it friendly and real — up to 20 seconds.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
               ),
@@ -144,8 +161,12 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
 
               // Timer
               Text(
-                _fmt(_recording ? _elapsed : (_tempPath != null ? _elapsed : 0)),
-                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+                _fmt(
+                    _recording ? _elapsed : (_tempPath != null ? _elapsed : 0)),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
 
@@ -155,13 +176,14 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
                   onPressed: _stop,
                   icon: const Icon(Icons.stop_rounded),
                   label: const Text('Stop'),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error),
                 ),
               ] else if (_tempPath == null) ...[
                 ElevatedButton.icon(
                   onPressed: _start,
                   icon: const Icon(Icons.mic_rounded),
-                  label: const Text('Start Recording'),
+                  label: const Text('Start recording'),
                 ),
               ] else ...[
                 // Wrap so large text never overflows.
@@ -172,13 +194,17 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
                   children: [
                     OutlinedButton.icon(
                       onPressed: _playPreview,
-                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-                      label: const Text('Preview', style: TextStyle(color: Colors.white)),
+                      icon: const Icon(Icons.play_arrow_rounded,
+                          color: Colors.white),
+                      label: const Text('Preview',
+                          style: TextStyle(color: Colors.white)),
                     ),
                     OutlinedButton.icon(
                       onPressed: _discard,
-                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                      label: const Text('Re-record', style: TextStyle(color: Colors.white)),
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: Colors.white),
+                      label: const Text('Re-record',
+                          style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
@@ -186,7 +212,11 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
                 ElevatedButton.icon(
                   onPressed: _saving ? null : _save,
                   icon: _saving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.save_rounded),
                   label: const Text('Save'),
                 ),
@@ -194,7 +224,7 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
 
               const SizedBox(height: 8),
               const Text(
-                "Tips: Speak clearly, smile while you talk. Share 1–2 things you love.",
+                "Tip: speak clearly, smile while you talk, and share one or two things you love.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSubtle, fontSize: 12.5),
               ),

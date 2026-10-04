@@ -1,5 +1,4 @@
 // lib/feature/games/carrom/carrom_match_screen.dart
-// STATUS: ENHANCED WITH VS ANIMATION ✅
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -9,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../widgets/custom_button.dart';
 
 class CarromMatchScreen extends StatefulWidget {
@@ -62,6 +62,8 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   late Animation<double> _vsRotateAnimation;
   late Animation<Offset> _leftPlayerSlide;
   late Animation<Offset> _rightPlayerSlide;
+  late Animation<double> _playerFade;
+  late Animation<double> _playerScale;
   late Animation<double> _countdownScale;
   late Animation<double> _glowAnimation;
 
@@ -69,6 +71,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   void initState() {
     super.initState();
     _myUid = _auth.currentUser?.uid;
+    Haptics.success();
     _initAnimations();
     _markJoined();
     _listenMatch();
@@ -124,6 +127,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       curve: Curves.easeOutBack,
     ));
 
+    _playerFade = CurvedAnimation(
+      parent: _playerSlideController,
+      curve: Curves.easeOut,
+    );
+    _playerScale = Tween<double>(begin: 0.8, end: 1).animate(_playerFade);
+
     // Countdown Animation
     _countdownController = AnimationController(
       duration: const Duration(milliseconds: 400),
@@ -171,7 +180,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     _sub = _ref.snapshots().listen((snap) {
       if (!mounted) return;
       if (!snap.exists) {
-        _close('Match was cancelled');
+        _close('The match was cancelled. Find a new one from the lobby.');
         return;
       }
 
@@ -203,7 +212,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           (_countdownDone || !_countdownStarted)) {
         _navigateToGame();
       } else if (status == 'cancelled' || status == 'finished') {
-        _close('Match was cancelled');
+        _close('The match was cancelled. Find a new one from the lobby.');
       }
     }, onError: (Object e) => debugPrint('Carrom match listener error: $e'));
   }
@@ -216,12 +225,21 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     // Step 1: Slide in players
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    _playerSlideController.forward();
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (reduceMotion) {
+      _playerSlideController.value = 1;
+    } else {
+      _playerSlideController.forward();
+    }
 
     // Step 2: Show VS badge
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
-    _vsController.forward();
+    if (reduceMotion) {
+      _vsController.value = 1;
+    } else {
+      _vsController.forward();
+    }
 
     // Step 3: Start countdown
     await Future.delayed(const Duration(milliseconds: 1000));
@@ -270,7 +288,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     if (!mounted || _navigated) return;
     await _cancelIfNotStarted();
     if (mounted && _matchData?['status'] != 'started') {
-      _close('Opponent did not join. Please try again.');
+      _close("Your opponent didn't join. Tap Find match to try again.");
     }
   }
 
@@ -319,6 +337,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   void _close(String? message) {
     if (!mounted || _navigated || _closing) return;
     _closing = true;
+    if (message != null) Haptics.error();
     _joinTimer?.cancel();
     _sub?.cancel();
     final messenger = ScaffoldMessenger.of(context);
@@ -348,52 +367,53 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
         if (!didPop) _cancelMatch();
       },
       child: Scaffold(
-      body: Stack(
-        children: [
-          // Animated Background
-          _buildAnimatedBackground(),
+        body: Stack(
+          children: [
+            // Animated Background
+            _buildAnimatedBackground(),
 
-          // Main Content
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Column(
-              children: [
-                const SizedBox(height: 16),
-                const Spacer(flex: 2),
+            // Main Content
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          const Spacer(flex: 2),
 
-                // Match Found Title
-                _buildMatchFoundTitle(),
+                          // Match Found Title
+                          _buildMatchFoundTitle(),
 
-                const Spacer(flex: 1),
+                          const Spacer(flex: 1),
 
-                // VS Display
-                _buildVsDisplay(),
+                          // VS Display
+                          _buildVsDisplay(),
 
-                const Spacer(flex: 1),
+                          const Spacer(flex: 1),
 
-                // Countdown or Status
-                _buildCountdownOrStatus(),
+                          // Countdown or Status
+                          _buildCountdownOrStatus(),
 
-                const Spacer(flex: 2),
+                          const Spacer(flex: 2),
 
-                // Cancel Button (until the game has started)
-                if (!_navigated && _matchData?['status'] != 'started')
-                  _buildCancelButton(),
+                          // Cancel Button (until the game has started)
+                          if (!_navigated && _matchData?['status'] != 'started')
+                            _buildCancelButton(),
 
-                const SizedBox(height: 24),
-              ],
+                          const SizedBox(height: 24),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -412,8 +432,10 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                 math.sin(_backgroundController.value * 2 * math.pi) * 0.5,
               ),
               end: Alignment(
-                math.cos((_backgroundController.value + 0.5) * 2 * math.pi) * 0.5,
-                math.sin((_backgroundController.value + 0.5) * 2 * math.pi) * 0.5,
+                math.cos((_backgroundController.value + 0.5) * 2 * math.pi) *
+                    0.5,
+                math.sin((_backgroundController.value + 0.5) * 2 * math.pi) *
+                    0.5,
               ),
               colors: const [
                 AppColors.backgroundDeep,
@@ -430,7 +452,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   }
 
   Widget _buildMatchFoundTitle() {
-    return Column(
+    final title = Column(
       children: [
         // Stars/Sparkles
         const Text(
@@ -457,10 +479,22 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
         ),
         const SizedBox(height: 8),
         const Text(
-          'Get ready to play!',
+          'Get ready to play',
           style: TextStyle(color: AppColors.lavender, fontSize: 15),
         ),
       ],
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return title;
+    // One-off pop-in for the "Match found!" moment.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
+      ),
+      child: title,
     );
   }
 
@@ -474,12 +508,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           // Left Player (Me)
           SlideTransition(
             position: _leftPlayerSlide,
-            child: _buildPlayerCard(
+            child: _fadeScaleIn(_buildPlayerCard(
               name: _myName,
               avatar: _myAvatar,
               isMe: true,
               color: AppColors.brandPurpleLight,
-            ),
+            )),
           ),
 
           // VS Badge
@@ -498,7 +532,8 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                       gradient: AppColors.primaryGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.brandPink.withOpacity(0.3 + (_glowAnimation.value * 0.3)),
+                          color: AppColors.brandPink
+                              .withOpacity(0.3 + (_glowAnimation.value * 0.3)),
                           blurRadius: 20 + (_glowAnimation.value * 15),
                           spreadRadius: 5 + (_glowAnimation.value * 5),
                         ),
@@ -523,15 +558,23 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           // Right Player (Opponent)
           SlideTransition(
             position: _rightPlayerSlide,
-            child: _buildPlayerCard(
+            child: _fadeScaleIn(_buildPlayerCard(
               name: _opponentName,
               avatar: _opponentAvatar,
               isMe: false,
               color: AppColors.pinkLight,
-            ),
+            )),
           ),
         ],
       ),
+    );
+  }
+
+  /// Avatars fade and grow in alongside the slide.
+  Widget _fadeScaleIn(Widget child) {
+    return FadeTransition(
+      opacity: _playerFade,
+      child: ScaleTransition(scale: _playerScale, child: child),
     );
   }
 
@@ -556,7 +599,8 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                 border: Border.all(color: color, width: 3),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.3 + (_glowAnimation.value * 0.2)),
+                    color:
+                        color.withOpacity(0.3 + (_glowAnimation.value * 0.2)),
                     blurRadius: 15 + (_glowAnimation.value * 10),
                     spreadRadius: 2,
                   ),
@@ -565,11 +609,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               child: ClipOval(
                 child: avatar.isNotEmpty
                     ? CachedNetworkImage(
-                  imageUrl: avatar,
-                  memCacheWidth: 270,
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => _defaultAvatar(name, color),
-                )
+                        imageUrl: avatar,
+                        memCacheWidth: 270,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            _defaultAvatar(name, color),
+                      )
                     : _defaultAvatar(name, color),
               ),
             );
@@ -647,7 +692,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           ),
           SizedBox(height: 16),
           Text(
-            'Preparing match…',
+            'Getting the board ready…',
             style: TextStyle(color: AppColors.lavender, fontSize: 16),
           ),
         ],
@@ -659,38 +704,38 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       child: Semantics(
         liveRegion: true,
         child: Column(
-        children: [
-          // Countdown Number or GO!
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _showGo
-                  ? AppColors.success.withOpacity(0.2)
-                  : AppColors.surface2,
-              border: Border.all(
-                color: _showGo ? AppColors.success : AppColors.borderStrong,
-                width: 3,
+          children: [
+            // Countdown Number or GO!
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _showGo
+                    ? AppColors.success.withOpacity(0.2)
+                    : AppColors.surface2,
+                border: Border.all(
+                  color: _showGo ? AppColors.success : AppColors.borderStrong,
+                  width: 3,
+                ),
               ),
-            ),
-            child: Center(
-              child: Text(
-                _showGo ? 'GO!' : '$_countdown',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: _showGo ? 36 : 60,
-                  fontWeight: FontWeight.bold,
+              child: Center(
+                child: Text(
+                  _showGo ? 'Go!' : '$_countdown',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: _showGo ? 36 : 60,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _showGo ? 'Starting game…' : 'Get ready!',
-            style: const TextStyle(color: AppColors.lavender, fontSize: 16),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              _showGo ? 'Starting the game…' : 'Get ready',
+              style: const TextStyle(color: AppColors.lavender, fontSize: 16),
+            ),
+          ],
         ),
       ),
     );
@@ -705,5 +750,4 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       onPressed: _cancelMatch,
     );
   }
-
 }

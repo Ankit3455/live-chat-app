@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../models/call_model.dart';
 import '../../services/call/call_service.dart';
 import '../../services/call/webrtc/call_constants.dart';
@@ -113,15 +114,15 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         .ref('${CallConstants.pathIncomingCalls}/$uid/$callId')
         .onValue
         .listen((event) {
-          final snap = event.snapshot;
-          final status = snap.child('status').value;
-          if (!snap.exists ||
-              status == CallConstants.inboxEnded ||
-              status == CallConstants.inboxMissed ||
-              status == CallConstants.inboxFailed) {
-            _dismissCancelled();
-          }
-        }, onError: (e) => debugPrint('IncomingCallScreen: inbox error: $e'));
+      final snap = event.snapshot;
+      final status = snap.child('status').value;
+      if (!snap.exists ||
+          status == CallConstants.inboxEnded ||
+          status == CallConstants.inboxMissed ||
+          status == CallConstants.inboxFailed) {
+        _dismissCancelled();
+      }
+    }, onError: (e) => debugPrint('IncomingCallScreen: inbox error: $e'));
   }
 
   Future<void> _cancelListeners() async {
@@ -140,7 +141,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     if (!mounted) return;
     ScaffoldMessenger.maybeOf(
       context,
-    )?.showSnackBar(const SnackBar(content: Text('Call cancelled')));
+    )?.showSnackBar(const SnackBar(content: Text('The caller hung up.')));
     _close();
   }
 
@@ -167,6 +168,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   Future<void> _answerCall() async {
     if (_handled) return;
+    Haptics.medium();
     final call = _call;
     setState(() {
       _handled = true;
@@ -194,8 +196,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       final message = e is CallPermissionDeniedException
           ? e.message
           : e is StateError
-          ? 'This call is no longer available'
-          : 'Failed to answer call';
+              ? 'This call has already ended.'
+              : "Couldn't answer the call. Check your connection and try again.";
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text(message), backgroundColor: AppColors.error),
       );
@@ -205,6 +207,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   Future<void> _rejectCall() async {
     if (_handled) return;
+    Haptics.warning();
     setState(() => _handled = true);
     await _cancelListeners();
     await _stopRingtone();

@@ -129,7 +129,10 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
                       const SizedBox(height: 2),
                       const Text(
                         'Every answer adds something.',
-                        style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 13,
+                        ),
                       ),
                       if (_history.isNotEmpty) ...[
                         const SizedBox(height: 6),
@@ -159,7 +162,9 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
               ],
             ),
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 250),
               child: _hint == null
                   ? const SizedBox.shrink()
                   : Container(
@@ -208,7 +213,9 @@ class _Face extends StatelessWidget {
         : CachedNetworkImage(
             imageUrl: url!,
             fit: BoxFit.cover,
-            fadeInDuration: const Duration(milliseconds: 250),
+            fadeInDuration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 250),
             placeholder: (_, __) => Container(color: AppColors.surfaceCard),
             errorWidget: (_, __, ___) => Container(
               color: AppColors.surfaceCard,

@@ -36,7 +36,7 @@ class ProfilePhotoService {
   static String _requireUid() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      throw const ProfilePhotoException('Please sign in again.');
+      throw const ProfilePhotoException('Please log in again.');
     }
     return uid;
   }

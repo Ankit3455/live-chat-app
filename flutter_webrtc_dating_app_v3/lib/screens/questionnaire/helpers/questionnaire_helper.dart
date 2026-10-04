@@ -16,7 +16,8 @@ class QuestionnaireHelper {
         fieldName: 'username',
         category: QuestionCategory.basic,
         icon: '👤',
-        helperText: 'This will be your display name. Choose something unique and memorable!',
+        helperText:
+            'This will be your display name. Choose something unique and memorable!',
       ),
       const Question(
         text: 'What is your gender?',
@@ -25,7 +26,8 @@ class QuestionnaireHelper {
         fieldName: 'gender',
         category: QuestionCategory.basic,
         icon: '⚧',
-        helperText: 'Helps us show you relevant matches based on your preferences',
+        helperText:
+            'Helps us show you relevant matches based on your preferences',
       ),
       const Question(
         text: 'What are your areas of interest?',
@@ -52,7 +54,8 @@ class QuestionnaireHelper {
         fieldName: 'interests',
         category: QuestionCategory.entertainment,
         icon: '🎯',
-        helperText: 'Find people who share your passions! Select all that apply.',
+        helperText:
+            'Find people who share your passions! Select all that apply.',
       ),
       const Question(
         text: 'What are your habits?',
@@ -86,7 +89,8 @@ class QuestionnaireHelper {
         fieldName: 'activityLevel',
         category: QuestionCategory.relationship,
         icon: '💕',
-        helperText: 'Match with someone on the same wavelength for better compatibility',
+        helperText:
+            'Match with someone on the same wavelength for better compatibility',
       ),
       const Question(
         text: 'Why did you choose this app?',
@@ -94,7 +98,8 @@ class QuestionnaireHelper {
         fieldName: 'relationshipGoal',
         category: QuestionCategory.relationship,
         icon: '💭',
-        helperText: 'Let others know what you\'re looking for - honesty attracts the right people!',
+        helperText:
+            'Let others know what you\'re looking for - honesty attracts the right people!',
       ),
       const Question(
         text: 'Where are you located?',
@@ -102,7 +107,8 @@ class QuestionnaireHelper {
         fieldName: 'location',
         category: QuestionCategory.basic,
         icon: '📍',
-        helperText: 'Your current city. We\'ll show you people nearby for easier meetups!',
+        helperText:
+            'Your current city. We\'ll show you people nearby for easier meetups!',
       ),
       const Question(
         text: 'Tell us about yourself (short bio)',
@@ -110,7 +116,8 @@ class QuestionnaireHelper {
         fieldName: 'bio',
         category: QuestionCategory.basic,
         icon: '✍️',
-        helperText: 'Your bio is your first impression! Share what makes you unique. (Max 500 characters)',
+        helperText:
+            'Your bio is your first impression! Share what makes you unique. (Max 500 characters)',
       ),
     ];
   }
@@ -132,7 +139,8 @@ class QuestionnaireHelper {
         category: QuestionCategory.relationship,
         isMandatory: true,
         icon: '💑',
-        helperText: 'Transparency builds trust. We\'ll match you with compatible people.',
+        helperText:
+            'Transparency builds trust. We\'ll match you with compatible people.',
       ),
       const Question(
         text: 'You\'re here for:',
@@ -148,7 +156,8 @@ class QuestionnaireHelper {
         category: QuestionCategory.relationship,
         isMandatory: true,
         icon: '🎯',
-        helperText: 'Select all that apply - find people looking for the same thing!',
+        helperText:
+            'Select all that apply - find people looking for the same thing!',
       ),
       const Question(
         text: 'Your height:',
@@ -165,7 +174,8 @@ class QuestionnaireHelper {
         category: QuestionCategory.physical,
         isMandatory: true,
         icon: '📏',
-        helperText: 'Physical compatibility matters! Help others know what to expect.',
+        helperText:
+            'Physical compatibility matters! Help others know what to expect.',
       ),
       const Question(
         text: 'Your body type:',
@@ -175,7 +185,8 @@ class QuestionnaireHelper {
         category: QuestionCategory.physical,
         isMandatory: true,
         icon: '🏋️',
-        helperText: 'Be honest - confidence is attractive! This helps set realistic expectations.',
+        helperText:
+            'Be honest - confidence is attractive! This helps set realistic expectations.',
       ),
       const Question(
         text: 'Your education:',
@@ -192,7 +203,8 @@ class QuestionnaireHelper {
         category: QuestionCategory.basic,
         isMandatory: true,
         icon: '🎓',
-        helperText: 'Education level helps find intellectually compatible matches',
+        helperText:
+            'Education level helps find intellectually compatible matches',
       ),
     ];
   }
@@ -218,7 +230,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.lifestyle,
         icon: '🚬',
-        helperText: 'Important for long-term compatibility - be upfront about your habits',
+        helperText:
+            'Important for long-term compatibility - be upfront about your habits',
       ),
       const Question(
         text: 'Drinking habits:',
@@ -228,7 +241,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.lifestyle,
         icon: '🍷',
-        helperText: 'Know if you\'ll enjoy parties together or prefer quiet nights in',
+        helperText:
+            'Know if you\'ll enjoy parties together or prefer quiet nights in',
       ),
       const Question(
         text: 'Exercise frequency:',
@@ -244,7 +258,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.lifestyle,
         icon: '💪',
-        helperText: 'Find a gym buddy or someone who respects your fitness goals!',
+        helperText:
+            'Find a gym buddy or someone who respects your fitness goals!',
       ),
       const Question(
         text: 'Do you have pets?',
@@ -260,7 +275,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.preferences,
         icon: '🐾',
-        helperText: 'Pet lovers unite! Or find someone who shares your pet-free lifestyle.',
+        helperText:
+            'Pet lovers unite! Or find someone who shares your pet-free lifestyle.',
       ),
       const Question(
         text: 'Do you want children?',
@@ -270,7 +286,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.preferences,
         icon: '👶',
-        helperText: 'Crucial for long-term relationships - align on future family plans',
+        helperText:
+            'Crucial for long-term relationships - align on future family plans',
       ),
       const Question(
         text: 'Partying frequency:',
@@ -290,7 +307,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.preferences,
         icon: '🎨',
-        helperText: 'Express yourself! Some love ink, others prefer clean skin.',
+        helperText:
+            'Express yourself! Some love ink, others prefer clean skin.',
       ),
     ];
   }
@@ -306,7 +324,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.personality,
         icon: '🧠',
-        helperText: 'Find someone who energizes you or appreciates your quiet side!',
+        helperText:
+            'Find someone who energizes you or appreciates your quiet side!',
       ),
       const Question(
         text: 'Political views:',
@@ -322,7 +341,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.personality,
         icon: '🗳️',
-        helperText: 'Avoid awkward debates - find someone on the same page politically',
+        helperText:
+            'Avoid awkward debates - find someone on the same page politically',
       ),
       const Question(
         text: 'Religious views:',
@@ -339,7 +359,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.personality,
         icon: '🙏',
-        helperText: 'Faith plays a big role in values - find someone who respects yours',
+        helperText:
+            'Faith plays a big role in values - find someone who respects yours',
       ),
       const Question(
         text: 'Favorite music genres:',
@@ -380,7 +401,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.entertainment,
         icon: '🎬',
-        helperText: 'Plan perfect movie dates with someone who loves the same genres!',
+        helperText:
+            'Plan perfect movie dates with someone who loves the same genres!',
       ),
       const Question(
         text: 'Favorite TV series genre:',
@@ -398,7 +420,8 @@ class QuestionnaireHelper {
         isMandatory: false,
         category: QuestionCategory.entertainment,
         icon: '📺',
-        helperText: 'Binge-watch together! Find your perfect Netflix companion.',
+        helperText:
+            'Binge-watch together! Find your perfect Netflix companion.',
       ),
     ];
   }
@@ -469,7 +492,8 @@ class QuestionnaireHelper {
   }
 
   /// Avatar properties in the shape DiceBearAvatarService stores.
-  static Map<String, dynamic> buildAvatarProperties(Map<String, dynamic> answers) {
+  static Map<String, dynamic> buildAvatarProperties(
+      Map<String, dynamic> answers) {
     return AvatarMapping.buildFromAnswers(answers);
   }
 }

@@ -278,7 +278,8 @@ Future<void> openLegalLink(BuildContext context, String url) async {
   }
   if (!opened) {
     messenger.showSnackBar(
-      const SnackBar(content: Text('Could not open the page.')),
+      const SnackBar(
+          content: Text("Couldn't open this page. Please try again later.")),
     );
   }
 }
@@ -395,9 +396,8 @@ class AuthCheckRow extends StatelessWidget {
                 activeColor: AppColors.brandPurple,
                 checkColor: AppColors.white,
                 side: BorderSide(
-                  color: error == null
-                      ? AppColors.borderStrong
-                      : AppColors.error,
+                  color:
+                      error == null ? AppColors.borderStrong : AppColors.error,
                   width: 1.5,
                 ),
                 shape: RoundedRectangleBorder(

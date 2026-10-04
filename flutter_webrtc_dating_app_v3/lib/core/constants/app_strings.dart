@@ -134,5 +134,5 @@ class AppStrings {
 
   // Password managed by external provider
   static String passwordManagedByProvider(String providerName) =>
-      'Your password is managed by $providerName sign-in. You can’t change it here.';
+      'You log in with $providerName, so you can’t change your password here.';
 }

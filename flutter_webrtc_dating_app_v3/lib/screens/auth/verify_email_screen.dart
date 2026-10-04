@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
@@ -48,14 +49,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         // Refresh the ID token so the email_verified claim is current.
         await FirebaseAuth.instance.currentUser?.getIdToken(true);
         if (!mounted) return;
+        Haptics.success();
         await AuthRouter.routeCurrentUser(context);
       } else {
-        _showError('Your email is not verified yet.');
+        _showError(
+          "Your email isn't verified yet. Tap the link in the email, then try again.",
+        );
       }
     } on FirebaseAuthException catch (e) {
       _showError(AuthValidators.messageFor(e));
     } catch (_) {
-      _showError('Could not check. Try again.');
+      _showError("We couldn't check right now. Please try again.");
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -69,6 +73,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     try {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
       if (!mounted) return;
+      Haptics.success();
       setState(() => _sent = true);
       _startCooldown();
     } on FirebaseAuthException catch (e) {
@@ -94,6 +99,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   // Errors show inline above the actions.
   void _showError(String message) {
     if (!mounted) return;
+    Haptics.error();
     setState(() => _error = message);
   }
 
@@ -105,6 +111,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     final email = FirebaseAuth.instance.currentUser?.email ?? 'your email';
     final error = _error;
     final coolingDown = _cooldown > 0;
+    final animDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -185,10 +194,19 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (error != null) ...[
-                      AppBanner(message: error, tone: AppBannerTone.error),
-                      const SizedBox(height: 12),
-                    ],
+                    AnimatedSwitcher(
+                      duration: animDuration,
+                      child: error == null
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              key: ValueKey(error),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: AppBanner(
+                                message: error,
+                                tone: AppBannerTone.error,
+                              ),
+                            ),
+                    ),
                     CustomButton(
                       text: "I've verified",
                       isLoading: _checking,
@@ -207,30 +225,34 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         onPressed: coolingDown || _sending ? null : _resend,
                       ),
                     ),
-                    if (_sent && coolingDown)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.check_circle_outline,
-                              size: 14,
-                              color: AppColors.success,
-                            ),
-                            SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                'Email sent',
-                                style: TextStyle(
-                                  color: AppColors.success,
-                                  fontSize: 12,
-                                ),
+                    AnimatedSwitcher(
+                      duration: animDuration,
+                      child: !(_sent && coolingDown)
+                          ? const SizedBox.shrink()
+                          : const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    size: 14,
+                                    color: AppColors.success,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      'Email sent',
+                                      style: TextStyle(
+                                        color: AppColors.success,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                    ),
                     CustomButton(
                       text: 'Use a different email',
                       type: ButtonType.text,

@@ -6,6 +6,7 @@ import 'package:availchat/services/location_service.dart';
 
 import '../../features/onboarding/discovery_onboarding.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/custom_button.dart';
 
 class DiscoverySettingsScreen extends StatefulWidget {
@@ -64,6 +65,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _saveSuccess = false;
   bool _locating = false;
 
   bool _discoveryEnabled = false;
@@ -139,6 +141,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
   }
 
   Future<void> _savePrefs() async {
+    if (_saveSuccess) return;
     final saved = _saved;
     setState(() => _saving = true);
     try {
@@ -167,13 +170,24 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
 
       if (!mounted) return;
       _saved = _current;
+      Haptics.success();
+      setState(() {
+        _saving = false;
+        _saveSuccess = true;
+      });
+      // Brief check-mark state before leaving.
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
       debugPrint('Discovery settings save failed: $e');
       if (!mounted) return;
+      Haptics.error();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not save your settings. Please try again.'),
+          content: Text(
+            "Couldn't save your settings. Check your connection and try again.",
+          ),
         ),
       );
     } finally {
@@ -191,7 +205,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Filters reset. Tap Save & Apply to confirm.'),
+        content: Text('Filters cleared. Tap Save & apply to keep the change.'),
       ),
     );
   }
@@ -213,7 +227,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
         await _settingsDialog(
           title: 'Location is off',
           message: 'Turn on location services to find people near you.',
-          action: 'Open Settings',
+          action: 'Open settings',
           onOpen: LocationService.instance.openLocationSettings,
         );
         break;
@@ -222,16 +236,20 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
           title: 'Location permission needed',
           message:
               'Location access is turned off for Destined. Allow it in Settings to use distance filters.',
-          action: 'Open Settings',
+          action: 'Open settings',
           onOpen: LocationService.instance.openAppSettings,
         );
         break;
       case LocationUpdateResult.denied:
-        _snack('Location permission denied');
+        _snack(
+          "Location access wasn't allowed, so your location wasn't updated.",
+        );
         break;
       case LocationUpdateResult.notSignedIn:
       case LocationUpdateResult.failed:
-        _snack('Could not get your location. Please try again.');
+        _snack(
+          "Couldn't get your location. Check that location is on and try again.",
+        );
         break;
     }
   }
@@ -301,7 +319,9 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
     return IgnorePointer(
       ignoring: !_applyFilters,
       child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 150),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 150),
         opacity: _applyFilters ? 1 : 0.4,
         child: child,
       ),
@@ -402,10 +422,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
               onPressed: () => DiscoveryOnboarding.showManually(context),
               tooltip: 'Show tutorial',
             ),
-            TextButton(
-              onPressed: _clearFilters,
-              child: const Text('Clear'),
-            ),
+            TextButton(onPressed: _clearFilters, child: const Text('Clear')),
           ],
         ),
         // Cap width on tablets so the form stays readable.
@@ -574,21 +591,29 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (dirty)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            'You have unsaved changes.',
-                            style: TextStyle(
-                              color: AppColors.lavender,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+                      AnimatedSwitcher(
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 180),
+                        child: dirty
+                            ? const Padding(
+                                key: ValueKey('dirty'),
+                                padding: EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  'You have unsaved changes.',
+                                  style: TextStyle(
+                                    color: AppColors.lavender,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(key: ValueKey('clean')),
+                      ),
                       CustomButton(
                         key: DiscoveryOnboarding.saveButtonKey,
                         text: 'Save & apply',
                         isLoading: _saving,
+                        isSuccess: _saveSuccess,
                         onPressed: _saving ? null : _savePrefs,
                       ),
                     ],
@@ -665,12 +690,17 @@ class _SwitchRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  void _toggle(bool v) {
+    Haptics.selection();
+    onChanged(v);
+  }
+
   @override
   Widget build(BuildContext context) {
     final sub = subtitle;
     return MergeSemantics(
       child: InkWell(
-        onTap: () => onChanged(!value),
+        onTap: () => _toggle(!value),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
@@ -715,7 +745,7 @@ class _SwitchRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Switch(value: value, onChanged: onChanged),
+                Switch(value: value, onChanged: _toggle),
               ],
             ),
           ),
@@ -756,9 +786,14 @@ class _Segmented extends StatelessWidget {
                 inMutuallyExclusiveGroup: true,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(999),
-                  onTap: () => onChanged(entry.key),
+                  onTap: () {
+                    if (entry.key != value) Haptics.selection();
+                    onChanged(entry.key);
+                  },
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 150),
                     constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(

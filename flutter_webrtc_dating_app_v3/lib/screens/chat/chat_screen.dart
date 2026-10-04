@@ -25,7 +25,9 @@ import '../../services/safety_service.dart';
 
 // UI Components
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/app_states.dart';
+import '../../widgets/motion.dart';
 import 'widgets/attachment_sheet.dart';
 import 'widgets/call_settings_sheet.dart';
 import 'widgets/message_bubble.dart';
@@ -42,7 +44,7 @@ class ChatScreen extends StatefulWidget {
   final String? conversationId;
 
   const ChatScreen({Key? key, required this.otherUserId, this.conversationId})
-    : super(key: key);
+      : super(key: key);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -87,6 +89,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   StreamSubscription<bool>? _blockedSub;
 
   bool _isSending = false;
+
+  /// Bumped on each send to spin the send button.
+  int _sendPulse = 0;
+
+  /// Messages just sent from this device; they slide in once.
+  final Set<String> _animateIn = {};
   bool _isUploadingMedia = false;
   bool _isCallInProgress = false;
   ChatMessage? _replyToMessage;
@@ -197,11 +205,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final me = _myUid;
     final other = widget.otherUserId;
     if (me.isEmpty) {
-      _setInitError('You are signed out. Please sign in again.');
+      _setInitError("You're logged out. Log in again to continue.");
       return;
     }
     if (other.isEmpty || other == me) {
-      _setInitError('This chat is not available.');
+      _setInitError('This chat is no longer available.');
       return;
     }
 
@@ -244,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (e) {
       _log('init', e);
       _setInitError(
-        'Could not open this chat. Check your connection and try again.',
+        "Couldn't load this chat. Check your connection and try again.",
       );
     }
   }
@@ -312,9 +320,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _watchOnline() async {
     final db = FirebaseFirestore.instance;
     final other = widget.otherUserId;
-    DocumentReference<Map<String, dynamic>> ref = db
-        .collection(PublicProfile.collection)
-        .doc(other);
+    DocumentReference<Map<String, dynamic>> ref =
+        db.collection(PublicProfile.collection).doc(other);
     try {
       final snap = await ref.get();
       if (!snap.exists) ref = db.collection('users').doc(other);
@@ -414,9 +421,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final ref = _messagesQuery(convId).limit(_pageSize);
       final last = _lastDoc;
-      final snap = await (last == null
-          ? ref.get()
-          : ref.startAfterDocument(last).get());
+      final snap =
+          await (last == null ? ref.get() : ref.startAfterDocument(last).get());
       if (!mounted || gen != _listGeneration) return;
 
       final docs = snap.docs;
@@ -493,6 +499,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _insertSorted(msg);
         _messageIds.add(msg.id);
         listChanged = true;
+        // Local pending write = sent from here just now (not pagination).
+        if (c.doc.metadata.hasPendingWrites && msg.senderId == _myUid) {
+          _markAnimateIn(msg.id);
+        }
         if (msg.senderId == widget.otherUserId) hasIncoming = true;
       }
 
@@ -505,6 +515,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
       if (listChanged) setState(() {});
     }, onError: (Object e) => _log('live', e));
+  }
+
+  void _markAnimateIn(String id) {
+    _animateIn.add(id);
+    // Later rebuilds (e.g. scrolling back) should not replay it.
+    Timer(const Duration(milliseconds: 800), () => _animateIn.remove(id));
   }
 
   /// Keeps [_messages] sorted newest first.
@@ -544,7 +560,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final editing = _editingMessage;
     final replyTo = _replyToMessage;
 
-    setState(() => _isSending = true);
+    Haptics.light();
+    setState(() {
+      _isSending = true;
+      _sendPulse++;
+    });
     _messageController.clear();
     _stopTyping();
 
@@ -574,6 +594,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (e) {
       _log('send', e);
       if (!mounted) return;
+      Haptics.error();
       // Give the text back unless the user already typed something new.
       if (_messageController.text.isEmpty) {
         _messageController.text = text;
@@ -582,7 +603,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         );
       }
       _showSnackBar(
-        editing != null ? 'Failed to edit message' : 'Failed to send message',
+        editing != null
+            ? "Couldn't save your edit. Check your connection and try again."
+            : "Couldn't send your message. Check your connection and try again.",
       );
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -622,7 +645,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<bool> _setCallEnabled(CallType type, bool enabled) async {
     final convId = _conversationId;
     if (convId == null || _conversation == null) {
-      _showSnackBar('Send a message first to enable calls.');
+      _showSnackBar('Send a message first, then you can turn on calls.');
       return false;
     }
     try {
@@ -635,7 +658,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return true;
     } catch (e) {
       _log('setCallEnabled', e);
-      _showSnackBar('Could not update call permission. Try again.');
+      _showSnackBar("Couldn't update call settings. Please try again.");
       return false;
     }
   }
@@ -659,7 +682,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final convId = _conversationId;
     if (convId == null || !_canSend) return;
     if (_isCallInProgress || _callService.isBusy) {
-      _showSnackBar('A call is already in progress');
+      _showSnackBar('You already have a call in progress.');
       return;
     }
     if (!_callAllowed(type)) {
@@ -689,7 +712,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 const CircularProgressIndicator(color: AppColors.purplePrimary),
                 const SizedBox(height: 15),
                 Text(
-                  'Initiating ${type == CallType.video ? "video" : "voice"} call...',
+                  'Starting ${type == CallType.video ? "video" : "voice"} call…',
                   style: const TextStyle(
                     color: AppColors.inputTextWhite,
                     fontSize: 14,
@@ -746,13 +769,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _log('startCall', e);
       _showSnackBar(
         _callService.isBusy
-            ? 'A call is already in progress'
-            : 'Failed to start call',
+            ? 'You already have a call in progress.'
+            : "Couldn't start the call. Check your connection and try again.",
       );
     } catch (e) {
       closeDialog();
       _log('startCall', e);
-      _showSnackBar('Failed to start call');
+      _showSnackBar(
+        "Couldn't start the call. Check your connection and try again.",
+      );
     } finally {
       if (mounted) setState(() => _isCallInProgress = false);
     }
@@ -836,9 +861,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ),
       body: AppEmptyState(
         icon: Icons.cloud_off,
-        title: 'Chat unavailable',
+        illustration: AppIllustrationKind.error,
+        title: "Couldn't open this chat",
         message: _initError,
-        actionLabel: 'Retry',
+        actionLabel: 'Try again',
         onAction: _myUid.isEmpty ? null : _retryInit,
       ),
     );
@@ -924,9 +950,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isOnline
-                            ? AppColors.success
-                            : AppColors.lavender,
+                        color:
+                            isOnline ? AppColors.success : AppColors.lavender,
                       ),
                     ),
                 ],
@@ -956,7 +981,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   static const String _callsOffTooltip =
-      'Calls work when both of you turn them on';
+      'Calls work when you both turn them on';
 
   Widget _buildCallButton(CallType type) {
     final isVideo = type == CallType.video;
@@ -967,9 +992,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         isVideo ? Icons.videocam_outlined : Icons.call_outlined,
         color: enabled ? AppColors.white : AppColors.textSubtle,
       ),
-      tooltip: allowed
-          ? (isVideo ? 'Video call' : 'Voice call')
-          : _callsOffTooltip,
+      tooltip:
+          allowed ? (isVideo ? 'Video call' : 'Voice call') : _callsOffTooltip,
       onPressed: _isCallInProgress
           ? null
           : (allowed ? () => _startCall(type) : _openCallSettings),
@@ -1086,16 +1110,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           blockedByMe
               ? const PopupMenuItem<String>(
                   value: 'unblock',
-                  child: Text('Unblock user'),
+                  child: Text('Unblock'),
                 )
               : const PopupMenuItem<String>(
                   value: 'block',
-                  child: Text('Block user'),
+                  child: Text('Block'),
                 ),
         if (!_isOtherDeleted)
           const PopupMenuItem<String>(
             value: 'report',
-            child: Text('Report user'),
+            child: Text('Report'),
           ),
       ],
     );
@@ -1124,7 +1148,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     final index = _messages.indexWhere((m) => m.id == id);
     if (index == -1 || !_scrollController.hasClients) {
-      _showSnackBar('The original message is no longer available');
+      _showSnackBar('The original message is no longer available.');
       return;
     }
 
@@ -1163,12 +1187,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return _isOtherDeleted
           ? const AppEmptyState(
               icon: Icons.chat_bubble_outline,
+              illustration: AppIllustrationKind.noChats,
               title: 'No messages',
             )
           : AppEmptyState(
               icon: Icons.waving_hand_outlined,
+              illustration: AppIllustrationKind.noChats,
               title: 'No messages yet',
-              message: 'Say hi to $_displayName!',
+              message: 'Say hi to $_displayName and start the conversation.',
             );
     }
 
@@ -1195,9 +1221,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           final isMe = message.senderId == _myUid;
           final showDate = _shouldShowDate(_messages, index, message.timestamp);
 
-          final legacyReplyId = message.replyTo == null
-              ? message.replyToMessageId
-              : null;
+          final legacyReplyId =
+              message.replyTo == null ? message.replyToMessageId : null;
 
           return KeyedSubtree(
             key: ValueKey(message.id),
@@ -1205,32 +1230,35 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               key: _keyFor(message.id),
               children: [
                 if (showDate) _buildDateSeparator(message.timestamp),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  color: _highlightedId == message.id
-                      ? AppColors.purplePrimary.withOpacity(0.15)
-                      : Colors.transparent,
-                  child: MessageBubble(
-                    message: message,
-                    isMe: isMe,
-                    otherUserName: _displayName,
-                    repliedMessage: legacyReplyId == null
-                        ? null
-                        : _findLoaded(legacyReplyId),
-                    onReplyTap: _scrollToMessage,
-                    onReply: _canSend
-                        ? () {
-                            setState(() {
-                              _replyToMessage = message;
-                              _editingMessage = null;
-                            });
-                            _messageFocusNode.requestFocus();
-                          }
-                        : null,
-                    onEdit: isMe && _canSend
-                        ? () => _editMessage(message)
-                        : null,
-                    onDelete: isMe ? () => _deleteMessage(message) : null,
+                FadeSlideIn(
+                  animate: _animateIn.contains(message.id),
+                  offset: const Offset(24, 12),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    color: _highlightedId == message.id
+                        ? AppColors.purplePrimary.withOpacity(0.15)
+                        : Colors.transparent,
+                    child: MessageBubble(
+                      message: message,
+                      isMe: isMe,
+                      otherUserName: _displayName,
+                      repliedMessage: legacyReplyId == null
+                          ? null
+                          : _findLoaded(legacyReplyId),
+                      onReplyTap: _scrollToMessage,
+                      onReply: _canSend
+                          ? () {
+                              setState(() {
+                                _replyToMessage = message;
+                                _editingMessage = null;
+                              });
+                              _messageFocusNode.requestFocus();
+                            }
+                          : null,
+                      onEdit:
+                          isMe && _canSend ? () => _editMessage(message) : null,
+                      onDelete: isMe ? () => _deleteMessage(message) : null,
+                    ),
                   ),
                 ),
               ],
@@ -1251,7 +1279,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             onPressed: _loadMoreMessages,
             icon: const Icon(Icons.refresh, color: AppColors.brandPurpleLight),
             label: const Text(
-              'Could not load messages. Retry',
+              "Couldn't load older messages. Tap to try again.",
               style: TextStyle(color: AppColors.hintPurple),
             ),
           ),
@@ -1343,7 +1371,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_isOtherDeleted) {
       text = 'This account was deleted.';
     } else if (blockedByMe) {
-      text = 'You blocked this user.';
+      text = 'You blocked $_displayName.';
     } else {
       text = "You can't reply to this conversation.";
     }
@@ -1398,9 +1426,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             IconButton(
               icon: Icon(
                 Icons.add,
-                color: attachDisabled
-                    ? AppColors.textSubtle
-                    : AppColors.lavender,
+                color:
+                    attachDisabled ? AppColors.textSubtle : AppColors.lavender,
               ),
               tooltip: 'Attach photo or voice note',
               onPressed: attachDisabled ? null : _showAttachmentSheet,
@@ -1414,25 +1441,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 maxLines: compact ? 2 : 5,
                 minLines: 1,
                 maxLength: ChatMessage.maxLength,
-                buildCounter:
-                    (
-                      context, {
-                      required currentLength,
-                      required isFocused,
-                      maxLength,
-                    }) {
-                      // Only show the counter close to the limit.
-                      if (currentLength < ChatMessage.maxLength - 200) {
-                        return null;
-                      }
-                      return Text(
-                        '$currentLength/${ChatMessage.maxLength}',
-                        style: const TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 11,
-                        ),
-                      );
-                    },
+                buildCounter: (
+                  context, {
+                  required currentLength,
+                  required isFocused,
+                  maxLength,
+                }) {
+                  // Only show the counter close to the limit.
+                  if (currentLength < ChatMessage.maxLength - 200) {
+                    return null;
+                  }
+                  return Text(
+                    '$currentLength/${ChatMessage.maxLength}',
+                    style: const TextStyle(
+                      color: AppColors.lavender,
+                      fontSize: 11,
+                    ),
+                  );
+                },
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
@@ -1523,7 +1549,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: onPressed,
-                  child: Icon(icon, color: AppColors.white, size: 22),
+                  child: PopOnChange(
+                    value: _sendPulse,
+                    peak: 0.8,
+                    child: AnimatedRotation(
+                      turns: _sendPulse.toDouble(),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 450),
+                      curve: Curves.easeOutBack,
+                      child: Icon(icon, color: AppColors.white, size: 22),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1539,8 +1576,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         date.year == now.year && date.month == now.month && date.day == now.day;
 
     final yesterday = now.subtract(const Duration(days: 1));
-    final isYesterday =
-        date.year == yesterday.year &&
+    final isYesterday = date.year == yesterday.year &&
         date.month == yesterday.month &&
         date.day == yesterday.day;
 
@@ -1659,7 +1695,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _scrollToLatest();
     } catch (e) {
       _log('sendImage', e);
-      _showSnackBar('Failed to send image');
+      Haptics.error();
+      _showSnackBar(
+        "Couldn't send your photo. Check your connection and try again.",
+      );
     } finally {
       if (mounted) setState(() => _isUploadingMedia = false);
     }
@@ -1715,13 +1754,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       _notifyReceiver(convId, messageId);
       if (!mounted) return;
+      Haptics.success();
       if (identical(_replyToMessage, replyTo)) {
         setState(() => _replyToMessage = null);
       }
       _scrollToLatest();
     } catch (e) {
       _log('sendVoice', e);
-      _showSnackBar('Failed to send voice message');
+      Haptics.error();
+      _showSnackBar(
+        "Couldn't send your voice message. Check your connection and try again.",
+      );
     } finally {
       if (mounted) setState(() => _isUploadingMedia = false);
     }
@@ -1733,6 +1776,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     required String message,
     required String action,
   }) async {
+    Haptics.warning();
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1770,8 +1814,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final convId = _conversationId;
     if (convId == null) return;
     final confirmed = await _confirm(
-      title: 'Delete Message',
-      message: 'Are you sure you want to delete this message?',
+      title: 'Delete message?',
+      message: 'This message will be deleted for everyone in this chat.',
       action: 'Delete',
     );
     if (!confirmed || !mounted) return;
@@ -1781,7 +1825,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _chatService.deleteMessage(convId, message.id);
     } catch (e) {
       _log('delete', e);
-      _showSnackBar('Failed to delete message');
+      _showSnackBar("Couldn't delete the message. Please try again.");
     }
   }
 
@@ -1789,9 +1833,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final convId = _conversationId;
     if (convId == null || _conversation == null) return;
     final confirmed = await _confirm(
-      title: 'Clear Chat',
-      message:
-          'Are you sure you want to clear this chat? This action cannot be undone.',
+      title: 'Clear chat?',
+      message: 'All messages will be cleared for you. This can’t be undone.',
       action: 'Clear',
     );
     if (!confirmed || !mounted) return;
@@ -1801,7 +1844,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _chatService.clearChat(convId, myUid: _myUid);
     } catch (e) {
       _log('clear', e);
-      _showSnackBar('Failed to clear chat');
+      _showSnackBar("Couldn't clear the chat. Please try again.");
       return;
     }
     if (!mounted) return;
@@ -1813,6 +1856,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _blockUser() async {
+    Haptics.warning();
     final blocked = await confirmAndBlockUser(
       context,
       otherUid: widget.otherUserId,
@@ -1828,7 +1872,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _showSnackBar('Unblocked $_displayName');
     } catch (e) {
       _log('unblock', e);
-      _showSnackBar('Could not unblock. Check your connection and try again.');
+      _showSnackBar(
+        "Couldn't unblock. Check your connection and try again.",
+      );
     }
   }
 

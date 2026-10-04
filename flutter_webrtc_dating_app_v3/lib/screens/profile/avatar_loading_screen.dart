@@ -8,7 +8,7 @@ class AvatarLoadingScreen extends StatelessWidget {
 
   const AvatarLoadingScreen({
     super.key,
-    this.title = '🎨 Creating your unique avatar…',
+    this.title = 'Creating your avatar…',
     this.subtitle = 'We’re styling it from your answers. Just a moment.',
   });
 
@@ -32,10 +32,10 @@ class AvatarLoadingScreen extends StatelessWidget {
                 Semantics(
                   header: true,
                   liveRegion: true,
-                  child: const Text(
-                    '🎨 Creating your unique avatar…',
+                  child: Text(
+                    title,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -43,10 +43,10 @@ class AvatarLoadingScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'We’re styling it from your answers. Just a moment.',
+                Text(
+                  subtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 14,
                     height: 1.4,

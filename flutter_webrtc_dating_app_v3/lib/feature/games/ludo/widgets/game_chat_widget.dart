@@ -28,7 +28,16 @@ class _GameChatWidgetState extends State<GameChatWidget> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
 
-  final List<String> _quickReactions = ['👍', '😂', '😢', '😡', '🎉', '🔥', '💀', '🎲'];
+  final List<String> _quickReactions = [
+    '👍',
+    '😂',
+    '😢',
+    '😡',
+    '🎉',
+    '🔥',
+    '💀',
+    '🎲'
+  ];
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _chatStream;
   final String? _myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -239,7 +248,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Send a reaction or message!',
+                            'Say hi with a reaction or a message.',
                             style: TextStyle(
                               color: AppColors.lavender,
                               fontSize: 13,
@@ -349,7 +358,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
         ),
         child: Column(
           crossAxisAlignment:
-          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             // Sender name
             if (!isMe)

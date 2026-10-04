@@ -198,15 +198,15 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
               const SizedBox(height: 16),
               Text(
                 _permissionDenied
-                    ? 'Microphone permission required'
-                    : 'Could not start recording',
+                    ? 'Microphone access needed'
+                    : "Couldn't start recording",
                 style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
                 _permissionDenied
-                    ? 'Please enable microphone access in settings'
-                    : 'Please try again',
+                    ? 'Allow microphone access in Settings to send voice messages.'
+                    : 'Please try again.',
                 style: const TextStyle(
                   color: AppColors.textSubtle,
                   fontSize: 14,
@@ -233,7 +233,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
                         await openAppSettings();
                         await _cancel();
                       },
-                      child: const Text('Open Settings'),
+                      child: const Text('Open settings'),
                     ),
                 ],
               ),
@@ -267,7 +267,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
                   _RecordingDot(),
                   const SizedBox(width: 10),
                   const Text(
-                    'Recording...',
+                    'Recording…',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -292,7 +292,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
               const SizedBox(height: 8),
 
               Text(
-                'Max ${_formatDuration(_maxSeconds)}',
+                'Up to ${_formatDuration(_maxSeconds)}',
                 style: const TextStyle(
                   color: AppColors.textSubtle,
                   fontSize: 12,

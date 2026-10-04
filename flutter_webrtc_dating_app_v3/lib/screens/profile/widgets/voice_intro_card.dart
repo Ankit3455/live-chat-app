@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/core/utils/haptics.dart';
 import 'package:availchat/services/audio_manager_service.dart';
 
 /// Voice intro player card: play/pause, waveform-style progress, duration.
@@ -80,6 +81,7 @@ class _VoiceIntroCardState extends State<VoiceIntroCard> {
   }
 
   Future<void> _toggle() async {
+    Haptics.light();
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -94,6 +96,7 @@ class _VoiceIntroCardState extends State<VoiceIntroCard> {
         await _player.play(UrlSource(widget.url));
       }
     } catch (_) {
+      Haptics.error();
       if (mounted) setState(() => _hasError = true);
       await AudioManagerService.setSpeakerphone(false);
     } finally {
@@ -204,14 +207,20 @@ class _VoiceIntroCardState extends State<VoiceIntroCard> {
             ],
           ),
         ),
-        if (_hasError)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              "Couldn't play the voice intro. Try again.",
-              style: TextStyle(color: AppColors.error, fontSize: 12),
-            ),
-          ),
+        AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 200),
+          child: _hasError
+              ? const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    "We couldn't play this voice intro. Tap play to try again.",
+                    style: TextStyle(color: AppColors.error, fontSize: 12),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ],
     );
   }

@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'services/ludo_game_service.dart';
 import 'ludo_wrapper_screen.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 
@@ -99,7 +100,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     if (_searching) return;
     final user = _auth.currentUser;
     if (user == null) {
-      setState(() => _error = 'Please sign in to play');
+      setState(() => _error = 'Log in to play Ludo.');
       return;
     }
 
@@ -117,9 +118,12 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       if (mounted && !_navigated) {
         setState(() => _waitSeconds++);
       }
-      if (_waitSeconds > 120) { // 2 min timeout for 4P
+      if (_waitSeconds > 120) {
+        // 2 min timeout for 4P
         t.cancel();
-        _cancelSearch('No players found. Try again later.');
+        _cancelSearch(
+          "No one's available right now. Try again in a few minutes.",
+        );
       }
     });
 
@@ -129,23 +133,22 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       // A match created by another player claims (deletes) our queue entry,
       // so listen for matches we are part of before entering the queue.
       final since = _searchStartedAt!.subtract(_matchCreatedSlack);
-      _matchListener = _newMatchesFor(user.uid, since).snapshots().listen(
-        (snapshot) {
-          if (_navigated) return;
-          for (final doc in snapshot.docs) {
-            final data = doc.data();
-            if (data['maxPlayers'] != _selectedPlayerCount) continue;
-            final players = Map<String, dynamic>.from(data['players'] ?? {});
-            final info = players[user.uid];
-            if (info is Map && info['status'] == 'active') {
-              debugPrint('✅ Match ready: ${doc.id}');
-              _navigateToGame(doc.id);
-              return;
-            }
+      _matchListener = _newMatchesFor(user.uid, since).snapshots().listen((
+        snapshot,
+      ) {
+        if (_navigated) return;
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          if (data['maxPlayers'] != _selectedPlayerCount) continue;
+          final players = Map<String, dynamic>.from(data['players'] ?? {});
+          final info = players[user.uid];
+          if (info is Map && info['status'] == 'active') {
+            debugPrint('✅ Match ready: ${doc.id}');
+            _navigateToGame(doc.id);
+            return;
           }
-        },
-        onError: (e) => debugPrint('❌ Match listener error: $e'),
-      );
+        }
+      }, onError: (e) => debugPrint('❌ Match listener error: $e'));
 
       final queueRef = await _service.enqueue(
         user.uid,
@@ -161,12 +164,9 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       debugPrint('✅ Added to queue: ${queueRef.id}');
 
       // The host's transaction deletes our entry when it claims us.
-      _queueListener = queueRef.snapshots().listen(
-        (snap) {
-          if (!snap.exists) _onQueueEntryGone();
-        },
-        onError: (e) => debugPrint('❌ Queue listener error: $e'),
-      );
+      _queueListener = queueRef.snapshots().listen((snap) {
+        if (!snap.exists) _onQueueEntryGone();
+      }, onError: (e) => debugPrint('❌ Queue listener error: $e'));
 
       _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
         if (_navigated || !_searching) return;
@@ -185,7 +185,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       await _tryCreateOrJoinMatch(user);
     } catch (e) {
       debugPrint('❌ Find match error: $e');
-      _cancelSearch('Connection error. Please try again.');
+      _cancelSearch("Couldn't connect. Check your internet and try again.");
     }
   }
 
@@ -200,7 +200,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     _queueListener = null;
     _claimTimeout ??= Timer(const Duration(seconds: 15), () {
       if (!_navigated) {
-        _cancelSearch('Could not join the match. Please try again.');
+        _cancelSearch("Couldn't join the match. Tap Find match to try again.");
       }
     });
   }
@@ -252,9 +252,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     }
   }
 
-  void _navigateToGame(String matchId) {
+  void _navigateToGame(String matchId, {bool matchFound = true}) {
     if (_navigated) return;
     _navigated = true;
+    if (matchFound) Haptics.success();
 
     _stopTimers();
     _cleanupQueue();
@@ -265,19 +266,18 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => LudoWrapperScreen(matchId: matchId),
-      ),
+      MaterialPageRoute(builder: (_) => LudoWrapperScreen(matchId: matchId)),
     );
   }
 
   void _resumeMatch() {
     final matchId = _resumeMatchId;
     if (matchId == null) return;
-    _navigateToGame(matchId);
+    _navigateToGame(matchId, matchFound: false);
   }
 
   void _cancelSearch([String? errorMessage]) {
+    if (errorMessage != null) Haptics.error();
     _stopTimers();
     _cleanupQueue();
 
@@ -450,6 +450,12 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     );
   }
 
+  void _selectMode(int count) {
+    if (_selectedPlayerCount == count) return;
+    Haptics.selection();
+    setState(() => _selectedPlayerCount = count);
+  }
+
   Widget _modeOption({
     required int count,
     required IconData icon,
@@ -462,9 +468,9 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       selected: selected,
       label: '$label, $caption',
       excludeSemantics: true,
-      onTap: () => setState(() => _selectedPlayerCount = count),
+      onTap: () => _selectMode(count),
       child: InkWell(
-        onTap: () => setState(() => _selectedPlayerCount = count),
+        onTap: () => _selectMode(count),
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -476,14 +482,16 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                 : AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? AppColors.brandPurpleMid : AppColors.surfaceCard,
+              color:
+                  selected ? AppColors.brandPurpleMid : AppColors.surfaceCard,
             ),
           ),
           child: Column(
             children: [
               Icon(
                 icon,
-                color: selected ? AppColors.brandPurpleLight : AppColors.lavender,
+                color:
+                    selected ? AppColors.brandPurpleLight : AppColors.lavender,
                 size: 28,
               ),
               const SizedBox(height: 6),
@@ -499,7 +507,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
               Text(
                 caption,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSubtle, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textSubtle,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -569,9 +580,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
               child: Column(
                 children: [
                   Text(
-                    multi
-                        ? 'Looking for players…'
-                        : 'Looking for an opponent…',
+                    multi ? 'Looking for players…' : 'Looking for an opponent…',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.white,
@@ -601,8 +610,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
             if (multi) ...[
               const SizedBox(height: 20),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(999),
@@ -619,9 +630,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                         height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isFound
-                              ? AppColors.success
-                              : AppColors.surface2,
+                          color:
+                              isFound ? AppColors.success : AppColors.surface2,
                           border: Border.all(color: AppColors.borderStrong),
                         ),
                       );

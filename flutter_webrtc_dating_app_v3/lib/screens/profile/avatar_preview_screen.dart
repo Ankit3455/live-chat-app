@@ -8,9 +8,11 @@ import 'package:availchat/screens/questionnaire/post_signup_questions_screen.dar
 import 'package:availchat/services/avatar_traits.dart';
 import 'package:availchat/services/dicebear_avatar_service.dart';
 import 'package:availchat/services/profile_photo_service.dart';
+import 'package:availchat/widgets/app_states.dart';
 import 'package:availchat/widgets/avatar_story.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 
 /// Safe cache-busting helper
 String cacheBustedUrl(String url, int? version) {
@@ -23,7 +25,7 @@ class AvatarPreviewScreen extends StatefulWidget {
   final Map<String, dynamic> answers;
 
   const AvatarPreviewScreen({Key? key, required this.answers})
-    : super(key: key);
+      : super(key: key);
 
   @override
   State<AvatarPreviewScreen> createState() => _AvatarPreviewScreenState();
@@ -46,10 +48,8 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
     super.initState();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      _userStream = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots();
+      _userStream =
+          FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _generateAvatar());
   }
@@ -65,13 +65,14 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
 
     try {
       if (FirebaseAuth.instance.currentUser == null) {
-        throw StateError('Not signed in');
+        throw StateError('Not logged in');
       }
       await DiceBearAvatarService.generateAndSaveAvatar(
         answers: widget.answers,
       );
     } catch (e) {
       debugPrint('Avatar generation failed: $e');
+      Haptics.error();
       _error = _generateError;
     } finally {
       if (mounted) setState(() => _generating = false);
@@ -89,6 +90,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
     try {
       final url = await ProfilePhotoService.pickAndUploadPhoto();
       if (url != null && mounted) {
+        Haptics.success();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile photo updated'),
@@ -97,10 +99,14 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
         );
       }
     } on ProfilePhotoException catch (e) {
+      Haptics.error();
       _showSnack(e.message);
     } catch (e) {
       debugPrint('Profile photo upload failed: $e');
-      _showSnack('Could not upload the photo. Please try again.');
+      Haptics.error();
+      _showSnack(
+        'We couldn\'t upload your photo. Check your connection and try again.',
+      );
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -123,8 +129,8 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
   }
 
   String _title({required bool hasImage, required bool isPhoto}) {
-    if (_generating) return 'Creating your avatar...';
-    if (_uploading) return 'Uploading your photo...';
+    if (_generating) return 'Creating your avatar…';
+    if (_uploading) return 'Uploading your photo…';
     if (hasImage) return isPhoto ? 'Looking good ✨' : 'This is you ✨';
     if (_error != null) return 'Avatar not created yet';
     return 'Meet your avatar';
@@ -138,7 +144,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
       backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
         child: uid == null || _userStream == null
-            ? _buildError('Please sign in again.')
+            ? _buildError('You\'re logged out. Please log in again.')
             : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 stream: _userStream,
                 builder: (context, snap) {
@@ -151,9 +157,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                     debugPrint(
                       'Avatar preview profile stream error: ${snap.error}',
                     );
-                    return _buildError(
-                      'Could not load your profile. Check your connection.',
-                    );
+                    return _buildError('Check your connection and try again.');
                   }
 
                   final data = snap.data?.data() ?? <String, dynamic>{};
@@ -220,26 +224,34 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                   ),
                                   const SizedBox(height: 20),
                                   _AvatarCircle(
-                                    child: readyUrl != null
-                                        ? Semantics(
-                                            image: true,
-                                            label: isPhoto
-                                                ? 'Your profile photo'
-                                                : 'Your avatar',
-                                            child: CachedNetworkImage(
-                                              imageUrl: readyUrl,
-                                              memCacheWidth: 600,
-                                              fit: BoxFit.cover,
-                                              errorWidget: (_, __, ___) =>
-                                                  _avatarPlaceholder(),
+                                    child: AnimatedSwitcher(
+                                      duration: MediaQuery.disableAnimationsOf(
+                                        context,
+                                      )
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 250),
+                                      child: readyUrl != null
+                                          ? Semantics(
+                                              key: ValueKey(readyUrl),
+                                              image: true,
+                                              label: isPhoto
+                                                  ? 'Your profile photo'
+                                                  : 'Your avatar',
+                                              child: CachedNetworkImage(
+                                                imageUrl: readyUrl,
+                                                memCacheWidth: 600,
+                                                fit: BoxFit.cover,
+                                                errorWidget: (_, __, ___) =>
+                                                    _avatarPlaceholder(),
+                                              ),
+                                            )
+                                          : _avatarGenerating(
+                                              generating:
+                                                  _generating || _uploading,
+                                              error: _error,
+                                              onRetry: _generateAvatar,
                                             ),
-                                          )
-                                        : _avatarGenerating(
-                                            generating:
-                                                _generating || _uploading,
-                                            error: _error,
-                                            onRetry: _generateAvatar,
-                                          ),
+                                    ),
                                   ),
                                   if (unique) ...[
                                     const SizedBox(height: 14),
@@ -266,10 +278,10 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                         : const Icon(Icons.check, size: 20),
                                     label: Text(
                                       _busy
-                                          ? 'Please wait...'
+                                          ? 'Please wait…'
                                           : isPhoto
-                                          ? 'Continue'
-                                          : 'Use this avatar',
+                                              ? 'Continue'
+                                              : 'Use this avatar',
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
@@ -291,9 +303,8 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton.icon(
-                                    onPressed: _busy
-                                        ? null
-                                        : _chooseProfilePhoto,
+                                    onPressed:
+                                        _busy ? null : _chooseProfilePhoto,
                                     icon: const Icon(
                                       Icons.photo_camera_outlined,
                                       size: 20,
@@ -341,22 +352,11 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
   }
 
   Widget _buildError(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textMuted),
-            ),
-          ],
-        ),
-      ),
+    return AppEmptyState(
+      icon: Icons.error_outline,
+      illustration: AppIllustrationKind.error,
+      title: 'We couldn\'t load your avatar',
+      message: message,
     );
   }
 
@@ -377,6 +377,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
   }) {
     if (error != null) {
       return Center(
+        key: const ValueKey('avatar-error'),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -405,6 +406,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
 
     if (generating) {
       return const Center(
+        key: ValueKey('avatar-generating'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -418,7 +420,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              '🎨 Creating your unique avatar...',
+              'Creating your avatar…',
               style: TextStyle(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),

@@ -347,6 +347,9 @@ class _Net extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
+      fadeInDuration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
       placeholder: (_, __) => Container(color: AppColors.surfaceCard),
       errorWidget: (_, __, ___) => Container(color: AppColors.surfaceCard),
     );

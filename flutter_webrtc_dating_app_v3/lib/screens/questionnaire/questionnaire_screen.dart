@@ -13,6 +13,7 @@ import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/location_service.dart';
 import '../../features/onboarding/tour_prefs.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../widgets/custom_button.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
@@ -48,10 +49,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final uid = _uid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final dob = doc.data()?['dateOfBirth'];
       if (dob != null && mounted) {
         setState(() {
@@ -93,19 +92,23 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     super.dispose();
   }
 
+  Duration get _pageDuration => MediaQuery.disableAnimationsOf(context)
+      ? const Duration(milliseconds: 1)
+      : const Duration(milliseconds: 300);
+
   void _nextPage() {
     if (_currentPage < _questions.length - 1) {
       if (!_isCurrentAnswerValid()) {
-        _showError('Please answer this question');
+        _showError('Please answer this question to continue.');
         return;
       }
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
+        duration: _pageDuration,
         curve: Curves.easeInOut,
       );
     } else {
       if (!_isCurrentAnswerValid()) {
-        _showError('Please answer this question');
+        _showError('Please answer this question to continue.');
         return;
       }
       _saveToFirestoreAndOpenAvatar();
@@ -115,7 +118,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   void _previousPage() {
     if (_currentPage > 0) {
       _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
+        duration: _pageDuration,
         curve: Curves.easeInOut,
       );
     }
@@ -138,7 +141,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) throw StateError('Not signed in');
+      if (userId == null) throw StateError('Not logged in');
 
       final userData = <String, dynamic>{};
       _answers.forEach((key, value) {
@@ -191,6 +194,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
       if (!mounted) return;
       _completed = true;
+      Haptics.success();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -202,7 +206,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       debugPrint('Questionnaire save failed: $e');
       if (mounted) {
         _showError(
-          'Could not save your answers. Check your connection and try again.',
+          "We couldn't save your answers. Check your connection and try again.",
         );
       }
     } finally {
@@ -211,6 +215,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   void _showError(String msg) {
+    Haptics.error();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: AppColors.error),
     );
@@ -239,9 +244,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     currentStep: _currentPage + 1,
                     totalSteps: _questions.length,
                     // First question is the root of onboarding: no back exit.
-                    onBack: _currentPage > 0 && !_isSaving
-                        ? _previousPage
-                        : null,
+                    onBack:
+                        _currentPage > 0 && !_isSaving ? _previousPage : null,
                   ),
                   if (uid != null) ...[
                     const SizedBox(height: 12),
@@ -255,7 +259,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       },
                     ),
                   ],
-
                   Expanded(
                     child: PageView.builder(
                       controller: _pageController,
@@ -278,12 +281,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       },
                     ),
                   ),
-
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     child: CustomButton(
                       text: _currentPage == _questions.length - 1
-                          ? 'Finish & Create Avatar'
+                          ? 'Finish and create avatar'
                           : 'Continue',
                       onPressed: _isSaving ? null : _nextPage,
                       isLoading: _isSaving,

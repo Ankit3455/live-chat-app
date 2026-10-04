@@ -39,7 +39,7 @@ class ProfileStatsRow extends StatelessWidget {
 
   String _ageLabel() {
     final age = user.age;
-    return age != null && age > 0 ? age.toString() : 'N/A';
+    return age != null && age > 0 ? age.toString() : 'Not set';
   }
 
   Widget _buildStat({

@@ -1,5 +1,4 @@
 // lib/feature/games/carrom/carrom_result_screen.dart
-// STATUS: UPDATED WITH STATS SAVING ✅
 
 import 'dart:async';
 
@@ -7,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../screens/chat/chat_screen.dart';
+import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 import 'carrom_lobby_screen.dart';
 import 'carrom_match_screen.dart';
@@ -52,7 +53,6 @@ class CarromResultScreen extends StatefulWidget {
 
 class _CarromResultScreenState extends State<CarromResultScreen>
     with SingleTickerProviderStateMixin {
-
   final _auth = FirebaseAuth.instance;
   final _audioService = CarromAudioService();
 
@@ -60,6 +60,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
+  late Animation<double> _haloAnimation;
 
   bool get isWinner => widget.winnerUid != null
       ? widget.winnerUid == _auth.currentUser?.uid
@@ -78,10 +79,10 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   bool _rematchCreating = false;
   bool _rematchOpened = false;
 
-  DocumentReference<Map<String, dynamic>> get _matchRef => FirebaseFirestore
-      .instance
-      .collection('carrom_matches')
-      .doc(widget.matchId);
+  DocumentReference<Map<String, dynamic>> get _matchRef =>
+      FirebaseFirestore.instance
+          .collection('carrom_matches')
+          .doc(widget.matchId);
 
   bool get _hasOpponent => widget.opponentUid.isNotEmpty;
 
@@ -90,6 +91,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     super.initState();
     _initAnimations();
     _playResultSound();
+    if (isWinner) Haptics.success();
     _saveThenLoadStats();
     if (_hasOpponent) _listenRematch();
   }
@@ -131,6 +133,12 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         parent: _controller,
         curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
       ),
+    );
+
+    // One soft ring expanding behind the trophy on a win.
+    _haloAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.2, 0.8, curve: Curves.easeOut),
     );
 
     _controller.forward();
@@ -201,7 +209,9 @@ class _CarromResultScreenState extends State<CarromResultScreen>
       if (!mounted) return;
       setState(() => _rematchRequested = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not send rematch request')),
+        const SnackBar(
+          content: Text("Couldn't send your rematch request. Try again."),
+        ),
       );
     }
   }
@@ -337,7 +347,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   }
 
   Widget _buildResultIcon() {
-    return ScaleTransition(
+    final icon = ScaleTransition(
       scale: _scaleAnimation,
       child: ExcludeSemantics(
         child: Container(
@@ -363,6 +373,31 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         ),
       ),
     );
+    if (!isWinner) return icon;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        AnimatedBuilder(
+          animation: _haloAnimation,
+          builder: (context, _) {
+            final t = _haloAnimation.value;
+            // Fully faded at t = 1, so reduced motion shows no ring.
+            return Container(
+              width: 112 + 72 * t,
+              height: 112 + 72 * t,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _accent.withOpacity(0.5 * (1 - t)),
+                  width: 2,
+                ),
+              ),
+            );
+          },
+        ),
+        icon,
+      ],
+    );
   }
 
   Widget _buildResultText() {
@@ -376,7 +411,11 @@ class _CarromResultScreenState extends State<CarromResultScreen>
               header: true,
               liveRegion: true,
               child: Text(
-                isWinner ? 'Victory!' : isDraw ? 'Draw' : 'Defeat',
+                isWinner
+                    ? 'You won!'
+                    : isDraw
+                        ? "It's a draw"
+                        : 'You lost',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.white,
@@ -540,10 +579,19 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         ],
       );
     } else {
-      body = const Text(
-        'Stats will appear after this game',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.lavender, fontSize: 14),
+      body = const Row(
+        children: [
+          ExcludeSemantics(
+            child: AppIllustration(kind: AppIllustrationKind.stars, size: 56),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "We couldn't load your stats. They'll show here next time.",
+              style: TextStyle(color: AppColors.lavender, fontSize: 14),
+            ),
+          ),
+        ],
       );
     }
 
@@ -569,7 +617,8 @@ class _CarromResultScreenState extends State<CarromResultScreen>
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.brandPurpleMid.withOpacity(0.35)),
+            border:
+                Border.all(color: AppColors.brandPurpleMid.withOpacity(0.35)),
           ),
           child: body,
         ),
@@ -636,7 +685,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: CustomButton(
-                    text: 'Rankings',
+                    text: 'Leaderboard',
                     leftIcon: Icons.leaderboard_outlined,
                     type: ButtonType.outline,
                     onPressed: _openLeaderboard,
@@ -674,9 +723,9 @@ class _CarromResultScreenState extends State<CarromResultScreen>
           ? 'Your opponent missed too many turns.'
           : 'You missed too many turns.';
     }
-    if (isWinner) return 'Congratulations! Well played! 🎉';
-    if (isDraw) return 'Great match! It\'s a tie! 🤝';
-    return 'Better luck next time! 💪';
+    if (isWinner) return 'Congratulations, well played.';
+    if (isDraw) return 'Good game. You finished level.';
+    return 'Good game. Better luck next time.';
   }
 
   String _formatName(String name) {

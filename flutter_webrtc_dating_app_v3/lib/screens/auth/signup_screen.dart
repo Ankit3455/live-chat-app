@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/utils/haptics.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
@@ -102,7 +103,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   String? _validateDob(String? _) {
     final dob = _dob;
-    if (dob == null) return 'Birth date is required';
+    if (dob == null) return 'Please choose your birth date';
     if (!AgePolicy.isAdult(dob)) {
       return 'You must be 18 or older to use Destined';
     }
@@ -117,7 +118,10 @@ class _SignupScreenState extends State<SignupScreen> {
       _adultError = !_confirmedAdult;
     });
     final formValid = _formKey.currentState?.validate() ?? false;
-    if (!formValid || !_confirmedAdult) return;
+    if (!formValid || !_confirmedAdult) {
+      Haptics.error();
+      return;
+    }
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -144,24 +148,27 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (!mounted) return;
 
+      Haptics.success();
       _showSuccess('Account created! Check your inbox to verify your email.');
       await AuthRouter.routeCurrentUser(context);
     } on FirebaseAuthException catch (e) {
       _showError(
         e.code == 'profile-write-failed'
-            ? (e.message ?? 'Signup failed')
+            ? (e.message ??
+                "We couldn't create your account. Please try again.")
             : AuthValidators.messageFor(e),
       );
     } catch (_) {
-      _showError('Signup failed. Please try again.');
+      _showError("We couldn't create your account. Please try again.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Submit errors show inline above the Sign up button.
+  // Submit errors show inline above the Create account button.
   void _showError(String message) {
     if (!mounted) return;
+    Haptics.error();
     setState(() => _error = message);
   }
 
@@ -187,6 +194,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     final dob = _dob;
     final error = _error;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -237,7 +245,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            'Two quick parts: your login, then the birth details '
+                            'Two quick parts: your login details, then the birth details '
                             'we use to read your chart.',
                             style: TextStyle(
                               color: AppColors.lavender,
@@ -310,8 +318,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             icon: Icons.access_time,
                             readOnly: true,
                             onTap: _isLoading ? null : _pickBirthTime,
-                            helper:
-                                "Makes your chart more precise. Skip it if "
+                            helper: "Makes your chart more precise. Skip it if "
                                 "you're not sure.",
                           ),
                           const SizedBox(height: 16),
@@ -321,7 +328,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             hint: 'City, Country',
                             icon: Icons.location_on_outlined,
                             validator: (v) => (v ?? '').trim().isEmpty
-                                ? 'Birth location is required'
+                                ? 'Please enter the city where you were born'
                                 : null,
                           ),
                           const SizedBox(height: 16),
@@ -330,9 +337,10 @@ class _SignupScreenState extends State<SignupScreen> {
                             onChanged: _isLoading
                                 ? null
                                 : (v) => setState(() {
-                                    _confirmedAdult = v;
-                                    if (v) _adultError = false;
-                                  }),
+                                      Haptics.selection();
+                                      _confirmedAdult = v;
+                                      if (v) _adultError = false;
+                                    }),
                             errorText: _adultError
                                 ? 'Please confirm you are 18 or older'
                                 : null,
@@ -396,12 +404,23 @@ class _SignupScreenState extends State<SignupScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (error != null) ...[
-                        AppBanner(message: error, tone: AppBannerTone.error),
-                        const SizedBox(height: 12),
-                      ],
+                      AnimatedSwitcher(
+                        duration: reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 200),
+                        child: error == null
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                key: ValueKey(error),
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: AppBanner(
+                                  message: error,
+                                  tone: AppBannerTone.error,
+                                ),
+                              ),
+                      ),
                       CustomButton(
-                        text: 'Sign up',
+                        text: 'Create account',
                         isLoading: _isLoading,
                         onPressed: _isLoading ? null : _handleSignup,
                       ),

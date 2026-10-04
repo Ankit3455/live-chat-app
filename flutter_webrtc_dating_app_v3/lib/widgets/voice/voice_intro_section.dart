@@ -48,24 +48,30 @@ class _VoiceIntroSectionState extends State<VoiceIntroSection> {
   Future<void> _delete() async {
     await VoiceIntroService.deleteVoice();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Voice intro removed')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Voice intro removed')));
       setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final has = (widget.user.voiceIntroUrl != null && widget.user.voiceIntroUrl!.trim().isNotEmpty);
+    final has = (widget.user.voiceIntroUrl != null &&
+        widget.user.voiceIntroUrl!.trim().isNotEmpty);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
           header: true,
-          child: const Text("Voice Intro", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+          child: const Text("Voice intro",
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 6),
         Text(
-          "Let others hear your vibe. 10–20s intro helps people know you faster.",
+          "Let people hear you. A 10–20 second voice intro helps them get to know you faster.",
           style: const TextStyle(color: AppColors.textMuted, fontSize: 13.5),
         ),
         const SizedBox(height: 10),
@@ -88,17 +94,21 @@ class _VoiceIntroSectionState extends State<VoiceIntroSection> {
               OutlinedButton.icon(
                 onPressed: _play,
                 icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-                label: const Text('Play', style: TextStyle(color: Colors.white)),
+                label:
+                    const Text('Play', style: TextStyle(color: Colors.white)),
               ),
               OutlinedButton.icon(
                 onPressed: _openRecorder,
                 icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                label: const Text('Re-record', style: TextStyle(color: Colors.white)),
+                label: const Text('Re-record',
+                    style: TextStyle(color: Colors.white)),
               ),
               TextButton.icon(
                 onPressed: _delete,
-                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
-                label: const Text('Remove', style: TextStyle(color: AppColors.error)),
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: AppColors.error),
+                label: const Text('Remove',
+                    style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),

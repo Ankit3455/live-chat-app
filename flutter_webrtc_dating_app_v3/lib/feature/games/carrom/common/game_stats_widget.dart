@@ -1,10 +1,10 @@
 // lib/feature/games/common/game_stats_widget.dart
-// STATUS: NEW FILE ✅
-// Use this widget in your profile screen to show game stats
+// Compact Carrom stats card for profile screens.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../widgets/app_states.dart';
 import '../services/carrom_stats_service.dart';
 import 'carrom_rank_badge.dart';
 import 'game_leaderboard_screen.dart';
@@ -157,11 +157,16 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.play_circle_outline, color: AppColors.pinkLight),
-              SizedBox(width: 8),
+              ExcludeSemantics(
+                child: AppIllustration(
+                  kind: AppIllustrationKind.stars,
+                  size: 48,
+                ),
+              ),
+              SizedBox(width: 12),
               Flexible(
                 child: Text(
-                  'Play your first game!',
+                  'Play a game of Carrom to see your stats here.',
                   style: TextStyle(color: AppColors.lavender, fontSize: 14),
                 ),
               ),

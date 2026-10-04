@@ -7,6 +7,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../widgets/custom_button.dart';
 
 // Camera zoom: 100 logical px = 1 world meter. The camera is anchored top-left,
@@ -38,6 +39,11 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
   void initState() {
     super.initState();
     _game = LovePhysicsGame();
+    _game.matched.addListener(_onMatched);
+  }
+
+  void _onMatched() {
+    if (_game.matched.value) Haptics.success();
   }
 
   @override
@@ -49,7 +55,9 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
 
   void _restart() {
     final old = _game;
+    old.matched.removeListener(_onMatched);
     setState(() => _game = LovePhysicsGame());
+    _game.matched.addListener(_onMatched);
     old.pauseEngine();
     WidgetsBinding.instance.addPostFrameCallback((_) => old.matched.dispose());
   }
@@ -107,7 +115,7 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
             bottom: 16,
             child: IgnorePointer(
               child: Text(
-                'Draw ramps with your finger to bring the hearts together',
+                'Draw ramps with your finger to bring the hearts together.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.lavender, fontSize: 14),
               ),
@@ -117,33 +125,48 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
             valueListenable: _game.matched,
             builder: (context, matched, _) {
               if (!matched) return const SizedBox.shrink();
-              return Align(
-                alignment: const Alignment(0, -0.6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Semantics(
-                      header: true,
-                      liveRegion: true,
-                      child: const Text(
-                        'Match found! ❤️',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.pinkLight,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                        ),
+              final win = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    header: true,
+                    liveRegion: true,
+                    child: const Text(
+                      'You brought them together!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.pinkLight,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    CustomButton(
-                      text: 'Play again',
-                      leftIcon: Icons.refresh,
-                      width: 200,
-                      onPressed: _restart,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  CustomButton(
+                    text: 'Play again',
+                    leftIcon: Icons.refresh,
+                    width: 200,
+                    onPressed: _restart,
+                  ),
+                ],
+              );
+              return Align(
+                alignment: const Alignment(0, -0.6),
+                child: MediaQuery.disableAnimationsOf(context)
+                    ? win
+                    : TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 450),
+                        curve: Curves.easeOutBack,
+                        builder: (context, t, child) => Opacity(
+                          opacity: t.clamp(0.0, 1.0),
+                          child: Transform.scale(
+                            scale: 0.85 + 0.15 * t,
+                            child: child,
+                          ),
+                        ),
+                        child: win,
+                      ),
               );
             },
           ),

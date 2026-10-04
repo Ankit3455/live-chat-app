@@ -95,7 +95,7 @@ class ProfileViewScreen extends StatelessWidget {
                       Semantics(
                         header: true,
                         child: const Text(
-                          'Astrology Profile',
+                          'Astrology profile',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,

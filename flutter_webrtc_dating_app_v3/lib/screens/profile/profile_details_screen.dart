@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
+import 'package:availchat/core/utils/haptics.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/screens/chat/chat_screen.dart';
 import 'package:availchat/screens/chat/widgets/report_dialog.dart';
@@ -44,10 +45,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     final uid = _myUid;
     if (uid == null || uid.isEmpty || uid == widget.user.uid) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!mounted || !doc.exists) return;
       setState(() => _me = UserModel.fromFirestore(doc));
     } catch (_) {
@@ -120,6 +119,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   Future<void> _block() async {
     final uid = _otherUid;
     if (uid.isEmpty) return;
+    Haptics.warning();
     final blocked = await confirmAndBlockUser(
       context,
       otherUid: uid,
@@ -330,16 +330,23 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             image: true,
             label: 'Profile photo of $_name',
             excludeSemantics: true,
-            child: url == null
-                ? fallback
-                : CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: 1080,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        const ColoredBox(color: AppColors.surfaceCard),
-                    errorWidget: (_, __, ___) => fallback,
-                  ),
+            // Matches the Discover card photo (tag 'profile-photo-<uid>').
+            child: HeroMode(
+              enabled: _otherUid.isNotEmpty,
+              child: Hero(
+                tag: 'profile-photo-$_otherUid',
+                child: url == null
+                    ? fallback
+                    : CachedNetworkImage(
+                        imageUrl: url,
+                        memCacheWidth: 1080,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) =>
+                            const ColoredBox(color: AppColors.surfaceCard),
+                        errorWidget: (_, __, ___) => fallback,
+                      ),
+              ),
+            ),
           ),
           // Scrim: darken top for buttons, fade bottom into background.
           DecoratedBox(
@@ -452,7 +459,19 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     final children = <Widget>[];
 
     final compat = _compatibilityCard();
-    if (compat != null) children.add(compat);
+    if (compat != null) {
+      // Fades in once my profile has loaded.
+      children.add(
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 250),
+          builder: (_, t, child) => Opacity(opacity: t, child: child),
+          child: compat,
+        ),
+      );
+    }
 
     final voiceUrl = _clean(u.voiceIntroUrl);
     if (voiceUrl != null) {
@@ -601,8 +620,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       headline = 'Opposites can attract';
       verdict = 'have differences to explore';
     }
-    final reason =
-        'Your ${_signLabel(mySign)} and their '
+    final reason = 'Your ${_signLabel(mySign)} and their '
         '${_signLabel(theirSign)} sun signs $verdict.';
 
     return Container(

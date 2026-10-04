@@ -7,6 +7,7 @@ import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/constants/app_colors.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _confirmCtl = TextEditingController();
 
   bool _isLoading = false;
+  bool _isSuccess = false;
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
@@ -38,6 +40,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   String? _validateNew(String? v) => AuthValidators.newPassword(v);
 
   void _showSnackBar(String message, {bool isError = true}) {
+    if (isError) Haptics.error();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -65,7 +68,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSuccess) return;
+    if (!_formKey.currentState!.validate()) {
+      Haptics.error();
+      return;
+    }
 
     final current = _currentCtl.text;
     final newPass = _newCtl.text;
@@ -90,10 +97,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           );
 
       if (!mounted) return;
+      Haptics.success();
+      setState(() {
+        _isLoading = false;
+        _isSuccess = true;
+      });
       _showSnackBar(
         '${AppStrings.passwordChangedSuccess}. Other devices will be signed out.',
         isError: false,
       );
+      // Brief check-mark state before leaving.
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       final message =
@@ -185,9 +200,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   icon: Icons.lock_outline,
                   obscureText: _obscureCurrent,
                   suffixIcon: IconButton(
-                    tooltip: _obscureCurrent
-                        ? 'Show password'
-                        : 'Hide password',
+                    tooltip:
+                        _obscureCurrent ? 'Show password' : 'Hide password',
                     icon: Icon(
                       _obscureCurrent ? Icons.visibility_off : Icons.visibility,
                       color: AppColors.textSubtle,
@@ -231,9 +245,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   icon: Icons.lock_outline,
                   obscureText: _obscureConfirm,
                   suffixIcon: IconButton(
-                    tooltip: _obscureConfirm
-                        ? 'Show password'
-                        : 'Hide password',
+                    tooltip:
+                        _obscureConfirm ? 'Show password' : 'Hide password',
                     icon: Icon(
                       _obscureConfirm ? Icons.visibility_off : Icons.visibility,
                       color: AppColors.textSubtle,
@@ -251,6 +264,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   text: 'Update password',
                   leftIcon: Icons.security,
                   isLoading: _isLoading,
+                  isSuccess: _isSuccess,
                   onPressed: _submit,
                 ),
                 const SizedBox(height: 8),
@@ -286,7 +300,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           const SizedBox(height: 6),
           _buildHintRow(
-              'Contains a letter', RegExp(r'[A-Za-z]').hasMatch(password)),
+            'Contains a letter',
+            RegExp(r'[A-Za-z]').hasMatch(password),
+          ),
           const SizedBox(height: 6),
           _buildHintRow('Contains a number', RegExp(r'\d').hasMatch(password)),
         ],
@@ -301,10 +317,16 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       excludeSemantics: true,
       child: Row(
         children: [
-          Icon(
-            isValid ? Icons.check_circle : Icons.circle_outlined,
-            size: 16,
-            color: isValid ? AppColors.success : AppColors.textSubtle,
+          AnimatedSwitcher(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            child: Icon(
+              isValid ? Icons.check_circle : Icons.circle_outlined,
+              key: ValueKey(isValid),
+              size: 16,
+              color: isValid ? AppColors.success : AppColors.textSubtle,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -396,7 +418,7 @@ class _ProviderBanner extends StatelessWidget {
               Semantics(
                 header: true,
                 child: Text(
-                  'Password Managed by $providerName',
+                  'Password managed by $providerName',
                   style: const TextStyle(
                     color: AppColors.white,
                     fontSize: 18,
@@ -407,7 +429,7 @@ class _ProviderBanner extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Your account uses $providerName for authentication. To change your password, please visit $providerName account settings.',
+                'You log in with $providerName, so your password is managed there. To change it, go to your $providerName account settings.',
                 style: const TextStyle(
                   color: AppColors.lavender,
                   fontSize: 14,
@@ -417,7 +439,7 @@ class _ProviderBanner extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               CustomButton(
-                text: 'Go Back',
+                text: 'Go back',
                 type: ButtonType.outline,
                 leftIcon: Icons.arrow_back,
                 onPressed: () => Navigator.pop(context),

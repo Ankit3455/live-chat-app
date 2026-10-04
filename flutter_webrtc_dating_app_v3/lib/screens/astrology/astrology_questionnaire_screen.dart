@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/astrology_view_model.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
+import 'package:availchat/core/utils/haptics.dart';
 import 'package:availchat/screens/astrology/widgets/zodiac_sign_selector.dart';
 import 'package:availchat/widgets/app_states.dart';
 import 'package:availchat/widgets/custom_button.dart';
@@ -23,6 +24,8 @@ class _AstrologyQuestionnaireScreenState
     extends State<AstrologyQuestionnaireScreen> {
   final _vm = AstrologyViewModel();
   final String? _uid = FirebaseAuth.instance.currentUser?.uid;
+  // Save button shows a check briefly before popping.
+  bool _saved = false;
 
   // A stored 'unsure' stays untouched until the user picks one of these.
   static const _beliefChoices = [
@@ -45,19 +48,27 @@ class _AstrologyQuestionnaireScreenState
   }
 
   Future<void> _save() async {
-    if (_vm.isSaving) return;
+    if (_vm.isSaving || _saved) return;
     final uid = _uid;
     if (uid == null) {
-      _showSnack('Please sign in again to save your answers.');
+      Haptics.error();
+      _showSnack('Please log in again to save your answers.');
       return;
     }
     final ok = await _vm.save(uid);
     if (!mounted) return;
     if (!ok) {
-      _showSnack('Could not save. Check your connection and try again.');
+      Haptics.error();
+      _showSnack(
+        "We couldn't save your astrology profile. Check your connection and try again.",
+      );
       return;
     }
+    Haptics.success();
+    setState(() => _saved = true);
     _showSnack('Astrology profile saved');
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
     Navigator.of(context).pop(true);
   }
 
@@ -145,8 +156,10 @@ class _AstrologyQuestionnaireScreenState
                                   emoji: _beliefChoices[i].emoji,
                                   selected:
                                       _vm.belief == _beliefChoices[i].value,
-                                  onTap: () =>
-                                      _vm.setBelief(_beliefChoices[i].value),
+                                  onTap: () {
+                                    Haptics.selection();
+                                    _vm.setBelief(_beliefChoices[i].value);
+                                  },
                                 ),
                               ),
                             ],
@@ -176,7 +189,10 @@ class _AstrologyQuestionnaireScreenState
                         const SizedBox(height: 12),
                         ZodiacSignSelector(
                           selectedSigns: _vm.preferredSigns,
-                          onToggle: _vm.toggleSign,
+                          onToggle: (sign) {
+                            Haptics.selection();
+                            _vm.toggleSign(sign);
+                          },
                         ),
                         const SizedBox(height: 20),
                         const AppBanner(message: CompatibilityService.tooltip),
@@ -189,9 +205,11 @@ class _AstrologyQuestionnaireScreenState
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: _constrained(
                   CustomButton(
-                    text: 'Save',
-                    onPressed: _vm.isLoading || _vm.isSaving ? null : _save,
-                    isLoading: _vm.isSaving,
+                    text: _saved ? 'Saved' : 'Save',
+                    onPressed:
+                        _vm.isLoading || _vm.isSaving || _saved ? null : _save,
+                    isLoading: _vm.isSaving && !_saved,
+                    isSuccess: _saved,
                   ),
                 ),
               ),
@@ -224,11 +242,13 @@ class _AstrologyQuestionnaireScreenState
       caption = 'From your birth date';
     } else {
       title = 'Not set yet';
-      caption =
-          'Add your date of birth to your profile to get your zodiac '
+      caption = 'Add your date of birth to your profile to get your zodiac '
           'sign and compatibility scores.';
     }
     final glyph = sign == null ? null : AstrologyUtils.zodiacEmoji[sign];
+    final animDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
 
     return Container(
       width: double.infinity,
@@ -292,14 +312,24 @@ class _AstrologyQuestionnaireScreenState
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(title, style: textTheme.headlineSmall),
-                const SizedBox(height: 2),
-                Text(
-                  caption,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    height: 1.35,
+                // Loading text cross-fades into the sign.
+                AnimatedSwitcher(
+                  duration: animDuration,
+                  child: Column(
+                    key: ValueKey(title),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: textTheme.headlineSmall),
+                      const SizedBox(height: 2),
+                      Text(
+                        caption,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -317,6 +347,9 @@ class _AstrologyQuestionnaireScreenState
     required VoidCallback onTap,
   }) {
     final radius = BorderRadius.circular(14);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
     return Semantics(
       inMutuallyExclusiveGroup: true,
       checked: selected,
@@ -324,72 +357,78 @@ class _AstrologyQuestionnaireScreenState
       label: label,
       excludeSemantics: true,
       onTap: onTap,
-      child: Material(
-        color: selected
-            ? AppColors.brandPurpleMid.withOpacity(0.14)
-            : AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
+      child: AnimatedContainer(
+        duration: duration,
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.brandPurpleMid.withOpacity(0.14)
+              : AppColors.surfaceCard,
           borderRadius: radius,
-          side: BorderSide(
+          border: Border.all(
             color: selected ? AppColors.brandPurpleMid : AppColors.border,
           ),
         ),
-        child: InkWell(
-          borderRadius: radius,
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 88),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: selected ? AppColors.brandPurple : null,
-                      border: Border.all(
-                        color: selected
-                            ? AppColors.brandPurpleMid
-                            : AppColors.borderStrong,
-                        width: 2,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 88),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: AnimatedContainer(
+                      duration: duration,
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected ? AppColors.brandPurple : null,
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.brandPurpleMid
+                              : AppColors.borderStrong,
+                          width: 2,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 11,
+                              color: AppColors.white,
+                            )
+                          : null,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(emoji, style: const TextStyle(fontSize: 22)),
+                          const SizedBox(height: 6),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: selected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 11,
-                            color: AppColors.white,
-                          )
-                        : null,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 8, 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(emoji, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(height: 6),
-                        Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

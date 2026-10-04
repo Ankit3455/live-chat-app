@@ -81,9 +81,18 @@ class ProfileCompletionCard extends StatelessWidget {
                       const Positioned.fill(
                         child: ColoredBox(color: AppColors.surface2),
                       ),
-                      FractionallySizedBox(
-                        widthFactor: pct / 100,
-                        heightFactor: 1,
+                      // Fills up when the card first shows or the value changes.
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: pct / 100),
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 500),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, value, child) => FractionallySizedBox(
+                          widthFactor: value,
+                          heightFactor: 1,
+                          child: child,
+                        ),
                         child: const DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: AppColors.primaryGradient,

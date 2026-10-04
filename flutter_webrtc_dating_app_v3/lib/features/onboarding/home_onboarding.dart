@@ -76,12 +76,14 @@ class HomeOnboarding {
       if (!context.mounted) return;
       if (_isShowing) return;
       if (_validateKeys(keys)) {
-        debugPrint('✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
+        debugPrint(
+            '✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
         _show(context, keys);
         return;
       }
     }
-    debugPrint('❌ HomeOnboarding: Keys not ready, will retry on next data load');
+    debugPrint(
+        '❌ HomeOnboarding: Keys not ready, will retry on next data load');
   }
 
   static Future<void> showManually(
@@ -91,7 +93,7 @@ class HomeOnboarding {
     if (_isShowing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Tutorial is already running'),
+          content: Text('The tour is already running.'),
           backgroundColor: AppColors.surfaceCard,
         ),
       );
@@ -107,7 +109,7 @@ class HomeOnboarding {
     if (targetKeys == null || !_validateKeys(targetKeys)) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
-          content: Text('Please wait for profiles to load'),
+          content: Text('Profiles are still loading. Try again in a moment.'),
           backgroundColor: AppColors.surfaceCard,
         ),
       );
@@ -223,9 +225,9 @@ class HomeOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
                   iconColor: AppColors.gold,
-                  title: "Online now ✨",
+                  title: "Online now",
                   description:
-                  "People who are online right now. Scroll sideways and tap someone to start a chat.",
+                      "People who are online right now. Scroll sideways and tap someone to start a chat.",
                   buttonText: "Next",
                   isLastStep: false,
                   onButtonTap: () {
@@ -247,7 +249,7 @@ class HomeOnboarding {
     if (firstGridItemKey.currentContext != null) {
       // Get the position of the first grid item
       final RenderBox? renderBox =
-      firstGridItemKey.currentContext?.findRenderObject() as RenderBox?;
+          firstGridItemKey.currentContext?.findRenderObject() as RenderBox?;
       final position = renderBox?.localToGlobal(Offset.zero);
       final itemTop = position?.dy ?? 0;
 
@@ -275,9 +277,9 @@ class HomeOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.touch_app_rounded,
                   iconColor: AppColors.online,
-                  title: "Tap to Start Chatting 💬",
+                  title: "Tap to view a profile",
                   description:
-                  "Single tap on any profile to instantly open a chat. Break the ice and say hello!",
+                      "Tap any profile to see their photos and details, then say hello from there.",
                   buttonText: "Next",
                   isLastStep: false,
                   onButtonTap: () {
@@ -303,7 +305,7 @@ class HomeOnboarding {
     if (holdKey.currentContext != null) {
       // Get position of the hold target
       final RenderBox? renderBox =
-      holdKey.currentContext?.findRenderObject() as RenderBox?;
+          holdKey.currentContext?.findRenderObject() as RenderBox?;
       final position = renderBox?.localToGlobal(Offset.zero);
       final itemTop = position?.dy ?? 0;
 
@@ -335,10 +337,10 @@ class HomeOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.pan_tool_rounded,
                   iconColor: AppColors.error,
-                  title: "Hold for More Details 📋",
+                  title: "Hold for a quick look",
                   description:
-                  "Press and hold any profile to see detailed info like interests, bio, and compatibility!",
-                  buttonText: "Got it! 🎉",
+                      "Press and hold any profile for a quick look at their bio, interests and compatibility.",
+                  buttonText: "Got it",
                   isLastStep: true,
                   onButtonTap: () {
                     HapticFeedback.heavyImpact();
@@ -423,8 +425,11 @@ class HomeOnboarding {
                     decoration: BoxDecoration(
                       gradient: isCompleted
                           ? const LinearGradient(
-                        colors: [AppColors.brandPurple, AppColors.brandMagenta],
-                      )
+                              colors: [
+                                AppColors.brandPurple,
+                                AppColors.brandMagenta
+                              ],
+                            )
                           : null,
                       color: isCompleted
                           ? null
@@ -537,8 +542,8 @@ class HomeOnboarding {
                       boxShadow: [
                         BoxShadow(
                           color: (isLastStep
-                              ? AppColors.online
-                              : AppColors.brandPurple)
+                                  ? AppColors.online
+                                  : AppColors.brandPurple)
                               .withOpacity(0.4),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
@@ -611,7 +616,7 @@ class HomeOnboarding {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: const Text(
-            'You can replay the tutorial anytime from Settings',
+            'You can replay the tour anytime from Settings.',
             style: TextStyle(color: Colors.white),
           ),
           backgroundColor: AppColors.surfaceCard,
@@ -734,7 +739,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
               Semantics(
                 header: true,
                 child: const Text(
-                  "You're All Set! 🎉",
+                  "You're all set",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
@@ -747,7 +752,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
 
               // Subtitle
               Text(
-                "Start exploring and find your match!",
+                "Start exploring and find your match.",
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 14,
@@ -780,7 +785,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
                       ],
                     ),
                     child: const Text(
-                      "Let's Go!",
+                      "Let's go",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,

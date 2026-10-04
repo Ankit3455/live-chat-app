@@ -26,6 +26,7 @@ class ProgressHeader extends StatelessWidget {
         : (currentStep / totalSteps).clamp(0.0, 1.0).toDouble();
     final label = stepLabel ?? '$currentStep of $totalSteps';
     final back = onBack;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
@@ -53,9 +54,18 @@ class ProgressHeader extends StatelessWidget {
                     height: 4,
                     color: AppColors.surface2,
                     alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: progress,
-                      heightFactor: 1,
+                    // Bar glides between steps.
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(end: progress),
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, child) => FractionallySizedBox(
+                        widthFactor: value,
+                        heightFactor: 1,
+                        child: child,
+                      ),
                       child: const DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: AppColors.primaryGradient,

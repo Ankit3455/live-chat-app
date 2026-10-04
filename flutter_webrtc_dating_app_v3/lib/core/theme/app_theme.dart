@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -56,7 +57,8 @@ class AppTheme {
           heading.displayMedium?.copyWith(fontWeight: FontWeight.w800),
       displaySmall: heading.displaySmall
           ?.copyWith(fontSize: 32, fontWeight: FontWeight.w800, height: 1.2),
-      headlineLarge: heading.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
+      headlineLarge:
+          heading.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
       headlineMedium: heading.headlineMedium
           ?.copyWith(fontSize: 26, fontWeight: FontWeight.w700, height: 1.25),
       headlineSmall: heading.headlineSmall
@@ -164,7 +166,8 @@ class AppTheme {
           foregroundColor: AppColors.brandPurpleLight,
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle:
+              GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -183,8 +186,7 @@ class AppTheme {
         contentPadding:
             const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         hintStyle: GoogleFonts.inter(color: AppColors.textSubtle, fontSize: 15),
-        labelStyle:
-            GoogleFonts.inter(color: AppColors.lavender, fontSize: 14),
+        labelStyle: GoogleFonts.inter(color: AppColors.lavender, fontSize: 14),
         floatingLabelStyle:
             GoogleFonts.inter(color: AppColors.brandPurpleLight, fontSize: 14),
         helperStyle:
@@ -273,7 +275,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.surface2,
-        contentTextStyle: GoogleFonts.inter(color: AppColors.white, fontSize: 14),
+        contentTextStyle:
+            GoogleFonts.inter(color: AppColors.white, fontSize: 14),
         actionTextColor: AppColors.brandPurpleLight,
         shape: RoundedRectangleBorder(
           borderRadius: mdRadius,
@@ -331,7 +334,8 @@ class AppTheme {
         unselectedLabelColor: AppColors.lavender,
         indicatorColor: AppColors.brandPink,
         dividerColor: AppColors.border,
-        labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+        labelStyle:
+            GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
         unselectedLabelStyle:
             GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
       ),
@@ -403,6 +407,17 @@ class AppTheme {
         cursorColor: AppColors.brandPurpleLight,
         selectionColor: Color(0x558B5CF6),
         selectionHandleColor: AppColors.brandPurpleMid,
+      ),
+
+      // Platform-native route transitions; dark fill avoids a black flash.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(
+            backgroundColor: AppColors.backgroundDeep,
+          ),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }

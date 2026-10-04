@@ -68,9 +68,9 @@ class AuthValidators {
       case 'requires-recent-login':
         return AppStrings.requiresRecentLogin;
       case 'account-exists-with-different-credential':
-        return 'This email is already registered with a different sign-in method';
+        return 'This email is already registered with a different login method';
       case 'operation-not-allowed':
-        return 'This sign-in method is not enabled';
+        return 'This login method is not enabled';
       default:
         return AppStrings.genericAuthError;
     }

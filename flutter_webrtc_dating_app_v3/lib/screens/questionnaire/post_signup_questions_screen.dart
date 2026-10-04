@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/core/utils/haptics.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/models/question_model.dart';
 import 'package:availchat/services/session_service.dart';
@@ -74,16 +75,20 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
     return true;
   }
 
+  Duration get _pageDuration => MediaQuery.disableAnimationsOf(context)
+      ? const Duration(milliseconds: 1)
+      : const Duration(milliseconds: 300);
+
   void _nextPage() {
     if (_isLoading || _completed) return;
     if (!_validateCurrentQuestion()) {
-      _showError('Please answer this question');
+      _showError('Please answer this question to continue.');
       return;
     }
     if (_currentPage < _questions.length - 1) {
       _saveCurrentAnswer();
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
+        duration: _pageDuration,
         curve: Curves.easeInOut,
       );
     } else {
@@ -94,7 +99,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
   void _previousPage() {
     if (_currentPage > 0) {
       _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
+        duration: _pageDuration,
         curve: Curves.easeInOut,
       );
     }
@@ -131,7 +136,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
 
     try {
       final userId = _auth.currentUser?.uid;
-      if (userId == null) throw StateError('Not signed in');
+      if (userId == null) throw StateError('Not logged in');
 
       final missing = _questions.indexWhere(
         (q) => q.isMandatory && !_isAnswered(_answers[q.fieldName]),
@@ -139,7 +144,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
       if (missing != -1) {
         setState(() => _isLoading = false);
         _pageController.jumpToPage(missing);
-        _showError('Please answer this question');
+        _showError('Please answer this question to continue.');
         return;
       }
 
@@ -157,7 +162,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         _showError(
-          'Could not save your answers. Check your connection and try again.',
+          "We couldn't save your answers. Check your connection and try again.",
         );
       }
       return;
@@ -166,8 +171,9 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
     _completed = true;
     if (!mounted) return;
 
+    Haptics.success();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🎉 Mandatory profile complete!')),
+      const SnackBar(content: Text('Your profile basics are done!')),
     );
 
     // The user can record or skip; either way continue to Home.
@@ -180,6 +186,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
   }
 
   void _showError(String message) {
+    Haptics.error();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );

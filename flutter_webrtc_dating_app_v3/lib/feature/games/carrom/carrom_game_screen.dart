@@ -10,6 +10,7 @@ import 'package:flame_forge2d/flame_forge2d.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 import 'carrom_result_screen.dart';
 import 'carrom_rules.dart';
 import 'services/carrom_audio_service.dart';
@@ -91,15 +92,17 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
   // ==================== FIREBASE LISTENER ====================
   void _listenMatch() {
     _matchSub = _ref.snapshots().listen(
-      _onMatchSnapshot,
-      onError: (Object e) => debugPrint('Carrom match listener error: $e'),
-    );
+          _onMatchSnapshot,
+          onError: (Object e) => debugPrint('Carrom match listener error: $e'),
+        );
   }
 
   void _onMatchSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
     if (!mounted) return;
     if (!snap.exists) {
-      _exitToList(message: 'Match no longer exists');
+      _exitToList(
+        message: 'This match has ended. Find a new one from the lobby.',
+      );
       return;
     }
 
@@ -150,7 +153,9 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
     if (status == 'finished') {
       _showResult(data);
     } else if (status == 'cancelled') {
-      _exitToList(message: 'Match was cancelled');
+      _exitToList(
+        message: 'The match was cancelled. Find a new one from the lobby.',
+      );
     }
   }
 
@@ -279,7 +284,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
     if (passed && mounted && expectedKey.startsWith('$_myUid:')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Time's up! Turn passed."),
+          content: Text("Time's up, so your turn passed."),
           duration: Duration(seconds: 2),
         ),
       );
@@ -365,9 +370,10 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       _game.applyState(o.state, animate: false);
       if (o.foul) {
         _audioService.playFoul();
+        Haptics.warning();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Foul! Striker pocketed (-1)'),
+            content: Text('Foul: you pocketed the striker (−1 point).'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -435,12 +441,13 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       _exitToList();
       return;
     }
+    Haptics.warning();
     final leave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Leave match?'),
+        title: const Text('Leave game?'),
         content: const Text(
-          'Leaving now counts as a forfeit and your opponent wins.',
+          'If you leave, you forfeit and your opponent wins.',
         ),
         actions: [
           TextButton(
@@ -450,7 +457,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Forfeit'),
+            child: const Text('Leave'),
           ),
         ],
       ),
@@ -476,7 +483,9 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       // The listener sees 'finished' and opens the result screen.
     } catch (e) {
       debugPrint('Carrom forfeit failed: $e');
-      _exitToList(message: 'Could not reach the server. Left the match.');
+      _exitToList(
+        message: "Couldn't reach the server, so you've left the match.",
+      );
     }
   }
 
@@ -621,13 +630,13 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
   }
 
   String _statusText() {
-    if (_status != 'started') return 'Waiting for game to start...';
-    if (!_isMyTurn) return 'Opponent is thinking...';
+    if (_status != 'started') return 'Waiting for the game to start…';
+    if (!_isMyTurn) return "Waiting for your opponent's shot…";
     final board = _matchData?['boardState'];
     if (board is Map && board['queenPendingBy'] == _myUid) {
-      return 'Cover the Queen: pocket one of your coins!';
+      return 'Cover the Queen: pocket one of your coins.';
     }
-    return 'YOUR TURN - slide the striker, flick forward to shoot';
+    return 'Your turn: slide the striker, then flick forward to shoot.';
   }
 
   Widget _buildHUD() {
@@ -646,7 +655,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
     final myName = getSafeName(_myUid, 'You');
     final opName = getSafeName(
       _opponentUid,
-      _status == 'waiting' ? 'Waiting...' : 'Opponent',
+      _status == 'waiting' ? 'Waiting…' : 'Opponent',
     );
 
     final myScore = (scores[_myUid] as num?)?.toInt() ?? 0;
@@ -671,7 +680,11 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
           const SizedBox(width: 8),
 
           // Timer / Turn Indicator
-          Container(
+          AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color: isMyTurn
@@ -682,10 +695,9 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
                   color: isMyTurn ? AppColors.success : AppColors.borderStrong),
             ),
             child: Semantics(
-              label: isMyTurn ? 'Your turn' : 'Opponent\'s turn',
-              value: _status == 'started'
-                  ? '$_turnTimeLeft seconds left'
-                  : null,
+              label: isMyTurn ? 'Your turn' : "Opponent's turn",
+              value:
+                  _status == 'started' ? '$_turnTimeLeft seconds left' : null,
               excludeSemantics: true,
               child: Column(
                 children: [
@@ -715,8 +727,8 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
 
           const SizedBox(width: 8),
           Flexible(
-            child: _buildPlayerInfo(
-                opName, opScore, !isMyTurn, false, !iAmWhite),
+            child:
+                _buildPlayerInfo(opName, opScore, !isMyTurn, false, !iAmWhite),
           ),
         ],
       ),
@@ -764,15 +776,49 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          '$score pts',
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        _ScorePop(score: score),
       ],
+    );
+  }
+}
+
+/// HUD score that briefly pops when it changes.
+class _ScorePop extends StatefulWidget {
+  const _ScorePop({required this.score});
+
+  final int score;
+
+  @override
+  State<_ScorePop> createState() => _ScorePopState();
+}
+
+class _ScorePopState extends State<_ScorePop> {
+  bool _up = false;
+
+  @override
+  void didUpdateWidget(_ScorePop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.score != widget.score) _up = true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final up = _up && !MediaQuery.disableAnimationsOf(context);
+    return AnimatedScale(
+      scale: up ? 1.25 : 1.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      onEnd: () {
+        if (_up && mounted) setState(() => _up = false);
+      },
+      child: Text(
+        '${widget.score} pts',
+        style: TextStyle(
+          color: up ? AppColors.pinkLight : AppColors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -1081,6 +1127,7 @@ class CarromBoardGame extends Forge2DGame {
     s.body.linearVelocity = velocity;
     _shotInProgress = true;
     audioService?.playStrike();
+    Haptics.medium();
   }
 
   // ==================== LOOP ====================

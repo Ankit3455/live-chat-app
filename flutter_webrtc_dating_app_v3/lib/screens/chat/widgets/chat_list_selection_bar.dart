@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 
 /// Multi-select app bar for the chat list, styled with design tokens.
 /// Asks for confirmation before calling [onClear] / [onDelete].
@@ -38,32 +39,36 @@ class ChatListSelectionBar extends StatelessWidget
       title: Text('$count selected'),
       actions: [
         IconButton(
-          tooltip: 'Clear chat',
+          tooltip: 'Clear messages',
           icon: const Icon(Icons.cleaning_services_rounded),
           onPressed: disabled
               ? null
               : () async {
                   final ok = await _confirm(
                     context,
-                    title: 'Clear selected chats?',
+                    title:
+                        count == 1 ? 'Clear this chat?' : 'Clear $count chats?',
                     message:
-                        'This will clear messages from selected chats for you. Threads remain.',
+                        'Messages will be cleared for you only. The chats stay in your list.',
                     action: 'Clear',
                   );
                   if (ok == true) onClear();
                 },
         ),
         IconButton(
-          tooltip: 'Delete for me',
+          tooltip: 'Delete chats',
           icon: const Icon(Icons.delete_forever_rounded),
           onPressed: disabled
               ? null
               : () async {
                   final ok = await _confirm(
                     context,
-                    title: 'Delete selected chats?',
-                    message:
-                        'This will hide/remove selected chat threads for you. It won’t affect the other user.',
+                    title: count == 1
+                        ? 'Delete this chat?'
+                        : 'Delete $count chats?',
+                    message: count == 1
+                        ? 'This chat will be removed for you only. The other person can still see it.'
+                        : 'These chats will be removed for you only. The other person can still see them.',
                     action: 'Delete',
                     danger: true,
                   );
@@ -81,6 +86,7 @@ class ChatListSelectionBar extends StatelessWidget
     required String action,
     bool danger = false,
   }) {
+    Haptics.warning();
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

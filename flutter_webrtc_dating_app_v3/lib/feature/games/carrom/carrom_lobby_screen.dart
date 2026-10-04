@@ -1,5 +1,4 @@
 // lib/feature/games/carrom/carrom_lobby_screen.dart
-// STATUS: ENHANCED WITH ANIMATIONS ✅
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -11,6 +10,7 @@ import 'carrom_match_screen.dart';
 import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 
 class CarromLobbyScreen extends StatefulWidget {
   const CarromLobbyScreen({Key? key}) : super(key: key);
@@ -21,7 +21,6 @@ class CarromLobbyScreen extends StatefulWidget {
 
 class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     with TickerProviderStateMixin {
-
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
@@ -45,12 +44,12 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
 
   // Tips
   final List<String> _tips = [
-    '💡 Aim carefully before striking!',
-    '💡 Pocket the Queen and cover it for bonus!',
-    '💡 Don\'t pocket the striker - it\'s a foul!',
-    '💡 Clear all your coins after the Queen is covered to win!',
-    '💡 Use angles to pocket difficult coins!',
-    '💡 Control your power for precision shots!',
+    'Tip: Take a moment to aim before you shoot.',
+    'Tip: Pocket the Queen and cover it for 3 bonus points.',
+    "Tip: Don't pocket the striker. It's a foul.",
+    'Tip: Clear all your coins once the Queen is covered to win.',
+    'Tip: Bounce off the edges to reach tricky coins.',
+    'Tip: Use less power for more accurate shots.',
   ];
   int _currentTipIndex = 0;
 
@@ -75,18 +74,20 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
       duration: const Duration(seconds: 4),
       vsync: this,
     );
-    _rotateAnimation = Tween<double>(begin: 0, end: 2 * math.pi).animate(
-      CurvedAnimation(parent: _rotateController, curve: Curves.linear),
-    );
+    _rotateAnimation = Tween<double>(
+      begin: 0,
+      end: 2 * math.pi,
+    ).animate(CurvedAnimation(parent: _rotateController, curve: Curves.linear));
 
     // Wave Animation (for ripple effect)
     _waveController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    _waveAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _waveController, curve: Curves.easeOut),
-    );
+    _waveAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _waveController, curve: Curves.easeOut));
 
     // Dots Animation (for loading dots)
     _dotsController = AnimationController(
@@ -158,7 +159,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     final avatar = _auth.currentUser?.photoURL;
 
     if (uid == null) {
-      _handleError('Not signed in. Please login first.');
+      _handleError('Log in to play Carrom.');
       return;
     }
 
@@ -177,12 +178,16 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 CarromMatchScreen(matchId: matchDocRef.id),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(
                 opacity: animation,
                 child: ScaleTransition(
                   scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                    CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    ),
                   ),
                   child: child,
                 ),
@@ -192,15 +197,18 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
           ),
         );
       } else {
-        _handleError('No opponent found. Please try again!');
+        _handleError(
+          "No one's available right now. Tap Find match to try again.",
+        );
       }
     } catch (e) {
-      _handleError('Connection error. Please check your internet.');
+      _handleError("Couldn't connect. Check your internet and try again.");
     }
   }
 
   void _handleError(String message) {
     if (!mounted) return;
+    Haptics.error();
     setState(() {
       _error = message;
       _searching = false;
@@ -219,10 +227,10 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   /// queue and also listens to its own entry: whoever pairs first writes the
   /// new match id into the other player's entry (a "claim").
   Future<DocumentReference<Map<String, dynamic>>?> _createOrPair(
-      String uid,
-      String displayName,
-      String? avatar,
-      ) async {
+    String uid,
+    String displayName,
+    String? avatar,
+  ) async {
     final myQueueRef = _firestore.collection('carrom_queue').doc(uid);
     final searchStart = DateTime.now();
 
@@ -286,9 +294,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   /// Our newest match created during this search (indexed on
   /// playerUids + createdAt).
   Future<DocumentReference<Map<String, dynamic>>?> _findMatchCreatedSince(
-      String uid,
-      DateTime searchStart,
-      ) async {
+    String uid,
+    DateTime searchStart,
+  ) async {
     final since = searchStart.subtract(_matchCreatedSlack);
     final snap = await _firestore
         .collection('carrom_matches')
@@ -306,10 +314,10 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   /// Claims the oldest live entry in one transaction: creates the match,
   /// writes its id into the opponent's entry and removes our own entry.
   Future<DocumentReference<Map<String, dynamic>>?> _tryClaimOpponent(
-      String uid,
-      String displayName,
-      String? avatar,
-      ) async {
+    String uid,
+    String displayName,
+    String? avatar,
+  ) async {
     final now = DateTime.now();
     // Only live entries are read; expiresAt order follows join order.
     final snap = await _firestore
@@ -369,7 +377,10 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
             'moveSeq': 0,
             'turnSeq': 0,
           });
-          tx.update(candidate.reference, {'matchId': matchRef.id, 'claimedBy': uid});
+          tx.update(candidate.reference, {
+            'matchId': matchRef.id,
+            'claimedBy': uid,
+          });
           tx.delete(myQueueRef);
           return true;
         });
@@ -441,8 +452,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
                     builder: (context, constraints) => SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: ConstrainedBox(
-                        constraints:
-                            BoxConstraints(minHeight: constraints.maxHeight),
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
                         child: Center(child: _buildIdleState()),
                       ),
                     ),
@@ -515,7 +527,11 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
                 ),
               ],
             ),
-            child: const Icon(Icons.adjust, size: 60, color: AppColors.pinkLight),
+            child: const Icon(
+              Icons.adjust,
+              size: 60,
+              color: AppColors.pinkLight,
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -585,8 +601,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: AppColors.pinkLight
-                                .withOpacity(0.5 * (1 - value)),
+                            color: AppColors.pinkLight.withOpacity(
+                              0.5 * (1 - value),
+                            ),
                             width: 1.5,
                           ),
                         ),
@@ -831,10 +848,7 @@ class _DashedCirclePainter extends CustomPainter {
   final Color color;
   final int dashCount;
 
-  _DashedCirclePainter({
-    required this.color,
-    required this.dashCount,
-  });
+  _DashedCirclePainter({required this.color, required this.dashCount});
 
   @override
   void paint(Canvas canvas, Size size) {

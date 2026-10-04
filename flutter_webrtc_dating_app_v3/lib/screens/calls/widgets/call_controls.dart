@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/motion.dart';
 
 /// Labelled round call control shared by the voice and video screens.
 /// [toggled] fills the disc white; [isEnd] makes it the larger red End button.
@@ -33,9 +34,9 @@ class CallControlButton extends StatelessWidget {
     required this.onPressed,
     this.label = 'End',
     this.tooltip = 'End call',
-  }) : icon = Icons.call_end_rounded,
-       toggled = null,
-       isEnd = true;
+  })  : icon = Icons.call_end_rounded,
+        toggled = null,
+        isEnd = true;
 
   static const double _size = 60;
   static const double _endSize = 68;
@@ -47,8 +48,8 @@ class CallControlButton extends StatelessWidget {
     final Color fill = isEnd
         ? AppColors.error
         : on
-        ? AppColors.white
-        : AppColors.white.withOpacity(0.12);
+            ? AppColors.white
+            : AppColors.white.withOpacity(0.12);
     final Color iconColor = on ? AppColors.backgroundDeep : AppColors.white;
     final message = tooltip ?? label;
 
@@ -69,25 +70,29 @@ class CallControlButton extends StatelessWidget {
             SizedBox(
               height: _endSize,
               child: Center(
-                child: Material(
-                  color: fill,
-                  shape: CircleBorder(
-                    side: isEnd || on
-                        ? BorderSide.none
-                        : BorderSide(color: AppColors.white.withOpacity(0.16)),
-                  ),
-                  elevation: isEnd ? 6 : 0,
-                  shadowColor: AppColors.error.withOpacity(0.5),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: onPressed,
-                    child: SizedBox(
-                      width: size,
-                      height: size,
-                      child: Icon(
-                        icon,
-                        color: iconColor,
-                        size: isEnd ? 30 : 26,
+                child: PressScale(
+                  pressedScale: onPressed == null ? 1.0 : 0.9,
+                  child: Material(
+                    color: fill,
+                    shape: CircleBorder(
+                      side: isEnd || on
+                          ? BorderSide.none
+                          : BorderSide(
+                              color: AppColors.white.withOpacity(0.16)),
+                    ),
+                    elevation: isEnd ? 6 : 0,
+                    shadowColor: AppColors.error.withOpacity(0.5),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onPressed,
+                      child: SizedBox(
+                        width: size,
+                        height: size,
+                        child: Icon(
+                          icon,
+                          color: iconColor,
+                          size: isEnd ? 30 : 26,
+                        ),
                       ),
                     ),
                   ),
@@ -167,18 +172,21 @@ class CallAnswerButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Material(
-              color: color,
-              shape: const CircleBorder(),
-              elevation: 8,
-              shadowColor: color.withOpacity(0.5),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onPressed,
-                child: SizedBox(
-                  width: 72,
-                  height: 72,
-                  child: Icon(icon, color: iconColor, size: 32),
+            PressScale(
+              pressedScale: onPressed == null ? 1.0 : 0.88,
+              child: Material(
+                color: color,
+                shape: const CircleBorder(),
+                elevation: 8,
+                shadowColor: color.withOpacity(0.5),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onPressed,
+                  child: SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: Icon(icon, color: iconColor, size: 32),
+                  ),
                 ),
               ),
             ),
