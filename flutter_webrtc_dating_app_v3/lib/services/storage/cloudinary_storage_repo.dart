@@ -1,152 +1,4 @@
-// // lib/services/storage/cloudinary_storage_repo.dart
-// import 'dart:convert';
-// import 'dart:io';
-// import 'dart:typed_data';
-// import 'package:http/http.dart' as http;
-// import 'package:http_parser/http_parser.dart' show MediaType;
-//
-// import '../../core/config/storage_config.dart';
-// import 'storage_repo.dart';
-// import 'firebase_storage_repo.dart';
-//
-// class CloudinaryStorageRepo implements StorageRepo {
-//   const CloudinaryStorageRepo();
-//
-//   @override
-//   Future<String> uploadVoice({
-//     required String uid,
-//     required String localPath,
-//   }) async {
-//     final file = File(localPath);
-//     if (!file.existsSync()) {
-//       throw Exception('Voice file not found at $localPath');
-//     }
-//
-//     final uri = Uri.parse('https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/auto/upload');
-//
-//     final req = http.MultipartRequest('POST', uri)
-//       ..fields['upload_preset'] = StorageConfig.uploadPresetVoices
-//       ..fields['folder'] = StorageConfig.folderVoices
-//       ..fields['public_id'] = '${StorageConfig.folderVoices}/${uid}_intro'
-//       ..files.add(
-//         await http.MultipartFile.fromPath(
-//           'file',
-//           localPath,
-//           contentType: MediaType('audio', 'm4a'),
-//         ),
-//       );
-//
-//     final streamed = await req.send();
-//     final resp = await http.Response.fromStream(streamed);
-//
-//     if (resp.statusCode >= 200 && resp.statusCode < 300) {
-//       final Map<String, dynamic> data = jsonDecode(resp.body);
-//       final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-//       if (url == null || url.isEmpty) {
-//         throw Exception('Cloudinary response missing secure_url for voice upload');
-//       }
-//       return url;
-//     } else {
-//       throw Exception('Cloudinary voice upload failed: ${resp.statusCode} ${resp.body}');
-//     }
-//   }
-//
-//   @override
-//   Future<void> deleteVoice({required String uid}) async {
-//     // Unsigned client cannot delete — server admin required.
-//     return;
-//   }
-//
-//   @override
-//   Future<String> uploadBytes(
-//       Uint8List bytes, {
-//         String folder = 'profile_photos',
-//         String fileName = 'avatar.png',
-//       }) async {
-//     if (!StorageConfig.kUseCloudinaryForMedia) {
-//       final firebase = FirebaseStorageRepo();
-//       return firebase.uploadBytes(
-//         bytes,
-//         folder: folder,
-//         fileName: fileName,
-//       );
-//     }
-//
-//     final uri = Uri.parse('https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/image/upload');
-//
-//     final baseName = fileName.contains('.') ? fileName.split('.').first : fileName;
-//     final publicId = '$folder/$baseName';
-//
-//     final req = http.MultipartRequest('POST', uri)
-//       ..fields['upload_preset'] = StorageConfig.uploadPresetImages
-//       ..fields['folder'] = folder
-//       ..fields['public_id'] = publicId
-//       ..files.add(
-//         http.MultipartFile.fromBytes(
-//           'file',
-//           bytes,
-//           filename: fileName,
-//           contentType: MediaType('image', 'png'),
-//         ),
-//       );
-//
-//     final streamed = await req.send();
-//     final resp = await http.Response.fromStream(streamed);
-//
-//     final body = resp.body;
-//     if (resp.statusCode >= 200 && resp.statusCode < 300) {
-//       final Map<String, dynamic> data = jsonDecode(body);
-//       final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-//       if (url == null || url.isEmpty) {
-//         throw Exception('Cloudinary response missing secure_url for image upload');
-//       }
-//       return url;
-//     }
-//
-//     // Include response body for debugging
-//     throw Exception('Cloudinary image upload failed: ${resp.statusCode} $body');
-//   }
-//
-//   @override
-//   Future<String> uploadImageFile({
-//     required File file,
-//     String folder = 'profile_photos',
-//   }) async {
-//     if (!StorageConfig.kUseCloudinaryForMedia) {
-//       final firebase = FirebaseStorageRepo();
-//       return firebase.uploadImageFile(file: file, folder: folder);
-//     }
-//
-//     final uri = Uri.parse('https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/image/upload');
-//
-//     final fileName = file.path.split(Platform.pathSeparator).last;
-//     final baseName = fileName.contains('.') ? fileName.split('.').first : fileName;
-//     final publicId = '$folder/$baseName';
-//
-//     final req = http.MultipartRequest('POST', uri)
-//       ..fields['upload_preset'] = StorageConfig.uploadPresetImages
-//       ..fields['folder'] = folder
-//       ..fields['public_id'] = publicId
-//       ..files.add(await http.MultipartFile.fromPath('file', file.path));
-//
-//     final streamed = await req.send();
-//     final resp = await http.Response.fromStream(streamed);
-//
-//     final body = resp.body;
-//     if (resp.statusCode >= 200 && resp.statusCode < 300) {
-//       final Map<String, dynamic> data = jsonDecode(body);
-//       final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-//       if (url == null || url.isEmpty) {
-//         throw Exception('Cloudinary response missing secure_url for image file upload');
-//       }
-//       return url;
-//     }
-//
-//     throw Exception('Cloudinary image file upload failed: ${resp.statusCode} $body');
-//   }
-// }
-
-
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -154,15 +6,61 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 
 import '../../core/config/storage_config.dart';
+import '../media/media_validator.dart';
 import 'storage_repo.dart';
 import 'firebase_storage_repo.dart';
 
 class CloudinaryStorageRepo implements StorageRepo {
   const CloudinaryStorageRepo();
 
-  // =========================================================================
-  // EXISTING METHODS (Keep as is)
-  // =========================================================================
+  static const Duration _uploadTimeout = Duration(seconds: 60);
+
+  Uri _endpoint(String resourceType) => Uri.parse(
+      'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/$resourceType/upload');
+
+  /// Uploads with a 60 s timeout per attempt and one retry on connection
+  /// errors (not on timeout). [folder] and the bare [publicId] are sent
+  /// separately so the path is not doubled.
+  Future<String> _upload({
+    required String resourceType,
+    required String preset,
+    required String folder,
+    required String publicId,
+    required Future<http.MultipartFile> Function() file,
+    required String label,
+  }) async {
+    Future<String> attempt() async {
+      final req = http.MultipartRequest('POST', _endpoint(resourceType))
+        ..fields['upload_preset'] = preset
+        ..fields['folder'] = folder
+        ..fields['public_id'] = publicId
+        ..files.add(await file());
+
+      final resp = await http.Response.fromStream(await req.send());
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final Map<String, dynamic> data = jsonDecode(resp.body);
+        final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
+        if (url == null || url.isEmpty) {
+          throw Exception('Cloudinary response missing secure_url for $label');
+        }
+        return url;
+      }
+      throw Exception('$label failed: ${resp.statusCode} ${resp.body}');
+    }
+
+    try {
+      return await attempt().timeout(_uploadTimeout);
+    } on SocketException {
+      return attempt().timeout(_uploadTimeout);
+    } on http.ClientException {
+      return attempt().timeout(_uploadTimeout);
+    } on TimeoutException {
+      throw Exception('$label timed out');
+    }
+  }
+
+  static String _baseName(String fileName) =>
+      fileName.contains('.') ? fileName.split('.').first : fileName;
 
   @override
   Future<String> uploadVoice({
@@ -174,34 +72,18 @@ class CloudinaryStorageRepo implements StorageRepo {
       throw Exception('Voice file not found at $localPath');
     }
 
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/auto/upload');
-
-    final req = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = StorageConfig.uploadPresetVoices
-      ..fields['folder'] = StorageConfig.folderVoices
-      ..fields['public_id'] = '${StorageConfig.folderVoices}/${uid}_intro'
-      ..files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          localPath,
-          contentType: MediaType('audio', 'm4a'),
-        ),
-      );
-
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final Map<String, dynamic> data = jsonDecode(resp.body);
-      final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-      if (url == null || url.isEmpty) {
-        throw Exception('Cloudinary response missing secure_url for voice upload');
-      }
-      return url;
-    } else {
-      throw Exception('Cloudinary voice upload failed: ${resp.statusCode} ${resp.body}');
-    }
+    return _upload(
+      resourceType: 'auto',
+      preset: StorageConfig.uploadPresetVoices,
+      folder: StorageConfig.folderVoices,
+      publicId: '${uid}_intro',
+      label: 'Cloudinary voice upload',
+      file: () => http.MultipartFile.fromPath(
+        'file',
+        localPath,
+        contentType: MediaType('audio', 'm4a'),
+      ),
+    );
   }
 
   @override
@@ -225,39 +107,23 @@ class CloudinaryStorageRepo implements StorageRepo {
       );
     }
 
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/image/upload');
-
-    final baseName = fileName.contains('.') ? fileName.split('.').first : fileName;
-    final publicId = '$folder/$baseName';
-
-    final req = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = StorageConfig.uploadPresetImages
-      ..fields['folder'] = folder
-      ..fields['public_id'] = publicId
-      ..files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: fileName,
-          contentType: MediaType('image', 'png'),
-        ),
-      );
-
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-
-    final body = resp.body;
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final Map<String, dynamic> data = jsonDecode(body);
-      final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-      if (url == null || url.isEmpty) {
-        throw Exception('Cloudinary response missing secure_url for image upload');
-      }
-      return url;
+    if (bytes.length > MediaValidator.maxImageBytes) {
+      throw const MediaValidationException('Image is larger than 10 MB');
     }
 
-    throw Exception('Cloudinary image upload failed: ${resp.statusCode} $body');
+    return _upload(
+      resourceType: 'image',
+      preset: StorageConfig.uploadPresetImages,
+      folder: folder,
+      publicId: _baseName(fileName),
+      label: 'Cloudinary image upload',
+      file: () async => http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: fileName,
+        contentType: MediaType('image', 'png'),
+      ),
+    );
   }
 
   @override
@@ -270,37 +136,24 @@ class CloudinaryStorageRepo implements StorageRepo {
       return firebase.uploadImageFile(file: file, folder: folder);
     }
 
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/image/upload');
-
-    final fileName = file.path.split(Platform.pathSeparator).last;
-    final baseName = fileName.contains('.') ? fileName.split('.').first : fileName;
-    final publicId = '$folder/$baseName';
-
-    final req = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = StorageConfig.uploadPresetImages
-      ..fields['folder'] = folder
-      ..fields['public_id'] = publicId
-      ..files.add(await http.MultipartFile.fromPath('file', file.path));
-
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-
-    final body = resp.body;
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final Map<String, dynamic> data = jsonDecode(body);
-      final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-      if (url == null || url.isEmpty) {
-        throw Exception('Cloudinary response missing secure_url for image file upload');
-      }
-      return url;
+    if (await file.length() > MediaValidator.maxImageBytes) {
+      throw const MediaValidationException('Image is larger than 10 MB');
     }
 
-    throw Exception('Cloudinary image file upload failed: ${resp.statusCode} $body');
+    final fileName = file.path.split(Platform.pathSeparator).last;
+
+    return _upload(
+      resourceType: 'image',
+      preset: StorageConfig.uploadPresetImages,
+      folder: folder,
+      publicId: _baseName(fileName),
+      label: 'Cloudinary image file upload',
+      file: () => http.MultipartFile.fromPath('file', file.path),
+    );
   }
 
   // =========================================================================
-  // 🆕 NEW: CHAT MEDIA METHODS
+  // CHAT MEDIA
   // =========================================================================
 
   @override
@@ -308,32 +161,24 @@ class CloudinaryStorageRepo implements StorageRepo {
     required String conversationId,
     required File file,
   }) async {
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/image/upload');
+    final error = await MediaValidator.validateImageUpload(file);
+    if (error != null) throw MediaValidationException(error);
+    final mime = await MediaValidator.sniffImageMime(file);
+    final subtype = mime!.split('/').last;
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final folder = 'chat_media/$conversationId';
-    final publicId = '$folder/img_$timestamp';
-
-    final req = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = StorageConfig.uploadPresetImages
-      ..fields['folder'] = folder
-      ..fields['public_id'] = publicId
-      ..files.add(await http.MultipartFile.fromPath('file', file.path));
-
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final Map<String, dynamic> data = jsonDecode(resp.body);
-      final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-      if (url == null || url.isEmpty) {
-        throw Exception('Cloudinary response missing secure_url');
-      }
-      return url;
-    }
-
-    throw Exception('Chat image upload failed: ${resp.statusCode} ${resp.body}');
+    return _upload(
+      resourceType: 'image',
+      preset: StorageConfig.uploadPresetImages,
+      folder: 'chat_media/$conversationId',
+      publicId: 'img_$timestamp',
+      label: 'Chat image upload',
+      file: () => http.MultipartFile.fromPath(
+        'file',
+        file.path,
+        contentType: MediaType('image', subtype),
+      ),
+    );
   }
 
   @override
@@ -343,41 +188,21 @@ class CloudinaryStorageRepo implements StorageRepo {
     required int durationSeconds,
   }) async {
     final file = File(localPath);
-    if (!file.existsSync()) {
-      throw Exception('Audio file not found at $localPath');
-    }
-
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/${StorageConfig.cloudName}/auto/upload');
+    final error = await MediaValidator.validateVoice(file, durationSeconds);
+    if (error != null) throw MediaValidationException(error);
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final folder = 'chat_media/$conversationId';
-    final publicId = '$folder/audio_$timestamp';
-
-    final req = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = StorageConfig.uploadPresetVoices
-      ..fields['folder'] = folder
-      ..fields['public_id'] = publicId
-      ..files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          localPath,
-          contentType: MediaType('audio', 'm4a'),
-        ),
-      );
-
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final Map<String, dynamic> data = jsonDecode(resp.body);
-      final url = (data['secure_url'] as String?) ?? (data['url'] as String?);
-      if (url == null || url.isEmpty) {
-        throw Exception('Cloudinary response missing secure_url');
-      }
-      return url;
-    }
-
-    throw Exception('Chat audio upload failed: ${resp.statusCode} ${resp.body}');
+    return _upload(
+      resourceType: 'auto',
+      preset: StorageConfig.uploadPresetVoices,
+      folder: 'chat_media/$conversationId',
+      publicId: 'audio_$timestamp',
+      label: 'Chat audio upload',
+      file: () => http.MultipartFile.fromPath(
+        'file',
+        localPath,
+        contentType: MediaType('audio', 'm4a'),
+      ),
+    );
   }
 }

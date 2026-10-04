@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'tour_prefs.dart';
+import '../../core/constants/app_colors.dart';
 
 class DiscoveryOnboarding {
   DiscoveryOnboarding._();
@@ -120,7 +121,7 @@ class DiscoveryOnboarding {
 
     _tutorialCoachMark = TutorialCoachMark(
       targets: targets,
-      colorShadow: const Color(0xFF0D0221),
+      colorShadow: AppColors.backgroundDarkest,
       paddingFocus: 8,
       opacityShadow: 0.9,
       hideSkip: false,
@@ -181,7 +182,7 @@ class DiscoveryOnboarding {
                   stepNumber: 1,
                   totalSteps: totalSteps,
                   icon: Icons.visibility_rounded,
-                  iconColor: const Color(0xFF00E676),
+                  iconColor: AppColors.online,
                   title: "Your Visibility 👁️",
                   description: "Turn ON to appear in others' Discover feed",
                   onNext: () {
@@ -219,7 +220,7 @@ class DiscoveryOnboarding {
                   stepNumber: 2,
                   totalSteps: totalSteps,
                   icon: Icons.filter_alt_rounded,
-                  iconColor: const Color(0xFFFFD700),
+                  iconColor: AppColors.gold,
                   title: "Enable Filters 🎯",
                   description: "Turn ON to filter by preferences below",
                   onNext: () {
@@ -457,7 +458,7 @@ class DiscoveryOnboarding {
                   stepNumber: 8,
                   totalSteps: totalSteps,
                   icon: Icons.check_circle_rounded,
-                  iconColor: const Color(0xFF00E676),
+                  iconColor: AppColors.online,
                   title: "Save Settings ✅",
                   description: "Don't forget to save your changes!",
                   isLastStep: true,
@@ -500,18 +501,18 @@ class DiscoveryOnboarding {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2D1B4E),
-            Color(0xFF1A0E2E),
+            AppColors.surfaceCard,
+            AppColors.backgroundDeep,
           ],
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.4),
+          color: AppColors.brandPurple.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.25),
+            color: AppColors.brandPurple.withOpacity(0.25),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -542,12 +543,12 @@ class DiscoveryOnboarding {
                     decoration: BoxDecoration(
                       gradient: isCompleted
                           ? const LinearGradient(
-                        colors: [Color(0xFF7B2CBF), Color(0xFF9C27B0)],
+                        colors: [AppColors.brandPurple, AppColors.brandMagenta],
                       )
                           : null,
                       color: isCompleted
                           ? null
-                          : const Color(0xFF7B2CBF).withOpacity(0.25),
+                          : AppColors.brandPurple.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   );
@@ -557,7 +558,7 @@ class DiscoveryOnboarding {
               Text(
                 "$stepNumber/$totalSteps",
                 style: const TextStyle(
-                  color: Color(0xFFB39DDB),
+                  color: AppColors.lavender,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -609,12 +610,14 @@ class DiscoveryOnboarding {
               if (onSkip != null)
                 GestureDetector(
                   onTap: onSkip,
+                  behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 8),
                     child: Text(
                       "Skip",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -632,15 +635,15 @@ class DiscoveryOnboarding {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isLastStep
-                          ? [const Color(0xFF00E676), const Color(0xFF00C853)]
-                          : [const Color(0xFF7B2CBF), const Color(0xFF9C27B0)],
+                          ? [AppColors.online, AppColors.onlineDeep]
+                          : [AppColors.brandPurple, AppColors.brandMagenta],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: (isLastStep
-                            ? const Color(0xFF00E676)
-                            : const Color(0xFF7B2CBF))
+                            ? AppColors.online
+                            : AppColors.brandPurple)
                             .withOpacity(0.4),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
@@ -700,7 +703,7 @@ class DiscoveryOnboarding {
         SnackBar(
           content: const Row(
             children: [
-              Icon(Icons.check_circle, color: Color(0xFF00E676)),
+              Icon(Icons.check_circle, color: AppColors.online),
               SizedBox(width: 10),
               Text(
                 'Discovery tutorial complete!',
@@ -708,7 +711,7 @@ class DiscoveryOnboarding {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF2D1B4E),
+          backgroundColor: AppColors.surfaceCard,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -730,7 +733,7 @@ class DiscoveryOnboarding {
             'Tap help button anytime to see tutorial',
             style: TextStyle(color: Colors.white),
           ),
-          backgroundColor: const Color(0xFF2D1B4E),
+          backgroundColor: AppColors.surfaceCard,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),

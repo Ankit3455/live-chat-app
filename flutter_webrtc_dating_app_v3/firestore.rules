@@ -1,0 +1,654 @@
+rules_version = '2';
+
+// Destined Firestore rules, v2 (WP-23). Default deny.
+//
+//  - users/{uid}: owner-only read and write (DEST-002). Other users read
+//    public_profiles. Emergency switch: config/rules.legacyUsersRead == true
+//    (set in the console only) re-opens signed-in reads of users docs until
+//    every client reads public_profiles. Leave it unset.
+//    Writes: server-owned fields denied, free-text caps, dateOfBirth can be
+//    set only while no timestamp DOB exists and must be 18+ (coarse, day
+//    precision), emailVerificationRequired cannot be cleared once true.
+//  - users/{uid}/blocked: owner. users/{uid}/blockedBy/{blocker}: the blocker.
+//  - public_profiles: signed-in read, Functions-only write.
+//  - reports: create-only by the reporter, fixed keys; no client reads.
+//  - conversations: participants only. Updates use an allow-list (DEST-061):
+//    lastMessage (my own message), lastMessageAt (server time),
+//    participantData.<me>.{hasReplied,unreadCount=0,lastReadAt,clearedBefore,
+//    muted,callEnabled.{audio,video}}, participantData.<other>.unreadCount +1,
+//    statePerUser.<me> in [active, deleted], statePerUser.<other> -> new/active
+//    only from unset/deleted, typingAt.<me>. deletedUsers and
+//    participantData.<x>.deleted are server-only.
+//  - messages: sender is the caller, fixed keys, text <= 2000, our media hosts
+//    only; denied when either user blocked the other or the receiver's account
+//    was deleted (DEST-003). Sender edits message/editedAt/isDeleted/mediaUrl,
+//    receiver sets status (delivered/read)/readAt/deliveredAt.
+//  - Games: match reads and writes by players only (lists must filter on
+//    playerUids); queue entries keyed by uid; carrom history owner-only.
+//
+// Client writes checked against these rules (lib/):
+//  users/{me}: auth_service (signup, Google first login), age_gate_screen,
+//    login_screen, questionnaire_screen, post_signup_questions_screen,
+//    profile_completion_screen, profile_completion_manager, profile_edit_screen,
+//    astrology_view_model, discovery_settings_screen, session_service,
+//    presence_service, location_service, push_token_service, voice_intro_service,
+//    profile_photo_service, dicebear_avatar_service, settings_screen.
+//  users/{me}/blocked/{x} + users/{x}/blockedBy/{me}: safety_service block/unblock.
+//  reports: safety_service.report.
+//  conversations + messages: chat_service (_writeMessage batch, markMessagesAsRead,
+//    markDelivered, clearChat, deleteForUser, updateTypingStatus, deleteMessage,
+//    editMessage, toggleMute), unread_manager.resetForConversation,
+//    call_consent.setCallEnabled, call_service._writeCallEvent (caller writes a
+//    'call' message + summary + receiver unread +1).
+//  ludo_queue / ludo_matches (+chat): ludo_game_service (enqueue, heartbeat,
+//    dequeue, createMatchFromQueue transaction, turn/away/leave transactions,
+//    sendChat), ludo_lobby_screen.
+//  carrom_queue / carrom_matches: carrom_lobby_screen (enqueue, claim
+//    transaction), carrom_match_screen, carrom_game_screen, carrom_result_screen
+//    (rematch flags and rematch transaction).
+//  user_game_stats, carrom_history, leaderboards: carrom_stats_service transaction.
+// Functions use the Admin SDK and bypass these rules.
+//
+// Not enforced here yet: emailVerified gating (ID tokens refresh the claim up
+// to an hour after verification unless the client forces a refresh), game
+// results/stats (server-authoritative games are WP-22), ludo_queue deletes of
+// other players' entries are limited to a host claiming them in the same write
+// that removes its own entry.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Keys to validate: all keys on create, only changed keys on update, so
+    // legacy oversized values do not block unrelated writes.
+    function writtenKeys() {
+      return resource == null ? request.resource.data.keys() : changedKeys();
+    }
+
+    function strMax(data, keys, key, n) {
+      return !(key in keys) || !(key in data) || !(data[key] is string) || data[key].size() <= n;
+    }
+
+    function prevData() {
+      return resource == null ? {} : resource.data;
+    }
+
+    function isServerTime(data, key) {
+      return !(key in data) || data[key] == request.time;
+    }
+
+    // At least [secs] seconds since prevData()[key] (no-op on first write).
+    function throttled(key, secs) {
+      return !(key in prevData())
+        || !(prevData()[key] is timestamp)
+        || request.time > prevData()[key] + duration.value(secs, 's');
+    }
+
+    function mediaUrlOk(url) {
+      return url == null
+        || (url is string
+          && url.size() <= 2048
+          && url.matches('^https://(res[.]cloudinary[.]com/dekipip5j/|firebasestorage[.]googleapis[.]com/v0/b/availchatproject[.](firebasestorage[.]app|appspot[.]com)/o/).*'));
+    }
+
+    function hasBlocked(blocker, blocked) {
+      return exists(/databases/$(database)/documents/users/$(blocker)/blocked/$(blocked));
+    }
+
+    // ---------- users ----------
+    function serverOwnedUserFields() {
+      return [
+        'coins', 'coinBalance', 'wallet',
+        'isPremium', 'premium', 'premiumUntil', 'subscription',
+        'isAdmin', 'admin', 'role', 'roles',
+        'isVerified', 'verified', 'emailVerified',
+        'isBanned', 'banned', 'suspended', 'moderation',
+        'reportCount', 'trustScore',
+        'deleted', 'deletedAt'
+      ];
+    }
+
+    // DOB may be set only while no timestamp DOB is stored, and must be at
+    // least 18 years (6574 days) before now.
+    function dobOk(d, k) {
+      return !('dateOfBirth' in k)
+        || (!(prevData().get('dateOfBirth', null) is timestamp)
+          && d.get('dateOfBirth', null) is timestamp
+          && d.dateOfBirth <= request.time - duration.value(6574, 'd'));
+    }
+
+    function userFieldsOk(uid) {
+      let d = request.resource.data;
+      let k = writtenKeys();
+      return (!('uid' in k) || d.uid == uid)
+        && dobOk(d, k)
+        && (!('ageConfirmedAt' in k) || isServerTime(d, 'ageConfirmedAt'))
+        && (!('emailVerificationRequired' in k) || prevData().get('emailVerificationRequired', false) != true)
+        && strMax(d, k, 'username', 100)
+        && strMax(d, k, 'displayName', 100)
+        && strMax(d, k, 'email', 254)
+        && strMax(d, k, 'bio', 1000)
+        && strMax(d, k, 'profession', 150)
+        && strMax(d, k, 'education', 150)
+        && strMax(d, k, 'idealDate', 500)
+        && strMax(d, k, 'hereFor', 200)
+        && strMax(d, k, 'city', 100)
+        && strMax(d, k, 'currentCity', 100)
+        && strMax(d, k, 'placeOfBirth', 150)
+        && strMax(d, k, 'birthLocation', 150)
+        && strMax(d, k, 'birthTime', 20)
+        && strMax(d, k, 'avatar', 2048)
+        && strMax(d, k, 'profileImage', 2048)
+        && strMax(d, k, 'voiceIntroUrl', 2048);
+    }
+
+    // Console-only migration switch; absent means owner-only.
+    function legacyUsersReadEnabled() {
+      return exists(/databases/$(database)/documents/config/rules)
+        && get(/databases/$(database)/documents/config/rules).data.get('legacyUsersRead', false) == true;
+    }
+
+    match /users/{uid} {
+      allow read: if isUser(uid) || (signedIn() && legacyUsersReadEnabled());
+      allow create: if isUser(uid)
+        && !request.resource.data.keys().hasAny(serverOwnedUserFields())
+        && userFieldsOk(uid);
+      allow update: if isUser(uid)
+        && !changedKeys().hasAny(serverOwnedUserFields())
+        && userFieldsOk(uid);
+      allow delete: if isUser(uid);
+
+      match /blocked/{otherId} {
+        allow read, write: if isUser(uid) && otherId != uid;
+      }
+
+      // Mirror of a block, written by the blocker into the blocked user's doc.
+      match /blockedBy/{blockerId} {
+        allow read: if isUser(uid) || isUser(blockerId);
+        allow create, update, delete: if isUser(blockerId) && blockerId != uid;
+      }
+
+      match /{sub}/{docId} {
+        allow read, write: if isUser(uid) && sub != 'blockedBy';
+      }
+    }
+
+    // Filled by the mirrorPublicProfile Function; clients only read.
+    match /public_profiles/{uid} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Read by rules only (see legacyUsersReadEnabled); edited in the console.
+    match /config/{docId} {
+      allow read, write: if false;
+    }
+
+    // ---------- reports (DEST-003) ----------
+    match /reports/{reportId} {
+      function reportOk(d) {
+        return d.keys().hasOnly(['reporterId', 'reportedUserId', 'reason', 'details',
+            'conversationId', 'messageIds', 'source', 'platform', 'createdAt'])
+          && d.reporterId == request.auth.uid
+          && d.reportedUserId is string
+          && d.reportedUserId.size() > 0
+          && d.reportedUserId.size() <= 128
+          && d.reportedUserId != request.auth.uid
+          && d.get('reason', '') is string
+          && d.get('reason', '').size() <= 100
+          && strMax(d, d.keys(), 'details', 2000)
+          && strMax(d, d.keys(), 'conversationId', 300)
+          && strMax(d, d.keys(), 'source', 30)
+          && strMax(d, d.keys(), 'platform', 30)
+          && (!('messageIds' in d) || (d.messageIds is list && d.messageIds.size() <= 50))
+          && isServerTime(d, 'createdAt');
+      }
+
+      allow create: if signedIn() && reportOk(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    // ---------- conversations & messages ----------
+    match /conversations/{convId} {
+      // New 1:1 ids are "<lowerUid>_<higherUid>"; legacy auto-ids have no '_'.
+      function deterministicIdOk(p) {
+        return !convId.matches('.*_.*') || convId == p[0] + '_' + p[1];
+      }
+
+      function otherOf(p) {
+        return p.removeAll([request.auth.uid])[0];
+      }
+
+      function selfEntryOk(before, after) {
+        let k = after.diff(before).affectedKeys();
+        return k.hasOnly(['hasReplied', 'unreadCount', 'lastReadAt', 'clearedBefore', 'muted', 'callEnabled'])
+          && (!('hasReplied' in k) || after.hasReplied == true)
+          && (!('unreadCount' in k) || after.unreadCount == 0)
+          && (!('lastReadAt' in k) || after.lastReadAt == request.time)
+          && (!('clearedBefore' in k) || after.clearedBefore == request.time)
+          && (!('muted' in k) || after.muted is bool)
+          && (!('callEnabled' in k)
+            || (after.callEnabled is map
+              && after.callEnabled.keys().hasOnly(['audio', 'video'])
+              && after.callEnabled.get('audio', false) is bool
+              && after.callEnabled.get('video', false) is bool));
+      }
+
+      function otherEntryOk(before, after) {
+        return after.diff(before).affectedKeys().hasOnly(['unreadCount'])
+          && after.get('unreadCount', 0) == before.get('unreadCount', 0) + 1;
+      }
+
+      function participantDataOk(me, other) {
+        let before = resource.data.get('participantData', {});
+        let after = request.resource.data.get('participantData', {});
+        let k = after.diff(before).affectedKeys();
+        return k.hasOnly([me, other])
+          && (!(me in k) || selfEntryOk(before.get(me, {}), after.get(me, {})))
+          && (!(other in k) || otherEntryOk(before.get(other, {}), after.get(other, {})));
+      }
+
+      function statePerUserOk(me, other) {
+        let before = resource.data.get('statePerUser', {});
+        let after = request.resource.data.get('statePerUser', {});
+        let k = after.diff(before).affectedKeys();
+        return k.hasOnly([me, other])
+          && (!(me in k) || after.get(me, '') in ['active', 'deleted'])
+          && (!(other in k)
+            || (before.get(other, 'deleted') == 'deleted'
+              && after.get(other, '') in ['new', 'active']));
+      }
+
+      function typingOk(me) {
+        let before = resource.data.get('typingAt', {});
+        let after = request.resource.data.get('typingAt', {});
+        let k = after.diff(before).affectedKeys();
+        return k.hasOnly([me]) && (!(me in after) || after[me] == request.time);
+      }
+
+      function lastMessageOk(d) {
+        return d.lastMessage is map
+          && d.lastMessage.get('senderId', '') == request.auth.uid
+          && d.lastMessage.get('text', '') is string
+          && d.lastMessage.get('text', '').size() <= 2100;
+      }
+
+      function conversationUpdateOk() {
+        let d = request.resource.data;
+        let k = changedKeys();
+        let me = request.auth.uid;
+        let other = otherOf(resource.data.participants);
+        return k.hasOnly(['lastMessage', 'lastMessageAt', 'participantData', 'statePerUser',
+            'typingAt', 'conversationId', 'isGroup', 'createdAt'])
+          && (!('conversationId' in k) || d.conversationId == convId)
+          && (!('isGroup' in k) || d.isGroup == false)
+          && (!('createdAt' in k) || d.createdAt == request.time)
+          && (!('lastMessage' in k) || lastMessageOk(d))
+          && (!('lastMessageAt' in k) || d.lastMessageAt == request.time)
+          && (!('participantData' in k) || participantDataOk(me, other))
+          && (!('statePerUser' in k) || statePerUserOk(me, other))
+          && (!('typingAt' in k) || typingOk(me));
+      }
+
+      function conversationCreateOk() {
+        let d = request.resource.data;
+        let p = d.participants;
+        let other = otherOf(p);
+        return p is list
+          && p.size() == 2
+          && request.auth.uid in p
+          && p[0] < p[1]
+          && deterministicIdOk(p)
+          && d.keys().hasOnly(['conversationId', 'participants', 'isGroup', 'createdAt',
+              'lastMessage', 'lastMessageAt', 'participantData', 'statePerUser', 'typingAt'])
+          && d.get('conversationId', convId) == convId
+          && d.get('isGroup', false) == false
+          && isServerTime(d, 'createdAt')
+          && isServerTime(d, 'lastMessageAt')
+          && (!('lastMessage' in d) || lastMessageOk(d))
+          && d.get('participantData', {}).keys().hasOnly(p)
+          && d.get('participantData', {}).get(request.auth.uid, {}).keys().hasOnly(['hasReplied',
+              'unreadCount', 'lastReadAt', 'clearedBefore', 'muted', 'callEnabled'])
+          && d.get('participantData', {}).get(other, {}).keys().hasOnly(['unreadCount'])
+          && d.get('participantData', {}).get(other, {}).get('unreadCount', 0) <= 1
+          && d.get('statePerUser', {}).keys().hasOnly(p)
+          && d.get('typingAt', {}).keys().hasOnly([request.auth.uid]);
+      }
+
+      allow get: if signedIn()
+        && (resource == null || request.auth.uid in resource.data.participants);
+      allow list: if signedIn() && request.auth.uid in resource.data.participants;
+
+      allow create: if signedIn() && conversationCreateOk();
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.participants
+        && resource.data.participants.size() == 2
+        && conversationUpdateOk();
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        function conv() {
+          return get(/databases/$(database)/documents/conversations/$(convId)).data;
+        }
+
+        // The first message is written in the same batch that creates the
+        // conversation, so create checks the post-batch state.
+        function convAfter() {
+          return getAfter(/databases/$(database)/documents/conversations/$(convId)).data;
+        }
+
+        function textOk(d) {
+          return d.get('message', '') is string && d.get('message', '').size() <= 2000;
+        }
+
+        function replyOk(d) {
+          return !('replyTo' in d)
+            || d.replyTo == null
+            || (d.replyTo is map
+              && d.replyTo.keys().hasOnly(['id', 'senderId', 'text', 'type'])
+              && d.replyTo.get('text', '') is string
+              && d.replyTo.get('text', '').size() <= 2000);
+        }
+
+        function receiverOpen(c, receiver) {
+          return !(receiver in c.get('deletedUsers', []))
+            && c.get('participantData', {}).get(receiver, {}).get('deleted', false) != true
+            && !hasBlocked(receiver, request.auth.uid)
+            && !hasBlocked(request.auth.uid, receiver);
+        }
+
+        // Before the first send the parent does not exist yet; the chat screen
+        // may still listen on a deterministic "<uidA>_<uidB>" id that names us.
+        function convPath() {
+          return /databases/$(database)/documents/conversations/$(convId);
+        }
+
+        allow read: if signedIn()
+          && ((exists(convPath()) && request.auth.uid in conv().participants)
+            || (!exists(convPath())
+              && convId.split('_').size() == 2
+              && request.auth.uid in convId.split('_')));
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['id', 'senderId', 'receiverId', 'conversationId',
+              'type', 'status', 'timestamp', 'isDeleted', 'editedAt', 'readAt', 'deliveredAt',
+              'replyToMessageId', 'replyTo', 'message', 'metadata', 'mediaUrl', 'mediaSize',
+              'mimeType', 'mediaDuration'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.auth.uid in convAfter().participants
+          && request.resource.data.receiverId is string
+          && request.resource.data.receiverId != request.auth.uid
+          && request.resource.data.receiverId in convAfter().participants
+          && request.resource.data.get('id', msgId) == msgId
+          && request.resource.data.get('conversationId', convId) == convId
+          && request.resource.data.get('type', 'text') in ['text', 'image', 'video', 'audio',
+              'file', 'location', 'sticker', 'gif', 'call']
+          && request.resource.data.get('status', 'sent') == 'sent'
+          && request.resource.data.timestamp == request.time
+          && request.resource.data.get('isDeleted', false) == false
+          && request.resource.data.get('editedAt', null) == null
+          && request.resource.data.get('readAt', null) == null
+          && request.resource.data.get('deliveredAt', null) == null
+          && (!('metadata' in request.resource.data)
+            || request.resource.data.metadata == null
+            || (request.resource.data.metadata is map && request.resource.data.metadata.size() <= 20))
+          && strMax(request.resource.data, request.resource.data.keys(), 'mimeType', 100)
+          && strMax(request.resource.data, request.resource.data.keys(), 'replyToMessageId', 200)
+          && textOk(request.resource.data)
+          && replyOk(request.resource.data)
+          && mediaUrlOk(request.resource.data.get('mediaUrl', null))
+          && receiverOpen(convAfter(), request.resource.data.receiverId);
+
+        allow update: if signedIn()
+          && request.auth.uid in conv().participants
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.receiverId == resource.data.receiverId
+          && request.resource.data.get('timestamp', null) == resource.data.get('timestamp', null)
+          && (
+            (request.auth.uid == resource.data.senderId
+              && changedKeys().hasOnly(['message', 'editedAt', 'isDeleted', 'mediaUrl'])
+              && (!('message' in changedKeys()) || textOk(request.resource.data))
+              && (!('editedAt' in changedKeys()) || request.resource.data.editedAt == request.time)
+              && (!('isDeleted' in changedKeys()) || request.resource.data.isDeleted == true)
+              && (!('mediaUrl' in changedKeys()) || mediaUrlOk(request.resource.data.get('mediaUrl', null))))
+            ||
+            (request.auth.uid == resource.data.receiverId
+              && changedKeys().hasOnly(['status', 'readAt', 'deliveredAt'])
+              && (!('status' in changedKeys()) || request.resource.data.status in ['delivered', 'read'])
+              && (!('readAt' in changedKeys()) || request.resource.data.readAt == request.time)
+              && (!('deliveredAt' in changedKeys()) || request.resource.data.deliveredAt == request.time))
+          );
+
+        allow delete: if false;
+      }
+    }
+
+    // ---------- games: queues ----------
+    // One entry per user, keyed by uid. Entries are readable for matchmaking.
+    function queueEntryOk(entryId) {
+      let d = request.resource.data;
+      return entryId == request.auth.uid
+        && d.uid == request.auth.uid
+        && strMax(d, d.keys(), 'displayName', 100)
+        && strMax(d, d.keys(), 'avatar', 2048);
+    }
+
+    function queueExpired() {
+      return resource.data.get('expiresAt', null) is timestamp
+        && resource.data.expiresAt < request.time;
+    }
+
+    match /ludo_queue/{entryId} {
+      // A host claims opponents in the transaction that also removes its own
+      // entry (ludo_game_service.createMatchFromQueue).
+      function claimedByQueuedHost() {
+        return exists(/databases/$(database)/documents/ludo_queue/$(request.auth.uid))
+          && !existsAfter(/databases/$(database)/documents/ludo_queue/$(request.auth.uid))
+          && get(/databases/$(database)/documents/ludo_queue/$(request.auth.uid)).data.get('playerCount', 2)
+            == resource.data.get('playerCount', 2);
+      }
+
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && queueEntryOk(entryId)
+        && request.resource.data.get('playerCount', 2) in [2, 4];
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && queueEntryOk(entryId)
+        && request.resource.data.get('playerCount', 2) == resource.data.get('playerCount', 2);
+      allow delete: if signedIn()
+        && (entryId == request.auth.uid
+          || resource.data.get('uid', '') == request.auth.uid
+          || queueExpired()
+          || claimedByQueuedHost());
+    }
+
+    match /carrom_queue/{entryId} {
+      allow read: if signedIn();
+      // set() replaces a stale entry (and an old claim) on a new search.
+      allow create: if signedIn() && queueEntryOk(entryId);
+      // Owner updates its entry; another player may claim it once by writing
+      // matchId/claimedBy in the transaction that creates that match.
+      allow update: if signedIn()
+        && ((resource.data.uid == request.auth.uid && queueEntryOk(entryId))
+          || (request.auth.uid != resource.data.uid
+            && changedKeys().hasOnly(['matchId', 'claimedBy'])
+            && !('matchId' in resource.data)
+            && request.resource.data.claimedBy == request.auth.uid
+            && request.resource.data.matchId is string
+            && existsAfter(/databases/$(database)/documents/carrom_matches/$(request.resource.data.matchId))
+            && resource.data.uid in getAfter(/databases/$(database)/documents/carrom_matches/$(request.resource.data.matchId)).data.players
+            && request.auth.uid in getAfter(/databases/$(database)/documents/carrom_matches/$(request.resource.data.matchId)).data.players));
+      allow delete: if signedIn()
+        && (entryId == request.auth.uid
+          || resource.data.get('uid', '') == request.auth.uid
+          || queueExpired());
+    }
+
+    // ---------- games: matches ----------
+    function isPlayerOf(m) {
+      return signedIn() && m.players is map && request.auth.uid in m.players;
+    }
+
+    function playerUidsOk(d) {
+      return !('playerUids' in d)
+        || (d.playerUids is list
+          && d.playerUids.toSet() == d.players.keys().toSet());
+    }
+
+    // Membership, host and size cannot change after creation.
+    function matchIdentityKept() {
+      let d = request.resource.data;
+      let r = resource.data;
+      return d.players is map
+        && d.players.keys().toSet() == r.players.keys().toSet()
+        && d.get('host', null) == r.get('host', null)
+        && d.get('playerUids', null) == r.get('playerUids', null);
+    }
+
+    match /ludo_matches/{matchId} {
+      // Lists must filter on playerUids (array-contains my uid).
+      allow get: if signedIn() && (resource == null || isPlayerOf(resource.data));
+      allow list: if signedIn() && request.auth.uid in resource.data.playerUids;
+
+      allow create: if signedIn()
+        && request.resource.data.host == request.auth.uid
+        && isPlayerOf(request.resource.data)
+        && request.resource.data.maxPlayers in [2, 4]
+        && request.resource.data.players.size() >= 2
+        && request.resource.data.players.size() <= request.resource.data.maxPlayers
+        && request.resource.data.state in ['waiting', 'playing']
+        && playerUidsOk(request.resource.data);
+
+      allow update: if isPlayerOf(resource.data)
+        && matchIdentityKept()
+        && request.resource.data.get('maxPlayers', 0) == resource.data.get('maxPlayers', 0)
+        && (!('dice' in changedKeys())
+          || (request.resource.data.dice is int
+            && request.resource.data.dice >= 1
+            && request.resource.data.dice <= 6));
+
+      allow delete: if isPlayerOf(resource.data)
+        && resource.data.get('state', '') in ['finished', 'abandoned'];
+
+      match /chat/{msgId} {
+        function parentMatch() {
+          return get(/databases/$(database)/documents/ludo_matches/$(matchId)).data;
+        }
+
+        allow read: if isPlayerOf(parentMatch());
+        allow create: if isPlayerOf(parentMatch())
+          && request.resource.data.senderUid == request.auth.uid
+          && request.resource.data.message is string
+          && request.resource.data.message.size() <= 500
+          && strMax(request.resource.data, request.resource.data.keys(), 'senderName', 100)
+          && isServerTime(request.resource.data, 'timestamp');
+        allow update, delete: if false;
+      }
+    }
+
+    match /carrom_matches/{matchId} {
+      allow get: if signedIn() && (resource == null || isPlayerOf(resource.data));
+      allow list: if signedIn() && request.auth.uid in resource.data.playerUids;
+
+      // Either player may create (a rematch is hosted by the previous guest).
+      allow create: if signedIn()
+        && request.resource.data.host in request.resource.data.players
+        && isPlayerOf(request.resource.data)
+        && request.resource.data.players.size() == 2
+        && request.resource.data.get('turn', request.auth.uid) in request.resource.data.players
+        && playerUidsOk(request.resource.data);
+
+      allow update: if isPlayerOf(resource.data)
+        && matchIdentityKept()
+        && (!('turn' in changedKeys())
+          || request.resource.data.turn in request.resource.data.players);
+
+      // Cancel before the match starts.
+      allow delete: if isPlayerOf(resource.data)
+        && resource.data.get('status', '') in ['waiting', 'ready'];
+    }
+
+    // ---------- games: stats & leaderboards (interim for DEST-004) ----------
+    function delta(key) {
+      return request.resource.data.get(key, 0) - prevData().get(key, 0);
+    }
+
+    function statsOk() {
+      let d = request.resource.data;
+      return d.get('totalGames', 0) == prevData().get('totalGames', 0) + 1
+        && delta('wins') in [0, 1]
+        && delta('losses') in [0, 1]
+        && delta('draws') in [0, 1]
+        && delta('wins') + delta('losses') + delta('draws') == 1
+        && delta('totalScore') >= 0
+        && delta('totalScore') <= 30
+        && (d.get('highScore', 0) <= 30 || d.get('highScore', 0) == prevData().get('highScore', 0))
+        && isServerTime(d, 'lastPlayed')
+        && throttled('lastPlayed', 10);
+    }
+
+    function leaderboardOk(uid) {
+      let d = request.resource.data;
+      return d.get('odZ', uid) == uid
+        && strMax(d, d.keys(), 'displayName', 100)
+        && strMax(d, d.keys(), 'avatar', 2048)
+        && delta('gamesPlayed') == 1
+        && delta('wins') in [0, 1]
+        && delta('score') >= 0
+        && delta('score') <= 30
+        && isServerTime(d, 'updatedAt')
+        && throttled('updatedAt', 10);
+    }
+
+    match /user_game_stats/{uid} {
+      allow read: if signedIn();
+
+      match /games/{game} {
+        allow read: if signedIn();
+        allow create, update: if isUser(uid) && game in ['carrom', 'ludo'] && statsOk();
+        allow delete: if false;
+      }
+
+      // One history entry per match the user actually played.
+      match /carrom_history/{matchId} {
+        allow read: if isUser(uid);
+        allow create: if isUser(uid)
+          && exists(/databases/$(database)/documents/carrom_matches/$(matchId))
+          && isPlayerOf(get(/databases/$(database)/documents/carrom_matches/$(matchId)).data)
+          && request.resource.data.get('opponentUid', '') in get(/databases/$(database)/documents/carrom_matches/$(matchId)).data.players
+          && request.resource.data.get('opponentUid', '') != uid
+          && request.resource.data.get('myScore', 0) is int
+          && request.resource.data.get('myScore', 0) >= 0
+          && request.resource.data.get('myScore', 0) <= 30
+          && strMax(request.resource.data, request.resource.data.keys(), 'opponentName', 100);
+        allow update, delete: if false;
+      }
+    }
+
+    match /leaderboards/{game}/allTime/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isUser(uid) && leaderboardOk(uid);
+      allow delete: if false;
+    }
+
+    match /leaderboards/{game}/{period}/{periodKey}/users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isUser(uid) && period in ['daily', 'weekly'] && leaderboardOk(uid);
+      allow delete: if false;
+    }
+  }
+}

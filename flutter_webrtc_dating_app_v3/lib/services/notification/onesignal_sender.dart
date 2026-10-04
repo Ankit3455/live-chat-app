@@ -38,7 +38,7 @@ class OneSignalSender {
         'receiverId': receiverId,
         'callId': callId,
       });
-      debugPrint('✅ Call notification sent to $receiverId');
+      debugPrint('✅ Call notification sent');
     } catch (e) {
       debugPrint('❌ Call notification error: $e');
     }

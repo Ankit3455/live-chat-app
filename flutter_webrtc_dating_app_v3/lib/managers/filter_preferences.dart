@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Browsing filters, stored per account (`<key>_<uid>`) so a second account on
+/// the same device starts from defaults. Discovery visibility is not stored
+/// here: it lives in `users/{uid}.discoveryEnabled`.
 class FilterPreferences {
-  // Keys
-  static const String _keyDiscoveryEnabled = 'discovery_enabled';
   static const String _keyApplyFilters = 'apply_discovery_filters';
   static const String _keyShowMeGender = 'show_me_gender';
   static const String _keyAgeMin = 'filter_age_min';
@@ -10,76 +12,94 @@ class FilterPreferences {
   static const String _keyDistanceKm = 'filter_distance_km';
   static const String _keyOnlineOnly = 'filter_online_only';
 
+  static const int minAllowedAge = 18;
+  static const int maxAllowedAge = 60;
+  static const int defaultDistanceKm = 100;
+
   final SharedPreferences _prefs;
+  final String _uid;
 
-  FilterPreferences._(this._prefs);
+  FilterPreferences._(this._prefs, this._uid);
 
-  static FilterPreferences? _instance;
-
+  /// Preferences of the signed-in user (or an anonymous bucket when signed
+  /// out, which is never read by the feed).
   static Future<FilterPreferences> getInstance() async {
-    _instance ??= FilterPreferences._(
-      await SharedPreferences.getInstance(),
-    );
-    return _instance!;
+    final prefs = await SharedPreferences.getInstance();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '_signed_out';
+    return FilterPreferences._(prefs, uid);
   }
+
+  String _k(String key) => '${key}_$_uid';
 
   // ==================== GETTERS ====================
 
-  // Discovery visibility
-  bool get discoveryEnabled => _prefs.getBool(_keyDiscoveryEnabled) ?? true;
+  bool get applyFilters => _prefs.getBool(_k(_keyApplyFilters)) ?? false;
 
-  // Apply filters toggle
-  bool get applyFilters => _prefs.getBool(_keyApplyFilters) ?? false;
+  String get showMeGender =>
+      _prefs.getString(_k(_keyShowMeGender)) ?? 'everyone';
+  String get genderPreference => showMeGender;
 
-  // Gender preference
-  String get showMeGender => _prefs.getString(_keyShowMeGender) ?? 'everyone';
-  String get genderPreference => showMeGender; // ✅ Alias for FirestoreManager
+  int get ageMin => (_prefs.getInt(_k(_keyAgeMin)) ?? minAllowedAge)
+      .clamp(minAllowedAge, maxAllowedAge);
+  int get ageMax => (_prefs.getInt(_k(_keyAgeMax)) ?? maxAllowedAge)
+      .clamp(minAllowedAge, maxAllowedAge);
+  int get minAge => ageMin;
+  int get maxAge => ageMax;
 
-  // Age range
-  int get ageMin => _prefs.getInt(_keyAgeMin) ?? 18;
-  int get ageMax => _prefs.getInt(_keyAgeMax) ?? 60;
-  int get minAge => ageMin; // ✅ Alias for FirestoreManager
-  int get maxAge => ageMax; // ✅ Alias for FirestoreManager
+  int get distanceKm => _prefs.getInt(_k(_keyDistanceKm)) ?? defaultDistanceKm;
+  int get distancePreference => distanceKm;
 
-  // Distance
-  int get distanceKm => _prefs.getInt(_keyDistanceKm) ?? 100;
-  int get distancePreference => distanceKm; // ✅ Alias for FirestoreManager
-
-  // Online only
-  bool get onlineOnly => _prefs.getBool(_keyOnlineOnly) ?? false;
+  bool get onlineOnly => _prefs.getBool(_k(_keyOnlineOnly)) ?? false;
 
   // ==================== SETTERS ====================
 
-  Future<void> setDiscoveryEnabled(bool value) async =>
-      _prefs.setBool(_keyDiscoveryEnabled, value);
-
   Future<void> setApplyFilters(bool value) async =>
-      _prefs.setBool(_keyApplyFilters, value);
+      _prefs.setBool(_k(_keyApplyFilters), value);
 
   Future<void> setShowMeGender(String value) async =>
-      _prefs.setString(_keyShowMeGender, value);
+      _prefs.setString(_k(_keyShowMeGender), value);
 
-  Future<void> setAgeMin(int value) async =>
-      _prefs.setInt(_keyAgeMin, value);
+  Future<void> setAgeMin(int value) async => _prefs.setInt(
+      _k(_keyAgeMin), value.clamp(minAllowedAge, maxAllowedAge));
 
-  Future<void> setAgeMax(int value) async =>
-      _prefs.setInt(_keyAgeMax, value);
+  Future<void> setAgeMax(int value) async => _prefs.setInt(
+      _k(_keyAgeMax), value.clamp(minAllowedAge, maxAllowedAge));
 
   Future<void> setDistanceKm(int value) async =>
-      _prefs.setInt(_keyDistanceKm, value);
+      _prefs.setInt(_k(_keyDistanceKm), value);
 
   Future<void> setOnlineOnly(bool value) async =>
-      _prefs.setBool(_keyOnlineOnly, value);
+      _prefs.setBool(_k(_keyOnlineOnly), value);
+
+  /// Saves every filter in one go.
+  Future<void> saveAll({
+    required bool applyFilters,
+    required String showMeGender,
+    required int ageMin,
+    required int ageMax,
+    required int distanceKm,
+    required bool onlineOnly,
+  }) async {
+    await setApplyFilters(applyFilters);
+    await setShowMeGender(showMeGender);
+    await setAgeMin(ageMin);
+    await setAgeMax(ageMax);
+    await setDistanceKm(distanceKm);
+    await setOnlineOnly(onlineOnly);
+  }
 
   // ==================== RESET ====================
 
   Future<void> reset() async {
-    await _prefs.remove(_keyDiscoveryEnabled);
-    await _prefs.remove(_keyApplyFilters);
-    await _prefs.remove(_keyShowMeGender);
-    await _prefs.remove(_keyAgeMin);
-    await _prefs.remove(_keyAgeMax);
-    await _prefs.remove(_keyDistanceKm);
-    await _prefs.remove(_keyOnlineOnly);
+    for (final key in [
+      _keyApplyFilters,
+      _keyShowMeGender,
+      _keyAgeMin,
+      _keyAgeMax,
+      _keyDistanceKm,
+      _keyOnlineOnly,
+    ]) {
+      await _prefs.remove(_k(key));
+    }
   }
 }

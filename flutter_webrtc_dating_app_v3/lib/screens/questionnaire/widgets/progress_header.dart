@@ -49,7 +49,7 @@ class ProgressHeader extends StatelessWidget {
                   Text(
                     '${(progress * 100).toInt()}%',
                     style: const TextStyle(
-                      color: AppColors.purpleSecondary,
+                      color: AppColors.brandPurpleLight,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),

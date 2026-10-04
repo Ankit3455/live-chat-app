@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:availchat/models/public_profile.dart';
 import 'package:availchat/models/user_model.dart';
+import '../../../core/constants/app_colors.dart';
 
 class AstrologyCompatibilityCard extends StatelessWidget {
   final UserModel user;
@@ -10,8 +13,10 @@ class AstrologyCompatibilityCard extends StatelessWidget {
 
   Future<Map<String, dynamic>?> _getAstrologyData() async {
     try {
+      // Own doc for me; other users only expose public_profiles.
+      final isMe = user.uid == FirebaseAuth.instance.currentUser?.uid;
       final doc = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(isMe ? 'users' : PublicProfile.collection)
           .doc(user.uid)
           .get();
 
@@ -46,7 +51,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF7B2CBF)),
+            child: CircularProgressIndicator(color: AppColors.brandPurple),
           );
         }
 
@@ -65,13 +70,13 @@ class AstrologyCompatibilityCard extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF7B2CBF).withOpacity(0.2),
-                const Color(0xFF2D1B4E),
+                AppColors.brandPurple.withOpacity(0.2),
+                AppColors.surfaceCard,
               ],
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFFFD700).withOpacity(0.5),
+              color: AppColors.gold.withOpacity(0.5),
               width: 1,
             ),
           ),
@@ -82,7 +87,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
                 children: [
                   const Icon(
                     Icons.auto_awesome,
-                    color: Color(0xFFFFD700),
+                    color: AppColors.gold,
                     size: 28,
                   ),
                   const SizedBox(width: 12),
@@ -112,7 +117,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
                 const Text(
                   'Compatible with',
                   style: TextStyle(
-                    color: Color(0xFFB39DDB),
+                    color: AppColors.lavender,
                     fontSize: 14,
                   ),
                 ),
@@ -127,7 +132,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7B2CBF).withOpacity(0.3),
+                        color: AppColors.brandPurple.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -159,7 +164,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
                 const Text(
                   'Complete astrology questionnaire to show cosmic compatibility!',
                   style: TextStyle(
-                    color: Color(0xFFB39DDB),
+                    color: AppColors.lavender,
                     fontSize: 14,
                     fontStyle: FontStyle.italic,
                   ),
@@ -178,7 +183,7 @@ class AstrologyCompatibilityCard extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFFB39DDB),
+            color: AppColors.lavender,
             fontSize: 14,
           ),
         ),

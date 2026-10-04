@@ -1,12 +1,12 @@
 import 'package:availchat/core/constants/app_colors.dart';
-import 'package:availchat/screens/questionnaire/questionnaire_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-import '../questionnaire/post_signup_questions_screen.dart'; // ✅ ADD THIS
-// ✅ ADD this import
-import '../../features/onboarding/tour_prefs.dart';
+import '../../core/utils/astrology_utils.dart';
+import '../../core/utils/auth_validators.dart';
+import '../../services/auth_service.dart';
+import 'auth_router.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -16,9 +16,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
-
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -26,6 +24,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _birthTimeController = TextEditingController();
   final _birthLocationController = TextEditingController();
 
+  DateTime? _dob;
+  bool _confirmedAdult = false;
   bool _isLoading = false;
 
   @override
@@ -41,17 +41,19 @@ class _SignupScreenState extends State<SignupScreen> {
 
   // Pick Birth Date
   Future<void> _pickBirthDate() async {
+    final latest = AgePolicy.latestAllowedDob();
+    final fallback = DateTime(2000);
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1950),
-      lastDate: DateTime.now(),
+      initialDate: _dob ?? (fallback.isAfter(latest) ? latest : fallback),
+      firstDate: DateTime(1920),
+      lastDate: latest,
       builder: (context, child) {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF7B2CBF),
-              surface: Color(0xFF2D1B4E),
+              primary: AppColors.brandPurple,
+              surface: AppColors.surfaceCard,
             ),
           ),
           child: child!,
@@ -60,7 +62,8 @@ class _SignupScreenState extends State<SignupScreen> {
     );
 
     if (picked != null) {
-      _birthDateController.text = DateFormat('dd/MM/yyyy').format(picked);
+      _dob = picked;
+      _birthDateController.text = AgePolicy.legacyDobFormat.format(picked);
     }
   }
 
@@ -73,8 +76,8 @@ class _SignupScreenState extends State<SignupScreen> {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF7B2CBF),
-              surface: Color(0xFF2D1B4E),
+              primary: AppColors.brandPurple,
+              surface: AppColors.surfaceCard,
             ),
           ),
           child: child!,
@@ -87,120 +90,61 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // Calculate Zodiac Sign from DOB
-  String _calculateZodiacSign(String dob) {
-    try {
-      final parts = dob.split('/');
-      if (parts.length != 3) return 'Unknown';
-
-      final day = int.parse(parts[0]);
-      final month = int.parse(parts[1]);
-
-      if ((month == 3 && day >= 21) || (month == 4 && day <= 19))
-        return 'Aries';
-      if ((month == 4 && day >= 20) || (month == 5 && day <= 20))
-        return 'Taurus';
-      if ((month == 5 && day >= 21) || (month == 6 && day <= 20))
-        return 'Gemini';
-      if ((month == 6 && day >= 21) || (month == 7 && day <= 22))
-        return 'Cancer';
-      if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) return 'Leo';
-      if ((month == 8 && day >= 23) || (month == 9 && day <= 22))
-        return 'Virgo';
-      if ((month == 9 && day >= 23) || (month == 10 && day <= 22))
-        return 'Libra';
-      if ((month == 10 && day >= 23) || (month == 11 && day <= 21))
-        return 'Scorpio';
-      if ((month == 11 && day >= 22) || (month == 12 && day <= 21))
-        return 'Sagittarius';
-      if ((month == 12 && day >= 22) || (month == 1 && day <= 19))
-        return 'Capricorn';
-      if ((month == 1 && day >= 20) || (month == 2 && day <= 18))
-        return 'Aquarius';
-      if ((month == 2 && day >= 19) || (month == 3 && day <= 20))
-        return 'Pisces';
-
-      return 'Unknown';
-    } catch (e) {
-      return 'Unknown';
+  String? _validateDob(String? _) {
+    final dob = _dob;
+    if (dob == null) return 'Birth date is required';
+    if (!AgePolicy.isAdult(dob)) {
+      return 'You must be 18 or older to use Destined';
     }
+    return null;
   }
 
   // Handle Signup
   Future<void> _handleSignup() async {
+    if (_isLoading) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_confirmedAdult) {
+      _showError('Please confirm you are 18 or older');
+      return;
+    }
+
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
-    final dob = _birthDateController.text.trim();
+    final password = _passwordController.text;
+    final dob = _dob!;
     final time = _birthTimeController.text.trim();
-    final location = _birthLocationController.text.trim();
-
-    if (email.isEmpty ||
-        password.isEmpty ||
-        confirmPassword.isEmpty ||
-        dob.isEmpty ||
-        time.isEmpty ||
-        location.isEmpty) {
-      _showError('Please fill all fields');
-      return;
-    }
-
-    if (password != confirmPassword) {
-      _showError('Passwords do not match');
-      return;
-    }
+    final birthLocation = _birthLocationController.text.trim();
+    final zodiac = AstrologyUtils.zodiacFromDob(
+      AgePolicy.legacyDobFormat.format(dob),
+    );
 
     setState(() => _isLoading = true);
 
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      await context.read<AuthService>().signUp(
         email: email,
         password: password,
+        profile: {
+          ...AgePolicy.dobFields(dob, zodiac),
+          if (time.isNotEmpty) 'birthTime': time,
+          'birthLocation': birthLocation,
+          'termsAcceptedAt': FieldValue.serverTimestamp(),
+        },
       );
 
-      final uid = userCredential.user?.uid;
-      if (uid == null) {
-        throw Exception('User creation failed: No UID');
-      }
+      if (!mounted) return;
 
-      // ✅ AUTO-CALCULATE ZODIAC SIGN
-      final sunSign = _calculateZodiacSign(dob);
-
-      // ✅ SAVE TO FIRESTORE
-      await _db.collection('users').doc(uid).set({
-        'uid': uid,
-        'email': email,
-        'username': email.split('@')[0],
-        'dob': dob,
-        'birthTime': time,
-        'location': location,
-        'sunSign': sunSign,
-        'zodiacSign': sunSign,
-        'discoveryEnabled': true,
-        'online': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        // ✅ SET FLAG to show onboarding after questionnaire
-        await TourPrefs.setForceShowAfterSignup(true);
-
-        _showSuccess('Signup Successful! Complete your profile...');
-
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => const QuestionnaireScreen(),
-          ),
-        );
-      }
+      _showSuccess('Account created! Check your inbox to verify your email.');
+      await AuthRouter.routeCurrentUser(context);
     } on FirebaseAuthException catch (e) {
+      _showError(
+        e.code == 'profile-write-failed'
+            ? (e.message ?? 'Signup failed')
+            : AuthValidators.messageFor(e),
+      );
+    } catch (_) {
+      _showError('Signup failed. Please try again.');
+    } finally {
       if (mounted) setState(() => _isLoading = false);
-      _showError(e.message ?? 'Signup failed');
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      _showError('Failed to save details: $e');
     }
   }
 
@@ -231,6 +175,7 @@ class _SignupScreenState extends State<SignupScreen> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -251,7 +196,9 @@ class _SignupScreenState extends State<SignupScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
-                child: Column(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Email
@@ -261,6 +208,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       hint: 'you@example.com',
                       icon: Icons.mail,
                       keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      validator: AuthValidators.email,
                     ),
 
                     const SizedBox(height: 16),
@@ -269,9 +218,11 @@ class _SignupScreenState extends State<SignupScreen> {
                     _buildLabel('Password'),
                     _buildTextField(
                       controller: _passwordController,
-                      hint: 'Create a password',
+                      hint: 'At least 8 characters, letters and numbers',
                       icon: Icons.lock,
                       isPassword: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      validator: AuthValidators.newPassword,
                     ),
 
                     const SizedBox(height: 16),
@@ -283,6 +234,10 @@ class _SignupScreenState extends State<SignupScreen> {
                       hint: 'Confirm your password',
                       icon: Icons.lock,
                       isPassword: true,
+                      validator: (v) => AuthValidators.confirmPassword(
+                        v,
+                        _passwordController.text,
+                      ),
                     ),
 
                     const SizedBox(height: 32),
@@ -303,7 +258,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           Text(
                             'This helps us find your destined match.',
                             style: TextStyle(
-                              color: Color(0xFFB39DDB),
+                              color: AppColors.lavender,
                               fontSize: 14,
                             ),
                           ),
@@ -321,6 +276,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       icon: Icons.calendar_today,
                       readOnly: true,
                       onTap: _pickBirthDate,
+                      validator: _validateDob,
                     ),
 
                     const SizedBox(height: 16),
@@ -332,7 +288,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildLabel('Birth Time'),
+                              _buildLabel('Birth Time (optional)'),
                               _buildTextField(
                                 controller: _birthTimeController,
                                 hint: 'e.g. 4:30 PM',
@@ -353,6 +309,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                 controller: _birthLocationController,
                                 hint: 'City, Country',
                                 icon: Icons.location_on,
+                                validator: (v) => (v ?? '').trim().isEmpty
+                                    ? 'Required'
+                                    : null,
                               ),
                             ],
                           ),
@@ -360,13 +319,29 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+
+                    CheckboxListTile(
+                      value: _confirmedAdult,
+                      onChanged: _isLoading
+                          ? null
+                          : (v) => setState(() => _confirmedAdult = v ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: AppColors.brandPurple,
+                      title: const Text(
+                        'I confirm I am 18 or older',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
 
                     // Progress Indicator
                     if (_isLoading)
                       const Center(
                         child:
-                            CircularProgressIndicator(color: Color(0xFF7B2CBF)),
+                            CircularProgressIndicator(color: AppColors.brandPurple),
                       )
                     else
                       // Sign Up Button
@@ -385,7 +360,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Ink(
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
+                                colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
                               ),
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -409,15 +384,16 @@ class _SignupScreenState extends State<SignupScreen> {
                     // Terms
                     const Center(
                       child: Text(
-                        'By signing up, you agree to our Terms and Conditions.',
+                        'By signing up, you agree to our Terms of Service and Privacy Policy.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xFFB39DDB),
+                          color: AppColors.lavender,
                           fontSize: 12,
                         ),
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
             ),
@@ -433,7 +409,7 @@ class _SignupScreenState extends State<SignupScreen> {
       child: Text(
         text,
         style: const TextStyle(
-          color: Color(0xFFB39DDB),
+          color: AppColors.lavender,
           fontSize: 14,
         ),
       ),
@@ -448,19 +424,24 @@ class _SignupScreenState extends State<SignupScreen> {
     bool readOnly = false,
     VoidCallback? onTap,
     TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
+    FormFieldValidator<String>? validator,
   }) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       obscureText: isPassword,
       readOnly: readOnly,
       onTap: onTap,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
+      validator: validator,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFFB39DDB)),
+        hintStyle: const TextStyle(color: AppColors.lavender),
+        errorMaxLines: 2,
         filled: true,
-        fillColor: const Color(0xFF2D1B4E),
+        fillColor: AppColors.surfaceCard,
         prefixIcon: Icon(icon, color: Colors.white),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

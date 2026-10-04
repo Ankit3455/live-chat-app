@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'carrom_match_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class CarromLobbyScreen extends StatefulWidget {
   const CarromLobbyScreen({Key? key}) : super(key: key);
@@ -44,7 +45,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     '💡 Aim carefully before striking!',
     '💡 Pocket the Queen and cover it for bonus!',
     '💡 Don\'t pocket the striker - it\'s a foul!',
-    '💡 First to 25 points wins the game!',
+    '💡 Clear all your coins after the Queen is covered to win!',
     '💡 Use angles to pocket difficult coins!',
     '💡 Control your power for precision shots!',
   ];
@@ -203,105 +204,178 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     _waitingTimer?.cancel();
   }
 
+  static const Duration _searchTimeout = Duration(seconds: 45);
+  static const Duration _queueTtl = Duration(seconds: 60);
+  static const Duration _recheckEvery = Duration(seconds: 3);
+  // Tolerates clock skew between this device and the match creator.
+  static const Duration _matchCreatedSlack = Duration(seconds: 30);
+
+  /// Pairs via `carrom_queue/{uid}`. The waiting player keeps re-checking the
+  /// queue and also listens to its own entry: whoever pairs first writes the
+  /// new match id into the other player's entry (a "claim").
   Future<DocumentReference<Map<String, dynamic>>?> _createOrPair(
       String uid,
       String displayName,
       String? avatar,
       ) async {
-    // Check for existing waiting player
-    final candidateSnap = await _firestore
-        .collection('carrom_queue')
-        .where('uid', isNotEqualTo: uid)
-        .orderBy('uid')
-        .orderBy('createdAt')
-        .limit(1)
-        .get();
+    final myQueueRef = _firestore.collection('carrom_queue').doc(uid);
+    final searchStart = DateTime.now();
 
-    if (candidateSnap.docs.isNotEmpty) {
-      final candidate = candidateSnap.docs.first;
-      final candidateUid = candidate.data()['uid'] as String?;
-
-      if (candidateUid != null && candidateUid != uid) {
-        // Found opponent! Create match
-        final matchRef = _firestore.collection('carrom_matches').doc();
-
-        try {
-          await _firestore.runTransaction((tx) async {
-            final candFresh = await tx.get(candidate.reference);
-            if (!candFresh.exists) {
-              throw Exception('Candidate gone');
-            }
-
-            tx.delete(candidate.reference);
-            tx.set(matchRef, {
-              'players': {
-                uid: {'displayName': displayName, 'avatar': avatar},
-                candidateUid: {
-                  'displayName': candFresh.data()?['displayName'] ?? 'Opponent',
-                  'avatar': candFresh.data()?['avatar']
-                }
-              },
-              'status': 'ready',
-              'host': uid,
-              'turn': uid,
-              'createdAt': FieldValue.serverTimestamp(),
-              'boardState': null,
-              'lastMove': null,
-              'scores': {uid: 0, candidateUid: 0},
-            });
-          });
-
-          return matchRef;
-        } catch (e) {
-          // Transaction failed, continue to create queue entry
-        }
-      }
-    }
-
-    // No opponent - add self to queue
-    final myQueueRef = _firestore.collection('carrom_queue').doc();
-    _myQueueDocId = myQueueRef.id;
-
+    // Overwrites any stale entry (and old claim) from a previous search.
     await myQueueRef.set({
       'uid': uid,
       'displayName': displayName,
       'avatar': avatar,
       'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(searchStart.add(_queueTtl)),
     });
+    _myQueueDocId = uid;
 
-    // Wait for pairing (45 seconds timeout)
-    final end = DateTime.now().add(const Duration(seconds: 45));
+    final claimed = Completer<String>();
+    var entryGone = false;
+    final claimSub = myQueueRef.snapshots().listen((snap) {
+      if (!snap.exists) entryGone = true;
+      final matchId = snap.data()?['matchId'] as String?;
+      if (matchId != null && !claimed.isCompleted) claimed.complete(matchId);
+    }, onError: (Object e) => debugPrint('Carrom queue listener error: $e'));
 
-    while (DateTime.now().isBefore(end)) {
-      if (!mounted || !_searching) break;
+    try {
+      final end = searchStart.add(_searchTimeout);
+      while (DateTime.now().isBefore(end)) {
+        if (!mounted || !_searching) return null;
+        if (claimed.isCompleted) break;
 
-      // Check if someone created a match with us
-      final matchSnap = await _firestore
-          .collection('carrom_matches')
-          .where('status', whereIn: ['ready', 'started'])
-          .get();
-
-      for (final doc in matchSnap.docs) {
-        final players = doc.data()['players'] as Map<String, dynamic>?;
-        if (players != null && players.containsKey(uid)) {
-          // We're in a match!
-          try {
-            await myQueueRef.delete();
-            _myQueueDocId = null;
-          } catch (_) {}
-          return doc.reference;
+        final paired = await _tryClaimOpponent(uid, displayName, avatar);
+        if (paired != null) {
+          _myQueueDocId = null;
+          return paired;
         }
+        if (claimed.isCompleted) break;
+
+        // Entry gone without a claim we saw (deleted or expired): the match
+        // may still exist, so look it up once instead of scanning forever.
+        if (entryGone) {
+          _myQueueDocId = null;
+          return _findMatchCreatedSince(uid, searchStart);
+        }
+
+        await Future.any([claimed.future, Future.delayed(_recheckEvery)]);
       }
 
-      await Future.delayed(const Duration(seconds: 1));
+      if (claimed.isCompleted) {
+        final matchId = await claimed.future;
+        try {
+          await myQueueRef.delete();
+        } catch (_) {}
+        _myQueueDocId = null;
+        return _firestore.collection('carrom_matches').doc(matchId);
+      }
+    } finally {
+      await claimSub.cancel();
     }
 
-    // Timeout - cleanup
-    try {
-      await myQueueRef.delete();
-      _myQueueDocId = null;
-    } catch (_) {}
+    await _cleanupQueue();
+    return null;
+  }
 
+  /// Our newest match created during this search (indexed on
+  /// playerUids + createdAt).
+  Future<DocumentReference<Map<String, dynamic>>?> _findMatchCreatedSince(
+      String uid,
+      DateTime searchStart,
+      ) async {
+    final since = searchStart.subtract(_matchCreatedSlack);
+    final snap = await _firestore
+        .collection('carrom_matches')
+        .where('playerUids', arrayContains: uid)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    final data = snap.docs.first.data();
+    if (data['status'] != 'ready' && data['status'] != 'started') return null;
+    return snap.docs.first.reference;
+  }
+
+  /// Claims the oldest live entry in one transaction: creates the match,
+  /// writes its id into the opponent's entry and removes our own entry.
+  Future<DocumentReference<Map<String, dynamic>>?> _tryClaimOpponent(
+      String uid,
+      String displayName,
+      String? avatar,
+      ) async {
+    final now = DateTime.now();
+    // Only live entries are read; expiresAt order follows join order.
+    final snap = await _firestore
+        .collection('carrom_queue')
+        .where('expiresAt', isGreaterThan: Timestamp.fromDate(now))
+        .orderBy('expiresAt')
+        .limit(10)
+        .get();
+
+    final candidates = snap.docs.where((d) {
+      final data = d.data();
+      final expires = data['expiresAt'];
+      return d.id != uid &&
+          data['uid'] != uid &&
+          data['matchId'] == null &&
+          expires is Timestamp &&
+          expires.toDate().isAfter(now);
+    });
+
+    final myQueueRef = _firestore.collection('carrom_queue').doc(uid);
+    for (final candidate in candidates) {
+      final matchRef = _firestore.collection('carrom_matches').doc();
+      try {
+        final ok = await _firestore.runTransaction<bool>((tx) async {
+          final mine = await tx.get(myQueueRef);
+          final cand = await tx.get(candidate.reference);
+          final candData = cand.data();
+          final candUid = candData?['uid'] as String?;
+          final expires = candData?['expiresAt'];
+          if (!mine.exists || mine.data()?['matchId'] != null) return false;
+          if (candData == null ||
+              candUid == null ||
+              candUid == uid ||
+              candData['matchId'] != null ||
+              expires is! Timestamp ||
+              !expires.toDate().isAfter(DateTime.now())) {
+            return false;
+          }
+
+          tx.set(matchRef, {
+            'players': {
+              uid: {'displayName': displayName, 'avatar': avatar},
+              candUid: {
+                'displayName': candData['displayName'] ?? 'Opponent',
+                'avatar': candData['avatar'],
+              },
+            },
+            'playerUids': [uid, candUid],
+            'status': 'ready',
+            'host': uid,
+            'turn': uid,
+            'joined': <String, bool>{},
+            'createdAt': FieldValue.serverTimestamp(),
+            'boardState': null,
+            'lastMove': null,
+            'scores': {uid: 0, candUid: 0},
+            'moveSeq': 0,
+            'turnSeq': 0,
+          });
+          tx.update(candidate.reference, {'matchId': matchRef.id, 'claimedBy': uid});
+          tx.delete(myQueueRef);
+          return true;
+        });
+        if (ok) return matchRef;
+      } catch (e) {
+        debugPrint('Carrom pairing attempt failed: $e');
+      }
+      // Our own entry may have been claimed meanwhile; let the caller see it.
+      final mine = await myQueueRef.get();
+      if (!mine.exists || mine.data()?['matchId'] != null) return null;
+    }
     return null;
   }
 
@@ -329,9 +403,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1A0E2E),
-              Color(0xFF2D1B4E),
-              Color(0xFF1A0E2E),
+              AppColors.backgroundDeep,
+              AppColors.surfaceCard,
+              AppColors.backgroundDeep,
             ],
             stops: [0.0, 0.5, 1.0],
           ),
@@ -377,6 +451,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: _searching ? null : () => Navigator.pop(context),
             ),

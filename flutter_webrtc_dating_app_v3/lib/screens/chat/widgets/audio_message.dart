@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/chat_message_model.dart';
+import '../../../services/media/media_url_policy.dart';
 
 class AudioMessage extends StatefulWidget {
   final ChatMessage message;
@@ -31,6 +32,7 @@ class _AudioMessageState extends State<AudioMessage> {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<void>? _completeSub;
 
   @override
   void initState() {
@@ -62,7 +64,7 @@ class _AudioMessageState extends State<AudioMessage> {
       }
     });
 
-    _player.onPlayerComplete.listen((_) {
+    _completeSub = _player.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {
           _isPlaying = false;
@@ -73,17 +75,34 @@ class _AudioMessageState extends State<AudioMessage> {
   }
 
   @override
+  void didUpdateWidget(covariant AudioMessage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final changed = oldWidget.message.id != widget.message.id ||
+        oldWidget.message.mediaUrl != widget.message.mediaUrl;
+    if (!changed) return;
+    // A different (or deleted) recording: drop the old playback state.
+    _player.stop();
+    setState(() {
+      _isPlaying = false;
+      _isLoading = false;
+      _position = Duration.zero;
+      _duration = Duration(seconds: widget.message.mediaDuration ?? 0);
+    });
+  }
+
+  @override
   void dispose() {
     _positionSub?.cancel();
     _stateSub?.cancel();
     _durationSub?.cancel();
+    _completeSub?.cancel();
     _player.dispose();
     super.dispose();
   }
 
   Future<void> _togglePlay() async {
     final url = widget.message.mediaUrl;
-    if (url == null || url.isEmpty) return;
+    if (!MediaUrlPolicy.isAllowed(url)) return;
 
     setState(() => _isLoading = true);
 
@@ -92,14 +111,14 @@ class _AudioMessageState extends State<AudioMessage> {
         await _player.pause();
       } else {
         if (_position == Duration.zero) {
-          await _player.play(UrlSource(url));
+          await _player.play(UrlSource(url!));
         } else {
           await _player.resume();
         }
       }
     } catch (e) {
       debugPrint('Audio playback error: $e');
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -111,6 +130,7 @@ class _AudioMessageState extends State<AudioMessage> {
 
   @override
   Widget build(BuildContext context) {
+    final playable = MediaUrlPolicy.isAllowed(widget.message.mediaUrl);
     final progress = _duration.inMilliseconds > 0
         ? _position.inMilliseconds / _duration.inMilliseconds
         : 0.0;
@@ -130,13 +150,21 @@ class _AudioMessageState extends State<AudioMessage> {
       child: Row(
         children: [
           // Play/Pause Button
-          GestureDetector(
-            onTap: _togglePlay,
+          Semantics(
+            button: true,
+            enabled: playable,
+            label: !playable
+                ? 'Voice message unavailable'
+                : (_isPlaying ? 'Pause voice message' : 'Play voice message'),
+            child: GestureDetector(
+            onTap: playable ? _togglePlay : null,
             child: Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: AppColors.purplePrimary,
+                color: playable
+                    ? AppColors.purplePrimary
+                    : AppColors.purplePrimary.withOpacity(0.3),
                 shape: BoxShape.circle,
               ),
               child: _isLoading
@@ -148,13 +176,16 @@ class _AudioMessageState extends State<AudioMessage> {
                 ),
               )
                   : Icon(
-                _isPlaying
+                !playable
+                    ? Icons.block
+                    : _isPlaying
                     ? Icons.pause_rounded
                     : Icons.play_arrow_rounded,
                 color: Colors.white,
                 size: 26,
               ),
             ),
+          ),
           ),
 
           const SizedBox(width: 10),
@@ -209,7 +240,7 @@ class _AudioMessageState extends State<AudioMessage> {
           // Mic icon
           Icon(
             Icons.mic_rounded,
-            color: AppColors.purplePrimary.withOpacity(0.6),
+            color: AppColors.brandPurpleLight.withOpacity(0.6),
             size: 18,
           ),
         ],

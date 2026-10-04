@@ -1,351 +1,19 @@
-// // lib/features/onboarding/home_onboarding.dart
-//
-// import 'package:flutter/material.dart';
-// import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
-// import 'tour_prefs.dart';
-//
-// class HomeOnboarding {
-//   HomeOnboarding._();
-//
-//   // ============================================================================
-//   // Global Keys (use these in HomeScreen)
-//   // ============================================================================
-//
-//   /// Key for bubbles horizontal list (top matches / recents)
-//   static final GlobalKey bubblesKey = GlobalKey();
-//
-//   /// Key for first grid item (first profile card)
-//   static final GlobalKey firstGridItemKey = GlobalKey();
-//
-//   // ============================================================================
-//   // Private State
-//   // ============================================================================
-//
-//   static TutorialCoachMark? _tutorialCoachMark;
-//   static bool _isShowing = false;
-//
-//   // ============================================================================
-//   // Public API
-//   // ============================================================================
-//
-//   /// Show onboarding if not completed and flag allows it
-//   static Future<void> tryShow(BuildContext context) async {
-//     final isCompleted = await TourPrefs.isHomeTourCompleted();
-//     final forceShow = await TourPrefs.shouldForceShowAfterSignup();
-//
-//     if ((isCompleted && !forceShow) || _isShowing) {
-//       debugPrint(
-//           '🚫 HomeOnboarding: Skipping (completed=$isCompleted, showing=$_isShowing)');
-//       return;
-//     }
-//
-//     // Wait a bit for widgets & keys to be attached
-//     await Future.delayed(const Duration(milliseconds: 800));
-//
-//     if (!_areKeysValid()) {
-//       debugPrint('⚠️ HomeOnboarding: Keys not attached yet');
-//       return;
-//     }
-//
-//     debugPrint('✅ HomeOnboarding: Starting tutorial');
-//     _show(context);
-//   }
-//
-//   /// Manually show (for testing)
-//   static Future<void> showManually(BuildContext context) async {
-//     if (_isShowing) return;
-//
-//     await Future.delayed(const Duration(milliseconds: 300));
-//
-//     if (!_areKeysValid()) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(content: Text('Please wait for screen to load')),
-//       );
-//       return;
-//     }
-//
-//     _show(context);
-//   }
-//
-//   /// Dismiss tutorial programmatically
-//   static void dismiss() {
-//     _tutorialCoachMark?.finish();
-//     _tutorialCoachMark = null;
-//     _isShowing = false;
-//   }
-//
-//   /// Reset tour flags (useful in debug)
-//   static Future<void> reset() async {
-//     await TourPrefs.resetAll();
-//     debugPrint('🔄 HomeOnboarding: Reset completed');
-//   }
-//
-//   // ============================================================================
-//   // Private Methods
-//   // ============================================================================
-//
-//   static void _show(BuildContext context) {
-//     _isShowing = true;
-//
-//     _tutorialCoachMark = TutorialCoachMark(
-//       targets: _createTargets(),
-//       colorShadow: const Color(0xFF1A0E2E),
-//       paddingFocus: 10,
-//       opacityShadow: 0.9,
-//       textSkip: "SKIP",
-//       textStyleSkip: const TextStyle(
-//         color: Colors.white,
-//         fontSize: 16,
-//         fontWeight: FontWeight.bold,
-//       ),
-//       onFinish: () {
-//         debugPrint('✅ HomeOnboarding: Tutorial finished');
-//         // async call allowed, we don't need to await here
-//         _markCompleted();
-//         _isShowing = false;
-//       },
-//       // 🔴 IMPORTANT: onSkip must RETURN bool
-//       onSkip: () {
-//         debugPrint('⏭️ HomeOnboarding: Tutorial skipped');
-//         _markCompleted();
-//         _isShowing = false;
-//         return true; // ✅ required by tutorial_coach_mark
-//       },
-//     );
-//
-//     // Correct usage for tutorial_coach_mark ^1.3.3
-//     _tutorialCoachMark!.show(context: context);
-//   }
-//
-//   static List<TargetFocus> _createTargets() {
-//     return [
-//       // ========================================================================
-//       // Step 1: Bubbles (Top matches / recents)
-//       // ========================================================================
-//       TargetFocus(
-//         identify: "bubbles-list",
-//         keyTarget: bubblesKey,
-//         shape: ShapeLightFocus.RRect,
-//         radius: 12,
-//         enableOverlayTab: true,
-//         contents: [
-//           TargetContent(
-//             align: ContentAlign.bottom,
-//             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-//             builder: (context, controller) {
-//               return Container(
-//                 padding: const EdgeInsets.all(20),
-//                 decoration: BoxDecoration(
-//                   color: const Color(0xFF2D1B4E),
-//                   borderRadius: BorderRadius.circular(12),
-//                   boxShadow: [
-//                     BoxShadow(
-//                       color: Colors.black.withOpacity(0.3),
-//                       blurRadius: 10,
-//                       offset: const Offset(0, 4),
-//                     ),
-//                   ],
-//                 ),
-//                 child: Column(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   mainAxisSize: MainAxisSize.min,
-//                   children: [
-//                     Row(
-//                       children: const [
-//                         Icon(
-//                           Icons.people_outline,
-//                           color: Color(0xFF7B2CBF),
-//                           size: 24,
-//                         ),
-//                         SizedBox(width: 12),
-//                         Expanded(
-//                           child: Text(
-//                             "Top Matches",
-//                             style: TextStyle(
-//                               color: Colors.white,
-//                               fontSize: 22,
-//                               fontWeight: FontWeight.bold,
-//                             ),
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                     const SizedBox(height: 12),
-//                     const Text(
-//                       "These are your top matches based on compatibility. Scroll to see more!",
-//                       style: TextStyle(
-//                         color: Colors.white70,
-//                         fontSize: 16,
-//                         height: 1.4,
-//                       ),
-//                     ),
-//                     const SizedBox(height: 16),
-//                     Row(
-//                       mainAxisAlignment: MainAxisAlignment.end,
-//                       children: const [
-//                         Text(
-//                           "Tap anywhere to continue",
-//                           style: TextStyle(
-//                             color: Color(0xFF7B2CBF),
-//                             fontSize: 14,
-//                             fontWeight: FontWeight.w600,
-//                           ),
-//                         ),
-//                         SizedBox(width: 8),
-//                         Icon(
-//                           Icons.arrow_forward,
-//                           color: Color(0xFF7B2CBF),
-//                           size: 16,
-//                         ),
-//                       ],
-//                     ),
-//                   ],
-//                 ),
-//               );
-//             },
-//           ),
-//         ],
-//       ),
-//
-//     // ========================================================================
-// // Step 2: Tap to Chat (first grid profile)
-// // ========================================================================
-//     TargetFocus(
-//     identify: "first-profile",
-//     keyTarget: firstGridItemKey,
-//     shape: ShapeLightFocus.Circle,
-//     radius: 50,
-//     enableOverlayTab: true,
-//     contents: [
-//     TargetContent(
-//     // ⬇️ Yaha change karo: bottom → top
-//     align: ContentAlign.top,
-//     // Thoda padding bhi kam kar do
-//     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-//     builder: (context, controller) {
-//     return Container(
-//     padding: const EdgeInsets.all(20),
-//     decoration: BoxDecoration(
-//     color: const Color(0xFF2D1B4E),
-//     borderRadius: BorderRadius.circular(12),
-//     boxShadow: [
-//     BoxShadow(
-//     color: Colors.black.withOpacity(0.3),
-//     blurRadius: 10,
-//     offset: const Offset(0, 4),
-//     ),
-//     ],
-//     ),
-//     child: Column(
-//     crossAxisAlignment: CrossAxisAlignment.start,
-//     mainAxisSize: MainAxisSize.min,
-//     children: [
-//     Row(
-//     children: const [
-//     Icon(
-//     Icons.touch_app,
-//     color: Color(0xFF7B2CBF),
-//     size: 24,
-//     ),
-//     SizedBox(width: 12),
-//     Text(
-//     "Tap to Chat",
-//     style: TextStyle(
-//     color: Colors.white,
-//     fontSize: 22,
-//     fontWeight: FontWeight.bold,
-//     ),
-//     ),
-//     ],
-//     ),
-//     const SizedBox(height: 12),
-//     const Text(
-//     "Tap any profile to start a conversation instantly!",
-//     style: TextStyle(
-//     color: Colors.white70,
-//     fontSize: 16,
-//     height: 1.4,
-//     ),
-//     ),
-//     const SizedBox(height: 16),
-//     Align(
-//     alignment: Alignment.centerRight,
-//     child: Container(
-//     padding: const EdgeInsets.symmetric(
-//     horizontal: 16,
-//     vertical: 8,
-//     ),
-//     decoration: BoxDecoration(
-//     color: const Color(0xFF7B2CBF),
-//     borderRadius: BorderRadius.circular(20),
-//     ),
-//     child: Row(
-//     mainAxisSize: MainAxisSize.min,
-//     children: const [
-//     Text(
-//     "Got it!",
-//     style: TextStyle(
-//     color: Colors.white,
-//     fontSize: 16,
-//     fontWeight: FontWeight.bold,
-//     ),
-//     ),
-//     SizedBox(width: 8),
-//     Icon(
-//     Icons.check_circle_outline,
-//     color: Colors.white,
-//     size: 20,
-//     ),
-//     ],
-//     ),
-//     ),
-//     ),
-//     ],
-//     ),
-//     );
-//     },
-//     ),
-//     ],
-//     ),
-//     ];
-//   }
-//
-//   static bool _areKeysValid() {
-//     final bubblesContext = bubblesKey.currentContext;
-//     final gridContext = firstGridItemKey.currentContext;
-//
-//     final ok = bubblesContext != null && gridContext != null;
-//     if (!ok) {
-//       debugPrint(
-//           '⚠️ HomeOnboarding: _areKeysValid -> bubbles=${bubblesContext != null}, grid=${gridContext != null}');
-//     }
-//     return ok;
-//   }
-//
-//   static Future<void> _markCompleted() async {
-//     await TourPrefs.setHomeTourCompleted(true);
-//     await TourPrefs.setForceShowAfterSignup(false);
-//   }
-// }
-
-
-// lib/features/onboarding/home_onboarding.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'tour_prefs.dart';
+import '../../core/constants/app_colors.dart';
+
+/// Tour target keys. Owned by a HomeScreen instance so two mounted
+/// HomeScreens never share a GlobalKey (DEST-057).
+class HomeTourKeys {
+  final GlobalKey bubbles = GlobalKey(debugLabel: 'tourBubbles');
+  final GlobalKey firstGridItem = GlobalKey(debugLabel: 'tourFirstGrid');
+  final GlobalKey secondGridItem = GlobalKey(debugLabel: 'tourSecondGrid');
+}
 
 class HomeOnboarding {
   HomeOnboarding._();
-
-  // ===========================================================================
-  // Global Keys
-  // ===========================================================================
-
-  static final GlobalKey bubblesKey = GlobalKey(debugLabel: 'bubbles');
-  static final GlobalKey firstGridItemKey = GlobalKey(debugLabel: 'firstGrid');
-  static final GlobalKey secondGridItemKey = GlobalKey(debugLabel: 'secondGrid');
 
   // ===========================================================================
   // Private State
@@ -353,12 +21,42 @@ class HomeOnboarding {
 
   static TutorialCoachMark? _tutorialCoachMark;
   static bool _isShowing = false;
+  static HomeTourKeys? _attachedKeys;
+  static HomeTourKeys? _showingKeys;
+  static VoidCallback? _attachedReplay;
 
   // ===========================================================================
   // Public API
   // ===========================================================================
 
-  static Future<void> tryShow(BuildContext context) async {
+  /// Registers the live HomeScreen. [keys] are used when [showManually] is
+  /// called without explicit keys; [onReplay] runs on [requestReplay].
+  static void attach(HomeTourKeys keys, {VoidCallback? onReplay}) {
+    _attachedKeys = keys;
+    _attachedReplay = onReplay;
+  }
+
+  /// Call from HomeScreen.dispose. Removes a running tour that targets
+  /// the disposed screen without marking it completed.
+  static void detach(HomeTourKeys keys) {
+    if (identical(_showingKeys, keys)) dismiss();
+    if (identical(_attachedKeys, keys)) {
+      _attachedKeys = null;
+      _attachedReplay = null;
+    }
+  }
+
+  /// Asks the live HomeScreen to replay the tour on its own context.
+  /// For screens outside Home (e.g. Settings) after they pop back to Home.
+  static bool requestReplay() {
+    final replay = _attachedReplay;
+    if (replay == null) return false;
+    replay();
+    return true;
+  }
+
+  /// Automatic first-run tour. Call once the discovery grid has data.
+  static Future<void> tryShow(BuildContext context, HomeTourKeys keys) async {
     if (_isShowing) {
       debugPrint('🚫 HomeOnboarding: Already showing');
       return;
@@ -372,36 +70,24 @@ class HomeOnboarding {
       return;
     }
 
-    if (!forceShow) {
-      final shouldShow = await TourPrefs.shouldShowAfterSkip();
-      if (!shouldShow) {
-        debugPrint('🚫 HomeOnboarding: Skip cooldown active');
+    // Give the first frame with data a moment to lay out.
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!context.mounted) return;
+      if (_isShowing) return;
+      if (_validateKeys(keys)) {
+        debugPrint('✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
+        _show(context, keys);
         return;
       }
     }
-
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    if (!context.mounted) {
-      debugPrint('⚠️ HomeOnboarding: Context not mounted');
-      return;
-    }
-
-    if (!_validateKeys()) {
-      debugPrint('⚠️ HomeOnboarding: Keys not ready, retrying...');
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (!_validateKeys()) {
-        debugPrint('❌ HomeOnboarding: Keys still not ready, aborting');
-        return;
-      }
-    }
-
-    debugPrint('✅ HomeOnboarding: Starting tutorial (forceShow=$forceShow)');
-    _show(context);
+    debugPrint('❌ HomeOnboarding: Keys not ready, will retry on next data load');
   }
 
-  static Future<void> showManually(BuildContext context) async {
+  static Future<void> showManually(
+    BuildContext context, {
+    HomeTourKeys? keys,
+  }) async {
     if (_isShowing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -412,26 +98,32 @@ class HomeOnboarding {
       return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Let a closing drawer, sheet or popped route finish animating.
+    await Future.delayed(const Duration(milliseconds: 400));
 
     if (!context.mounted) return;
 
-    if (!_validateKeys()) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    final targetKeys = keys ?? _attachedKeys;
+    if (targetKeys == null || !_validateKeys(targetKeys)) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
-          content: Text('Please wait for the screen to load'),
+          content: Text('Please wait for profiles to load'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    _show(context);
+    _show(context, targetKeys);
   }
 
+  /// Removes the overlay without recording completion.
   static void dismiss() {
-    _tutorialCoachMark?.finish();
+    final coachMark = _tutorialCoachMark;
     _cleanup();
+    if (coachMark != null && coachMark.isShowing) {
+      coachMark.removeOverlayEntry();
+    }
   }
 
   static Future<void> reset() async {
@@ -446,16 +138,17 @@ class HomeOnboarding {
   // Private Methods
   // ===========================================================================
 
-  static void _show(BuildContext context) {
+  static void _show(BuildContext context, HomeTourKeys keys) {
     _isShowing = true;
+    _showingKeys = keys;
 
     HapticFeedback.mediumImpact();
 
-    final targets = _createTargets(context);
+    final targets = _createTargets(context, keys);
 
     _tutorialCoachMark = TutorialCoachMark(
       targets: targets,
-      colorShadow: const Color(0xFF0D0221),
+      colorShadow: AppColors.backgroundDarkest,
       paddingFocus: 10,
       opacityShadow: 0.9,
       hideSkip: false,
@@ -488,8 +181,17 @@ class HomeOnboarding {
     _tutorialCoachMark!.show(context: context);
   }
 
-  static List<TargetFocus> _createTargets(BuildContext context) {
+  static List<TargetFocus> _createTargets(
+    BuildContext context,
+    HomeTourKeys keys,
+  ) {
     final List<TargetFocus> targets = [];
+    final bubblesKey = keys.bubbles;
+    final firstGridItemKey = keys.firstGridItem;
+    final secondGridItemKey = keys.secondGridItem;
+    final hasBubbles = bubblesKey.currentContext != null;
+    final totalSteps = hasBubbles ? 3 : 2;
+    final stepOffset = hasBubbles ? 0 : -1;
 
     // Get screen dimensions for smart positioning
     final screenHeight = MediaQuery.of(context).size.height;
@@ -498,7 +200,7 @@ class HomeOnboarding {
     // =========================================================================
     // Step 1: Top Matches (Bubbles) - Tooltip BELOW the bubbles
     // =========================================================================
-    if (bubblesKey.currentContext != null) {
+    if (hasBubbles) {
       targets.add(
         TargetFocus(
           identify: "step_1_bubbles",
@@ -516,9 +218,9 @@ class HomeOnboarding {
                 return _buildTooltipCard(
                   context: context,
                   stepNumber: 1,
-                  totalSteps: 3,
+                  totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
-                  iconColor: const Color(0xFFFFD700),
+                  iconColor: AppColors.gold,
                   title: "Your Top Matches ✨",
                   description:
                   "These are your best matches based on compatibility! Scroll horizontally to discover amazing people.",
@@ -567,10 +269,10 @@ class HomeOnboarding {
               builder: (context, controller) {
                 return _buildTooltipCard(
                   context: context,
-                  stepNumber: 2,
-                  totalSteps: 3,
+                  stepNumber: 2 + stepOffset,
+                  totalSteps: totalSteps,
                   icon: Icons.touch_app_rounded,
-                  iconColor: const Color(0xFF00E676),
+                  iconColor: AppColors.online,
                   title: "Tap to Start Chatting 💬",
                   description:
                   "Single tap on any profile to instantly open a chat. Break the ice and say hello!",
@@ -627,8 +329,8 @@ class HomeOnboarding {
               builder: (context, controller) {
                 return _buildTooltipCard(
                   context: context,
-                  stepNumber: 3,
-                  totalSteps: 3,
+                  stepNumber: 3 + stepOffset,
+                  totalSteps: totalSteps,
                   icon: Icons.pan_tool_rounded,
                   iconColor: const Color(0xFFFF6B6B),
                   title: "Hold for More Details 📋",
@@ -677,18 +379,18 @@ class HomeOnboarding {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2D1B4E),
-            Color(0xFF1A0E2E),
+            AppColors.surfaceCard,
+            AppColors.backgroundDeep,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.4),
+          color: AppColors.brandPurple.withOpacity(0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.25),
+            color: AppColors.brandPurple.withOpacity(0.25),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -719,12 +421,12 @@ class HomeOnboarding {
                     decoration: BoxDecoration(
                       gradient: isCompleted
                           ? const LinearGradient(
-                        colors: [Color(0xFF7B2CBF), Color(0xFF9C27B0)],
+                        colors: [AppColors.brandPurple, AppColors.brandMagenta],
                       )
                           : null,
                       color: isCompleted
                           ? null
-                          : const Color(0xFF7B2CBF).withOpacity(0.25),
+                          : AppColors.brandPurple.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
@@ -735,13 +437,13 @@ class HomeOnboarding {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7B2CBF).withOpacity(0.2),
+                  color: AppColors.brandPurple.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   "$stepNumber/$totalSteps",
                   style: const TextStyle(
-                    color: Color(0xFFB39DDB),
+                    color: AppColors.lavender,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -795,12 +497,14 @@ class HomeOnboarding {
               if (onSkipTap != null)
                 GestureDetector(
                   onTap: onSkipTap,
+                  behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 8),
                     child: Text(
                       "Skip",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -819,15 +523,15 @@ class HomeOnboarding {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isLastStep
-                          ? [const Color(0xFF00E676), const Color(0xFF00C853)]
-                          : [const Color(0xFF7B2CBF), const Color(0xFF9C27B0)],
+                          ? [AppColors.online, AppColors.onlineDeep]
+                          : [AppColors.brandPurple, AppColors.brandMagenta],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
                         color: (isLastStep
-                            ? const Color(0xFF00E676)
-                            : const Color(0xFF7B2CBF))
+                            ? AppColors.online
+                            : AppColors.brandPurple)
                             .withOpacity(0.4),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
@@ -864,53 +568,52 @@ class HomeOnboarding {
     );
   }
 
-  static bool _validateKeys() {
-    final bubblesOk = bubblesKey.currentContext != null;
-    final firstGridOk = firstGridItemKey.currentContext != null;
+  // Bubbles are optional (hidden when there are no top matches);
+  // the first grid card is required.
+  static bool _validateKeys(HomeTourKeys keys) {
+    final bubblesOk = keys.bubbles.currentContext != null;
+    final firstGridOk = keys.firstGridItem.currentContext != null;
 
     debugPrint('🔍 Keys: bubbles=$bubblesOk, firstGrid=$firstGridOk');
 
-    return bubblesOk && firstGridOk;
+    return firstGridOk;
   }
 
   static void _cleanup() {
     _tutorialCoachMark = null;
+    _showingKeys = null;
     _isShowing = false;
   }
 
   static Future<void> _onTourCompleted(BuildContext context) async {
     _cleanup();
     await TourPrefs.setHomeTourCompleted(true);
-    await TourPrefs.setForceShowAfterSignup(false);
 
     if (context.mounted) {
       _showCompletionCelebration(context);
     }
   }
 
+  // Skip ends the tour permanently (DEST-098); it can be replayed manually.
   static Future<void> _onTourSkipped(BuildContext context) async {
     _cleanup();
-    await TourPrefs.incrementSkipCount();
-    await TourPrefs.setForceShowAfterSignup(false);
+    await TourPrefs.setHomeTourCompleted(true);
 
     if (context.mounted) {
-      final skipCount = await TourPrefs.getSkipCount();
-      if (skipCount < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'You can view the tutorial anytime from the menu',
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFF2D1B4E),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            duration: const Duration(seconds: 3),
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'You can replay the tutorial anytime from Settings',
+            style: TextStyle(color: Colors.white),
           ),
-        );
-      }
+          backgroundColor: AppColors.surfaceCard,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -937,6 +640,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool _closed = false;
 
   @override
   void initState() {
@@ -952,10 +656,16 @@ class _CompletionDialogState extends State<_CompletionDialog>
 
     _controller.forward();
 
-    // Auto close after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) Navigator.of(context).pop();
-    });
+    // Auto close after 3 seconds, unless the user already closed it.
+    Future.delayed(const Duration(seconds: 3), _close);
+  }
+
+  void _close() {
+    if (_closed || !mounted) return;
+    // Barrier tap may already have popped this route.
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    _closed = true;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -976,16 +686,16 @@ class _CompletionDialogState extends State<_CompletionDialog>
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF2D1B4E), Color(0xFF1A0E2E)],
+              colors: [AppColors.surfaceCard, AppColors.backgroundDeep],
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF00E676).withOpacity(0.5),
+              color: AppColors.online.withOpacity(0.5),
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E676).withOpacity(0.3),
+                color: AppColors.online.withOpacity(0.3),
                 blurRadius: 25,
                 spreadRadius: 3,
               ),
@@ -998,12 +708,12 @@ class _CompletionDialogState extends State<_CompletionDialog>
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E676).withOpacity(0.15),
+                  color: AppColors.online.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.celebration_rounded,
-                  color: Color(0xFF00E676),
+                  color: AppColors.online,
                   size: 40,
                 ),
               ),
@@ -1033,7 +743,7 @@ class _CompletionDialogState extends State<_CompletionDialog>
 
               // Button
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: _close,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 28,
@@ -1041,12 +751,12 @@ class _CompletionDialogState extends State<_CompletionDialog>
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF00E676), Color(0xFF00C853)],
+                      colors: [AppColors.online, AppColors.onlineDeep],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF00E676).withOpacity(0.4),
+                        color: AppColors.online.withOpacity(0.4),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),

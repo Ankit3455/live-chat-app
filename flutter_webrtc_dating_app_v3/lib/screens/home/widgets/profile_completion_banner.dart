@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../questionnaire/profile_completion_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class ProfileCompletionBanner extends StatelessWidget {
   final int completionPercentage;
@@ -19,12 +20,12 @@ class ProfileCompletionBanner extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF7B2CBF), Color(0xFF9D4EDD)],
+          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.3),
+            color: AppColors.brandPurple.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -34,13 +35,14 @@ class ProfileCompletionBanner extends StatelessWidget {
         children: [
           // Close Button
           Positioned(
-            top: 8,
-            right: 8,
+            top: 0,
+            right: 0,
             child: IconButton(
+              tooltip: 'Dismiss',
               icon: const Icon(Icons.close, color: Colors.white70, size: 20),
               onPressed: onDismiss,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             ),
           ),
           // Content
@@ -132,7 +134,7 @@ class ProfileCompletionBanner extends StatelessWidget {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF7B2CBF),
+                          foregroundColor: AppColors.brandPurple,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 14),

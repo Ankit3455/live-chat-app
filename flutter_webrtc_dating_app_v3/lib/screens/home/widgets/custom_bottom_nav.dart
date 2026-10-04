@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../managers/unread_manager.dart';
+import '../../../core/constants/app_colors.dart';
 
+/// Tabs: 0 Discover, 1 Chats, 2 Games, 3 Profile (see MainShell).
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
+
+  /// Optional per-tab keys (e.g. onboarding targets), indexed like the tabs.
+  /// Owned by the parent State so keys are never shared between instances.
+  final List<GlobalKey>? itemKeys;
 
   const CustomBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.itemKeys,
   });
 
-  // Global Keys for Onboarding
-  static final GlobalKey discoverTabKey = GlobalKey(debugLabel: 'discoverTab');
-  static final GlobalKey chatsTabKey = GlobalKey(debugLabel: 'chatsTab');
-  static final GlobalKey gamesTabKey = GlobalKey(debugLabel: 'gamesTab');
-  static final GlobalKey settingsTabKey = GlobalKey(debugLabel: 'settingsTab');
-  static final GlobalKey profileTabKey = GlobalKey(debugLabel: 'profileTab');
+  GlobalKey? _keyAt(int index) {
+    final keys = itemKeys;
+    return (keys != null && index < keys.length) ? keys[index] : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,31 +33,34 @@ class CustomBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF2D1B4E).withOpacity(0.95),
-            const Color(0xFF1A0E2E).withOpacity(0.95),
+            AppColors.surfaceCard.withOpacity(0.95),
+            AppColors.backgroundDeep.withOpacity(0.95),
           ],
         ),
         borderRadius: BorderRadius.circular(35),
         border: Border.all(
-          color: const Color(0xFF7B2CBF).withOpacity(0.3),
+          color: AppColors.brandPurple.withOpacity(0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7B2CBF).withOpacity(0.3),
+            color: AppColors.brandPurple.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Row(
+      // Fixed-height bar: cap label scaling; full labels stay in Semantics.
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _NavItem(
             icon: Icons.explore,
             label: 'Discover',
             isSelected: currentIndex == 0,
-            itemKey: discoverTabKey,
+            itemKey: _keyAt(0),
             onTap: () => onTap(0),
           ),
           _NavItem(
@@ -60,31 +68,25 @@ class CustomBottomNav extends StatelessWidget {
             label: 'Chats',
             isSelected: currentIndex == 1,
             badgeCount: unread,
-            itemKey: chatsTabKey,
+            itemKey: _keyAt(1),
             onTap: () => onTap(1),
           ),
           _NavItem(
             icon: Icons.games,
             label: 'Games',
             isSelected: currentIndex == 2,
-            itemKey: gamesTabKey,
+            itemKey: _keyAt(2),
             onTap: () => onTap(2),
-          ),
-          _NavItem(
-            icon: Icons.tune,
-            label: 'Filters',
-            isSelected: currentIndex == 3,
-            itemKey: settingsTabKey,
-            onTap: () => onTap(3),
           ),
           _NavItem(
             icon: Icons.person,
             label: 'Profile',
-            isSelected: currentIndex == 4,
-            itemKey: profileTabKey,
-            onTap: () => onTap(4),
+            isSelected: currentIndex == 3,
+            itemKey: _keyAt(3),
+            onTap: () => onTap(3),
           ),
         ],
+      ),
       ),
     );
   }
@@ -109,34 +111,53 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: itemKey,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-            colors: [Color(0xFF7B2CBF), Color(0xFFC77DFF)],
-          )
-              : null,
-          borderRadius: BorderRadius.circular(18),
+    final semanticLabel =
+        badgeCount > 0 ? '$label, $badgeCount unread' : label;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: semanticLabel,
+        // excludeSemantics drops the GestureDetector's tap action.
+        onTap: onTap,
+        excludeSemantics: true,
+        child: GestureDetector(
+          key: itemKey,
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Center(child: _buildPill()),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildIcon(),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFFB39DDB),
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
+      ),
+    );
+  }
+
+  Widget _buildPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? const LinearGradient(
+          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
+        )
+            : null,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildIcon(),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isSelected ? Colors.white : AppColors.lavender,
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -147,7 +168,7 @@ class _NavItem extends StatelessWidget {
       children: [
         Icon(
           icon,
-          color: isSelected ? Colors.white : const Color(0xFFB39DDB),
+          color: isSelected ? Colors.white : AppColors.lavender,
           size: 22,
         ),
         if (badgeCount > 0)

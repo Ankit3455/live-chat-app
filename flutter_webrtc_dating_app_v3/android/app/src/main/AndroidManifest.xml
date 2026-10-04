@@ -1,33 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ================== PERMISSIONS ================== -->
-    <!-- Internet Access (Zaroori) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- WebRTC Calling Permissions (Sabse Zaroori) -->
+    <!-- WebRTC calls and voice messages -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" /> <!-- Android 12+ ke liye -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" /> <!-- Android 12+ headset routing -->
 
-    <!-- Location Permissions (Agar aap location features istemaal kar rahe hain) -->
+    <!-- Location (city / approximate distance) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Notification Permissions (Zaroori) -->
+    <!-- Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Background Service Permissions -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+ ke liye, agar call background mein chalana hai -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Features ko optional batane ke liye (accha practice) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -36,8 +26,11 @@
 
     <!-- ================== APPLICATION ================== -->
     <application
-        android:label="flutter_webrtc_dating_app_v3"
+        android:label="Destined"
         android:name="${applicationName}"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -66,11 +59,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <!-- Firebase Cloud Messaging ke liye (Optional, agar aap notifications use kar rahe hain) -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="high_importance_channel" />
 
     </application>
 

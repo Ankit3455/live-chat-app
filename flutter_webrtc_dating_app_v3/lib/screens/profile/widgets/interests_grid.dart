@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 
 class InterestsGrid extends StatelessWidget {
   final List<String> interests;
@@ -30,10 +31,10 @@ class InterestsGrid extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2D1B4E),
+            color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF7B2CBF).withOpacity(0.5),
+              color: AppColors.brandPurple.withOpacity(0.5),
               width: 1,
             ),
           ),
@@ -42,7 +43,7 @@ class InterestsGrid extends StatelessWidget {
             children: [
               Icon(
                 _getInterestIcon(interest),
-                color: const Color(0xFF7B2CBF),
+                color: AppColors.brandPurpleLight,
                 size: 20,
               ),
               const SizedBox(width: 8),

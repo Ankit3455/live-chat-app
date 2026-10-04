@@ -11,6 +11,9 @@ import 'package:availchat/screens/profile/widgets/profile_stats_row.dart';
 import 'package:availchat/screens/profile/widgets/interests_grid.dart';
 import 'package:availchat/screens/profile/widgets/astrology_compatibility_card.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
+import 'package:availchat/services/profile_photo_service.dart';
+import 'package:availchat/widgets/user_avatar.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -22,72 +25,199 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? _currentUser;
   bool _isLoading = true;
+  String? _loadError;
+  bool _avatarBusy = false;
   int _completionPercentage = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    // Deferred so the signed-out path never calls setState during initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadUserData());
   }
 
   Future<void> _loadUserData() async {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
+      if (userId == null) {
+        if (mounted) {
+          setState(() {
+            _currentUser = null;
+            _loadError = 'You are signed out. Please sign in again.';
+          });
+        }
+        return;
+      }
 
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .get();
+      if (!mounted) return;
 
-      if (doc.exists) {
+      if (!doc.exists) {
         setState(() {
-          _currentUser = UserModel.fromMap(doc.data()!);
-          _isLoading = false;
+          _currentUser = null;
+          _loadError = 'We could not find your profile.';
         });
+        return;
       }
 
-      // Load completion percentage
+      setState(() {
+        _currentUser = UserModel.fromFirestore(doc);
+        _loadError = null;
+      });
+
       final percentage =
           await ProfileCompletionManager().getCompletionPercentage();
-      
-      if (mounted) {  // ✅ SAFETY CHECK
-        setState(() {
-          _completionPercentage = percentage;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _completionPercentage = percentage);
     } catch (e) {
-      debugPrint('❌ Error loading user: $e');
-      if (mounted) {  // ✅ SAFETY CHECK
-        setState(() {
-          _isLoading = false;
-        });
+      debugPrint('Error loading profile: $e');
+      if (!mounted) return;
+      if (_currentUser == null) {
+        setState(() => _loadError = 'Please check your connection.');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not refresh your profile.')),
+        );
       }
+    } finally {
+      if (mounted && _isLoading) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _refreshProfile() async {
-    if (mounted) {  // ✅ SAFETY CHECK
-      setState(() {
-        _isLoading = true;
-      });
-    }
+    if (!mounted) return;
+    // Keep the current profile on screen during a refresh; only show the
+    // full-screen spinner when there is nothing to show yet.
+    if (_currentUser == null) setState(() => _isLoading = true);
     await _loadUserData();
+  }
+
+  Future<void> _runAvatarAction(
+    Future<Object?> Function() action, {
+    required String successMessage,
+  }) async {
+    if (_avatarBusy) return;
+    setState(() => _avatarBusy = true);
+    try {
+      final result = await action();
+      if (!mounted) return;
+      // null means the user cancelled (e.g. closed the photo picker).
+      if (result == null) return;
+      await _loadUserData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final message = e is ProfilePhotoException
+          ? e.message
+          : 'Could not update your photo. Please try again.';
+      debugPrint('Avatar action failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
+  }
+
+  void _showChangeAvatarSheet() {
+    final user = _currentUser;
+    if (user == null || _avatarBusy) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        void choose(Future<Object?> Function() action, String message) {
+          Navigator.pop(sheetContext);
+          _runAvatarAction(action, successMessage: message);
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                UserAvatar(user: user, size: 88, borderRadius: 44),
+                const SizedBox(height: 12),
+                const Text(
+                  'Change Avatar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.photo_library,
+                      color: AppColors.cyan),
+                  title: const Text('Upload a photo',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Choose from your gallery',
+                      style: TextStyle(color: AppColors.lavender)),
+                  onTap: () => choose(
+                    ProfilePhotoService.pickAndUploadPhoto,
+                    'Profile photo updated',
+                  ),
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.face, color: AppColors.brandPurpleMid),
+                  title: const Text('Use my avatar',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Switch back to your generated avatar',
+                      style: TextStyle(color: AppColors.lavender)),
+                  onTap: () => choose(
+                    ProfilePhotoService.resetToAvatar,
+                    'Avatar restored',
+                  ),
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.autorenew, color: AppColors.gold),
+                  title: const Text('Generate a new avatar',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Based on your profile answers',
+                      style: TextStyle(color: AppColors.lavender)),
+                  onTap: () => choose(
+                    ProfilePhotoService.regenerateAvatar,
+                    'New avatar created',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF7B2CBF)))
+              child: CircularProgressIndicator(color: AppColors.brandPurple))
           : _currentUser == null
-              ? _buildErrorState()
+              ? _buildErrorState(_loadError ?? 'Please try again')
               : RefreshIndicator(
                   onRefresh: _refreshProfile,
-                  color: const Color(0xFF7B2CBF),
-                  backgroundColor: const Color(0xFF2D1B4E),
+                  color: AppColors.brandPurple,
+                  backgroundColor: AppColors.surfaceCard,
                   child: CustomScrollView(
                     slivers: [
                       // App Bar with Edit & Settings
@@ -95,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         expandedHeight: 120,
                         floating: false,
                         pinned: true,
-                        backgroundColor: const Color(0xFF2D1B4E),
+                        backgroundColor: AppColors.surfaceCard,
                         flexibleSpace: FlexibleSpaceBar(
                           title: const Text(
                             'My Profile',
@@ -111,8 +241,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  const Color(0xFF7B2CBF).withOpacity(0.3),
-                                  const Color(0xFF2D1B4E),
+                                  AppColors.brandPurple.withOpacity(0.3),
+                                  AppColors.surfaceCard,
                                 ],
                               ),
                             ),
@@ -121,6 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         actions: [
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.white),
+                            tooltip: 'Edit profile',
                             onPressed: () async {
                               if (_currentUser == null) return;
                               final result = await Navigator.push(
@@ -130,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ProfileEditScreen(user: _currentUser!),
                                 ),
                               );
-                              if (result == true) {
+                              if (result == true && mounted) {
                                 _refreshProfile();
                               }
                             },
@@ -138,14 +269,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           IconButton(
                             icon:
                                 const Icon(Icons.settings, color: Colors.white),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen(),
-                                ),
-                              );
-                            },
+                            tooltip: 'Settings',
+                            onPressed: _openSettings,
                           ),
                         ],
                       ),
@@ -206,7 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                               // Quick Actions
                               _buildQuickActions(),
-                              const SizedBox(height: 100), // Bottom padding
+                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
@@ -217,13 +342,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ✅ THIS METHOD WAS MISSING - NOW ADDED
   Widget _buildCompletionCTA() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF7B2CBF), Color(0xFF9D4EDD)],
+          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -260,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (_) => const ProfileCompletionScreen(),
                 ),
               );
-              _refreshProfile();
+              if (mounted) _refreshProfile();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -271,13 +395,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text(
               'Complete',
               style: TextStyle(
-                color: Color(0xFF7B2CBF),
+                color: AppColors.brandPurple,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
     );
   }
 
@@ -298,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.auto_awesome,
           title: 'Astrology Questionnaire',
           subtitle: 'Update your cosmic profile',
-          color: const Color(0xFFFFD700),
+          color: AppColors.gold,
           onTap: () {
             Navigator.push(
               context,
@@ -313,7 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.assignment,
           title: 'Profile Completion',
           subtitle: 'Complete optional sections',
-          color: const Color(0xFF7B2CBF),
+          color: AppColors.brandPurple,
           onTap: () async {
             await Navigator.push(
               context,
@@ -321,23 +452,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 builder: (_) => const ProfileCompletionScreen(),
               ),
             );
-            _refreshProfile();
+            if (mounted) _refreshProfile();
           },
         ),
         const SizedBox(height: 12),
         _buildActionTile(
           icon: Icons.photo_camera,
           title: 'Change Avatar',
-          subtitle: 'Pick a new avatar',
-          color: const Color(0xFF00BCD4),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Avatar selection coming soon!'),
-                backgroundColor: Color(0xFF7B2CBF),
-              ),
-            );
-          },
+          subtitle: _avatarBusy
+              ? 'Updating your photo...'
+              : 'Upload a photo or use your avatar',
+          color: AppColors.cyan,
+          onTap: _showChangeAvatarSheet,
+          trailing: _avatarBusy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.cyan,
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(height: 12),
+        _buildActionTile(
+          icon: Icons.settings,
+          title: 'Settings',
+          subtitle: 'Account, help & support, sign out',
+          color: AppColors.lavender,
+          onTap: _openSettings,
         ),
       ],
     );
@@ -349,13 +493,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String subtitle,
     required Color color,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -385,24 +532,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      color: Color(0xFFB39DDB),
+                      color: AppColors.lavender,
                       fontSize: 14,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              color: Color(0xFFB39DDB),
-            ),
+            trailing ??
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.lavender,
+                ),
           ],
         ),
+      ),
       ),
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -422,10 +571,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Please try again',
-            style: TextStyle(
-              color: Color(0xFFB39DDB),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.lavender,
               fontSize: 14,
             ),
           ),
@@ -433,7 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: _refreshProfile,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7B2CBF),
+              backgroundColor: AppColors.brandPurple,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Destined pre-commit hook. Enable once per clone:
+#   git config core.hooksPath .githooks
+# Checks staged files only: Dart syntax, JS syntax, JSON validity, secrets.
+# Bypass in an emergency with `git commit --no-verify` (CI runs the same checks).
+set -u
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root" || exit 1
+
+fail=0
+staged() {
+  git diff --cached --name-only --diff-filter=ACMR -z -- "$@" | tr '\0' '\n'
+}
+
+# Dart: parse errors block the commit; formatting is advisory.
+dart_files=()
+while IFS= read -r f; do [ -n "$f" ] && dart_files+=("$f"); done < <(staged '*.dart')
+if [ ${#dart_files[@]} -gt 0 ]; then
+  if command -v dart >/dev/null 2>&1; then
+    if ! out=$(dart format --output=none "${dart_files[@]}" 2>&1); then
+      echo "pre-commit: Dart syntax errors:" >&2
+      echo "$out" >&2
+      fail=1
+    elif ! dart format --output=none --set-exit-if-changed "${dart_files[@]}" >/dev/null 2>&1; then
+      echo "pre-commit: note: some staged Dart files are not dart-formatted." >&2
+    fi
+  else
+    echo "pre-commit: dart not found, skipping Dart checks." >&2
+  fi
+fi
+
+# JavaScript (Cloud Functions, rules tests).
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if command -v node >/dev/null 2>&1; then
+    node --check "$f" || fail=1
+  fi
+done < <(staged '*.js')
+
+# JSON (indexes, firebase.json, package.json). RTDB rules allow comments.
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in *node_modules/* | *database.rules.json) continue ;; esac
+  if ! python3 -m json.tool "$f" >/dev/null 2>&1; then
+    echo "pre-commit: invalid JSON: $f" >&2
+    fail=1
+  fi
+done < <(staged '*.json')
+
+# Secrets (.gitleaks.toml). The pre-commit framework config already runs gitleaks.
+if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
+  pre-commit run || fail=1
+elif command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --config .gitleaks.toml . || fail=1
+else
+  echo "pre-commit: gitleaks not installed; secrets were NOT scanned (brew install gitleaks)." >&2
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: commit blocked. Fix the errors above or use --no-verify." >&2
+  exit 1
+fi
+exit 0

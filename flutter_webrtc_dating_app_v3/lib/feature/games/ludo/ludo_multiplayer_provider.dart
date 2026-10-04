@@ -7,20 +7,44 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'constants.dart';
 import 'ludo_player.dart';
+import 'ludo_rules.dart';
 import 'audio.dart';
+import 'services/ludo_game_service.dart';
+
+/// An opponent who backgrounded the app or lost connection.
+class LudoAwayPlayer {
+  final String uid;
+  final String name;
+  final String color;
+  final int secondsLeft;
+  final bool skipped;
+  const LudoAwayPlayer({
+    required this.uid,
+    required this.name,
+    required this.color,
+    required this.secondsLeft,
+    required this.skipped,
+  });
+}
+
+class _AwayObservation {
+  final Timestamp? awaySince;
+  final DateTime observedAt;
+  _AwayObservation(this.awaySince, this.observedAt);
+}
 
 class LudoMultiplayerProvider extends ChangeNotifier {
   final String matchId;
   final int turnDurationSeconds;
-  bool _opponentLeft = false;
-  DateTime? _forfeitDeadline;
-  int _activePlayers = 2;
-  int _maxPlayers = 2;
-  String? _finishReason;
 
-  // Firestore
-  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+  /// Extra time other players wait before skipping a stalled turn.
+  static const int turnGraceSeconds = 5;
+
+  final LudoGameService _service;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _matchSub;
+  Timer? _ticker;
+  bool _disposed = false;
+  bool _actionsStopped = false;
 
   // Local User
   final String? _localUid = FirebaseAuth.instance.currentUser?.uid;
@@ -30,8 +54,13 @@ class LudoMultiplayerProvider extends ChangeNotifier {
   final List<LudoPlayer> players = [];
   final List<LudoPlayerType> winners = [];
   final List<String> _activeColors = [];
+  final List<String> _boardColors = [];
 
-  bool get opponentLeft => _opponentLeft;
+  int _activePlayers = 2;
+  int _maxPlayers = 2;
+  String? _finishReason;
+  String _matchState = '';
+
   int get activePlayers => _activePlayers;
   int get maxPlayers => _maxPlayers;
   String? get finishReason => _finishReason;
@@ -40,6 +69,10 @@ class LudoMultiplayerProvider extends ChangeNotifier {
   LudoGameState get gameState => _gameState;
 
   String _currentTurnColor = 'green';
+  int _turnSeq = -1;
+  bool _rolled = false;
+  DateTime _turnObservedAt = DateTime.now();
+  bool _advancing = false;
   LudoPlayerType get currentTurnType => _stringToType(_currentTurnColor);
 
   int _diceResult = 1;
@@ -50,50 +83,81 @@ class LudoMultiplayerProvider extends ChangeNotifier {
 
   bool _isMoving = false;
 
-  // Timer
-  Timer? _turnTimer;
-  int turnTimeLeft = 30;
+  /// Latest snapshot received while a local roll/move animation was running.
+  Map<String, dynamic>? _pendingData;
+
+  /// Latest snapshot received, used to resync after a rejected write.
+  Map<String, dynamic>? _latestData;
+
+  /// Seconds left in the current turn; listen to this instead of the
+  /// provider so the board does not rebuild every second.
+  final ValueNotifier<int> turnTimeLeft;
+
+  /// Ticks once per second (for away countdowns).
+  final ValueNotifier<int> secondTick = ValueNotifier<int>(0);
 
   bool ready = false;
   bool _matchLoaded = false;
+  bool _matchMissing = false;
+  bool _finishSoundPlayed = false;
 
-  // Opponent info
+  final Map<String, _AwayObservation> _awayObserved = {};
+  final Set<String> _expiryRequested = {};
+
   Map<String, Map<String, dynamic>> playersInfo = {};
 
   LudoMultiplayerProvider({
     required this.matchId,
     this.turnDurationSeconds = 30,
-  });
+    LudoGameService? service,
+  })  : _service = service ?? LudoGameService(),
+        turnTimeLeft = ValueNotifier<int>(turnDurationSeconds);
 
   // ============ GETTERS ============
 
-  String get forfeitTimeLeft {
-    if (_forfeitDeadline == null) return '5:00';
-    final remaining = _forfeitDeadline!.difference(DateTime.now());
-    if (remaining.isNegative) return '0:00';
-    final minutes = remaining.inMinutes;
-    final seconds = remaining.inSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  bool get matchMissing => _matchMissing;
+
+  /// Opponents currently away, with the remaining grace time.
+  List<LudoAwayPlayer> get awayOpponents {
+    final now = DateTime.now();
+    final graceSeconds = LudoGameService.awayGrace.inSeconds;
+    final result = <LudoAwayPlayer>[];
+    playersInfo.forEach((uid, info) {
+      if (uid == _localUid || info['status'] != 'away') return;
+      final observed = _awayObserved[uid];
+      final elapsed =
+          observed == null ? 0 : now.difference(observed.observedAt).inSeconds;
+      result.add(LudoAwayPlayer(
+        uid: uid,
+        name: info['displayName']?.toString() ?? 'Player',
+        color: info['color']?.toString() ?? '',
+        secondsLeft: (graceSeconds - elapsed).clamp(0, graceSeconds),
+        skipped: info['skipped'] == true,
+      ));
+    });
+    return result;
   }
 
-  double get forfeitProgress {
-    if (_forfeitDeadline == null) return 0;
-    final total = const Duration(minutes: 5).inSeconds;
-    final remaining = _forfeitDeadline!.difference(DateTime.now()).inSeconds;
-    if (remaining <= 0) return 1.0;
-    return 1.0 - (remaining / total);
-  }
+  bool get opponentLeft => awayOpponents.isNotEmpty;
 
+  bool get _localIsParticipant {
+    final status = playersInfo[_localUid]?['status'];
+    return status != null && status != 'left';
+  }
 
   bool get isLocalPlayerTurn {
     if (_localColor == null) return false;
-    if (_activeColors.length < 2) return false; // Need 2 players
-    return _localColor == _currentTurnColor;
+    if (_matchState != 'playing') return false;
+    if (_activeColors.length < 2) return false;
+    return _localColor == _currentTurnColor && _localIsParticipant;
   }
 
-  bool get isGameReady => _matchLoaded && _activeColors.length >= 2;
+  bool get isGameReady => _matchLoaded && playersInfo.length >= 2;
 
   String? get localColor => _localColor;
+
+  /// Colours whose pawns are drawn (everyone who has not left).
+  List<String> get boardColors => List.unmodifiable(_boardColors);
 
   LudoPlayer get currentPlayer =>
       players.firstWhere((p) => p.type == currentTurnType,
@@ -102,18 +166,22 @@ class LudoMultiplayerProvider extends ChangeNotifier {
   LudoPlayer player(LudoPlayerType type) =>
       players.firstWhere((p) => p.type == type);
 
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
   // ============ INITIALIZATION ============
 
   Future<void> start() async {
     _initializePlayers();
 
-    _matchSub = _fs
-        .collection('ludo_matches')
-        .doc(matchId)
-        .snapshots()
-        .listen(_onMatchSnapshot, onError: (e) {
-      debugPrint('❌ Match listener error: $e');
-    });
+    _matchSub = _service.watchMatchDoc(matchId).listen(
+      _onMatchSnapshot,
+      onError: (e) => debugPrint('❌ Match listener error: $e'),
+    );
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
 
     debugPrint('🎮 Started listening to match: $matchId');
   }
@@ -128,485 +196,344 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     ]);
   }
 
+  /// Stops any further roll/move writes (called before an explicit Leave).
+  void stopActions() {
+    _actionsStopped = true;
+  }
+
+  bool get _halted => _disposed || _actionsStopped;
+
   // ============ FIRESTORE LISTENER ============
 
   void _onMatchSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
+    if (_disposed) return;
     if (!snap.exists) {
       debugPrint('❌ Match document does not exist');
+      _matchMissing = true;
+      ready = true;
+      notifyListeners();
       return;
     }
-
+    _matchMissing = false;
     final data = snap.data() ?? {};
-    debugPrint('📥 Match update received: ${data.keys.join(', ')}');
+    _latestData = data;
 
-    // 1. Get active players
+    if (_isMoving || _diceStarted) {
+      _pendingData = data;
+      return;
+    }
+    _applyData(data);
+  }
+
+  /// Applies the snapshot deferred during a local action. After a successful
+  /// write, a deferred snapshot that predates it is dropped; the listener
+  /// delivers the post-write state next.
+  void _applyPending([bool Function(Map<String, dynamic> data)? isFresh]) {
+    final data = _pendingData;
+    _pendingData = null;
+    if (data == null || _disposed) return;
+    if (isFresh != null && !isFresh(data)) return;
+    _applyData(data);
+  }
+
+  /// Drops local optimistic state and re-applies the server's latest view.
+  void _resync() {
+    _pendingData = null;
+    final data = _latestData;
+    if (data != null && !_disposed) _applyData(data);
+  }
+
+  void _applyData(Map<String, dynamic> data) {
     final playersMap = Map<String, dynamic>.from(data['players'] ?? {});
-    _activeColors.clear();
     playersInfo.clear();
+    _boardColors.clear();
 
     playersMap.forEach((uid, info) {
-      if (info is Map) {
-        final color = info['color']?.toString() ?? '';
-        if (color.isNotEmpty) {
-          _activeColors.add(color);
-          playersInfo[uid] = Map<String, dynamic>.from(info);
-
-          if (uid == _localUid) {
-            _localColor = color;
-            debugPrint('🎨 Local player color: $_localColor');
-          }
-        }
-      }
+      if (info is! Map) return;
+      final color = info['color']?.toString() ?? '';
+      if (color.isEmpty) return;
+      playersInfo[uid] = Map<String, dynamic>.from(info);
+      if (info['status'] != 'left') _boardColors.add(color);
+      if (uid == _localUid) _localColor = color;
     });
 
-    debugPrint('👥 Active colors: $_activeColors');
+    _activeColors
+      ..clear()
+      ..addAll(LudoGameService.activeColorsOf(data));
 
-    // 2. Check if game is ready
-    if (_activeColors.length >= 2) {
+    if (playersInfo.length >= 2) {
       _matchLoaded = true;
-      ready = true;
     }
+    ready = true;
 
-    // 3. Update current turn
-    final newTurnColor = (data['turnColor'] ?? 'green').toString();
-    final turnChanged = newTurnColor != _currentTurnColor;
-    _currentTurnColor = newTurnColor;
-    debugPrint('🎯 Current turn: $_currentTurnColor (isMyTurn: $isLocalPlayerTurn)');
-
-    if (turnChanged && isGameReady) {
-      _gameState = LudoGameState.throwDice;
-      _startTurnTimer(data);
-    }
-
-    // 4. Update dice
-    final dice = data['dice'];
-    if (dice != null && dice is int) {
-      _diceResult = dice;
-    }
-
-    // 5. Apply pawn positions
-    final pawnSteps = Map<String, dynamic>.from(data['pawnSteps'] ?? {});
-    _applyPawnSteps(pawnSteps);
-
-    // 6. Apply winners
-    final winnersList = List<String>.from(data['winners'] ?? []);
-    _applyWinners(winnersList);
-
-    // 7. Check game state
-    final state = data['state']?.toString() ?? '';
-    if (state == 'finished') {
-      _gameState = LudoGameState.finish;
-    }
-
-    // 8. Check for opponent left
-    _activePlayers = data['activePlayers'] ?? 2;
-    _maxPlayers = data['maxPlayers'] ?? 2;
+    _matchState = data['state']?.toString() ?? '';
+    _activePlayers = (data['activePlayers'] as num?)?.toInt() ?? _activeColors.length;
+    _maxPlayers = (data['maxPlayers'] as num?)?.toInt() ?? 2;
     _finishReason = data['finishReason']?.toString();
+    _rolled = data['rolled'] == true;
 
-    // Get forfeit deadline
-    final forfeitDeadlineTs = data['forfeitDeadline'] as Timestamp?;
-    _forfeitDeadline = forfeitDeadlineTs?.toDate();
+    final dice = data['dice'];
+    if (dice is num) _diceResult = dice.toInt();
 
-    // Check if any opponent left
-    _opponentLeft = false;
-    playersMap.forEach((uid, info) {
-      if (info is Map && uid != _localUid) {
-        final status = info['status']?.toString() ?? 'active';
-        if (status == 'left') {
-          _opponentLeft = true;
-          debugPrint('⚠️ Opponent left the game!');
-        }
-      }
-    });
+    // A new turn (including bonus turns) restarts the local countdown,
+    // measured from snapshot arrival so device clock skew does not matter.
+    final newTurnColor = (data['turnColor'] ?? 'green').toString();
+    final newSeq = LudoGameService.turnSeqOf(data);
+    if (newTurnColor != _currentTurnColor || newSeq != _turnSeq) {
+      _currentTurnColor = newTurnColor;
+      _turnSeq = newSeq;
+      _turnObservedAt = DateTime.now();
+      _advancing = false;
+      turnTimeLeft.value = turnDurationSeconds;
+    }
+
+    _applyPawnSteps(Map<String, dynamic>.from(data['pawnSteps'] ?? {}));
+    _applyWinners(List<String>.from(data['winners'] ?? const []));
+    _trackAway();
+
+    if (_matchState == 'finished') {
+      _gameState = LudoGameState.finish;
+      _clearHighlights();
+      _playFinishSound();
+    } else if (isLocalPlayerTurn && _rolled) {
+      _gameState = LudoGameState.pickPawn;
+      _highlightLegalPawns();
+    } else {
+      _gameState = LudoGameState.throwDice;
+      _clearHighlights();
+    }
 
     notifyListeners();
   }
 
   void _applyPawnSteps(Map<String, dynamic> pawnSteps) {
-    if (_isMoving) return;
-
     pawnSteps.forEach((colorStr, steps) {
-      if (steps is! List) return;
-      if (!_activeColors.contains(colorStr)) return;
-
-      final type = _stringToType(colorStr);
-      final targetPlayer = player(type);
-
-      for (int i = 0; i < steps.length && i < 4; i++) {
-        final step = (steps[i] is int) ? steps[i] as int : -1;
-        if (targetPlayer.pawns[i].step != step) {
-          targetPlayer.movePawn(i, step);
+      if (!LudoRules.colorOrder.contains(colorStr)) return;
+      final parsed = LudoRules.parseSteps(steps);
+      final targetPlayer = player(_stringToType(colorStr));
+      for (int i = 0; i < parsed.length; i++) {
+        if (targetPlayer.pawns[i].step != parsed[i]) {
+          targetPlayer.movePawn(i, parsed[i]);
         }
       }
     });
   }
 
   void _applyWinners(List<String> winnersList) {
-    winners.clear();
-    for (final w in winnersList) {
-      if (_activeColors.contains(w)) {
-        try {
-          winners.add(_stringToType(w));
-        } catch (_) {}
+    winners
+      ..clear()
+      ..addAll(winnersList
+          .where(LudoRules.colorOrder.contains)
+          .map(_stringToType));
+  }
+
+  void _trackAway() {
+    final now = DateTime.now();
+    final awayNow = <String>{};
+    playersInfo.forEach((uid, info) {
+      if (info['status'] != 'away') return;
+      awayNow.add(uid);
+      final since = info['awaySince'] is Timestamp
+          ? info['awaySince'] as Timestamp
+          : null;
+      final previous = _awayObserved[uid];
+      if (previous == null || previous.awaySince != since) {
+        _awayObserved[uid] = _AwayObservation(since, now);
       }
+    });
+    _awayObserved.removeWhere((uid, _) => !awayNow.contains(uid));
+  }
+
+  void _playFinishSound() {
+    if (_finishSoundPlayed || winners.isEmpty) return;
+    _finishSoundPlayed = true;
+    if (winners.first.name == _localColor) {
+      Audio.playWin();
+    } else {
+      Audio.playLose();
+    }
+  }
+
+  List<int> _legalPawnsFor(LudoPlayer p, int dice) => LudoRules.legalPawns(
+        p.pawns.map((pw) => pw.step).toList(),
+        dice,
+        p.path.length - 1,
+      );
+
+  void _highlightLegalPawns() {
+    final local = _localColor;
+    if (local == null) return;
+    final p = player(_stringToType(local));
+    p.highlightPawns(_legalPawnsFor(p, _diceResult));
+  }
+
+  void _clearHighlights() {
+    for (final p in players) {
+      if (p.pawns.any((pw) => pw.highlight)) p.highlightAllPawns(false);
     }
   }
 
   // ============ GAME ACTIONS ============
 
   Future<void> throwDice() async {
-    if (!isGameReady) {
-      debugPrint('⏳ Game not ready yet (need 2 players)');
-      return;
-    }
-    if (_gameState != LudoGameState.throwDice) {
-      debugPrint('⚠️ Not in throwDice state: $_gameState');
-      return;
-    }
-    if (!isLocalPlayerTurn) {
-      debugPrint('⚠️ Not your turn! Current: $_currentTurnColor, You: $_localColor');
-      return;
-    }
-    if (_diceStarted) {
-      debugPrint('⚠️ Dice already rolling');
-      return;
-    }
+    if (_halted) return;
+    if (!isGameReady || !isLocalPlayerTurn) return;
+    if (_gameState != LudoGameState.throwDice || _rolled) return;
+    if (_diceStarted || _isMoving) return;
 
-    // IMPORTANT: Reset _isMoving at start of new dice roll
-    _isMoving = false;
+    final color = _localColor!;
+    final seq = _turnSeq;
 
-    debugPrint('🎲 Rolling dice...');
     _diceStarted = true;
     notifyListeners();
-
-    // Audio with error handling - don't await
     Audio.rollDice();
 
     await Future.delayed(const Duration(seconds: 1));
+    if (_halted) return;
 
-    // Generate dice result
-    final random = Random();
-    final dice = random.nextInt(6) + 1;
+    final dice = Random().nextInt(6) + 1;
+    final result = await _service.rollDice(
+      matchId: matchId,
+      color: color,
+      expectedSeq: seq,
+      dice: dice,
+    );
+    if (_disposed) return;
 
     _diceStarted = false;
-    _diceResult = dice;
-    debugPrint('🎲 Dice result: $dice');
-
-    // Determine next state
-    String? nextTurnColor;
-
-    if (dice == 6) {
-      // Got 6 - can move any pawn including from home
-      currentPlayer.highlightAllPawns();
-      _gameState = LudoGameState.pickPawn;
-      debugPrint('🎯 Got 6! All pawns highlighted');
-    } else if (currentPlayer.pawnInsideCount == 4) {
-      // All pawns inside, no 6 - skip turn
-      nextTurnColor = _getNextActiveColor(_currentTurnColor);
-      _gameState = LudoGameState.throwDice;
-      debugPrint('⏭️ All pawns inside, skipping turn');
-    } else {
-      // Highlight pawns that are outside home
-      currentPlayer.highlightOutside();
-      _gameState = LudoGameState.pickPawn;
-      debugPrint('🎯 Highlighting outside pawns');
-
-      // Disable pawns that can't move (would go beyond finish)
-      for (int i = 0; i < currentPlayer.pawns.length; i++) {
-        final pawn = currentPlayer.pawns[i];
-        if (pawn.step != -1 && (pawn.step + dice) > currentPlayer.path.length - 1) {
-          currentPlayer.highlightPawn(i, false);
-          debugPrint('❌ Pawn $i disabled - would exceed path');
-        }
-      }
-
-      // If no pawn can move, skip turn
-      final moveablePawns = currentPlayer.pawns.where((p) => p.highlight).toList();
-      if (moveablePawns.isEmpty) {
-        nextTurnColor = _getNextActiveColor(_currentTurnColor);
-        _gameState = LudoGameState.throwDice;
-        debugPrint('⏭️ No moveable pawns, skipping turn');
-      }
-    }
-
-    notifyListeners();
-
-    // Auto-move if only one pawn can move
-    final moveablePawns = currentPlayer.pawns.where((p) => p.highlight).toList();
-    debugPrint('📊 Moveable pawns count: ${moveablePawns.length}');
-
-    if (moveablePawns.length == 1 && nextTurnColor == null) {
-      final pawn = moveablePawns.first;
-      final toStep = pawn.step == -1 ? 0 : pawn.step + dice;
-      debugPrint('🚀 Auto-moving pawn ${pawn.index} to step $toStep');
-      await Future.delayed(const Duration(milliseconds: 300));
-      await move(currentPlayer.type, pawn.index, toStep);
+    if (result == null || _actionsStopped) {
+      _resync();
+      notifyListeners();
       return;
     }
 
-    // Send dice to Firestore
-    await _sendDiceResult(dice, nextTurnColor);
+    _diceResult = result.dice;
+    _rolled = !result.turnPassed;
+    _gameState =
+        result.turnPassed ? LudoGameState.throwDice : LudoGameState.pickPawn;
+    if (!result.turnPassed) {
+      player(_stringToType(color)).highlightPawns(result.legalPawns);
+    }
+    _applyPending((d) =>
+        LudoGameService.turnSeqOf(d) > seq || d['rolled'] == true);
+    notifyListeners();
+
+    if (!result.turnPassed && result.legalPawns.length == 1) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_halted) return;
+      final p = player(_stringToType(color));
+      final index = result.legalPawns.first;
+      final to = LudoRules.targetStep(
+          p.pawns[index].step, result.dice, p.path.length - 1);
+      if (to != null) await move(p.type, index, to);
+    }
   }
 
   Future<void> move(LudoPlayerType type, int pawnIndex, int toStep) async {
-    if (!isLocalPlayerTurn) {
-      debugPrint('⚠️ Not your turn to move');
-      return;
-    }
-    if (_isMoving) {
-      debugPrint('⚠️ Already moving');
+    if (_halted) return;
+    if (!isLocalPlayerTurn || type.name != _localColor) return;
+    if (_gameState != LudoGameState.pickPawn || _isMoving) return;
+
+    final selectedPlayer = player(type);
+    final fromStep = selectedPlayer.pawns[pawnIndex].step;
+    final target = LudoRules.targetStep(
+        fromStep, _diceResult, selectedPlayer.path.length - 1);
+    if (target == null || target != toStep) {
+      debugPrint('⚠️ Illegal move rejected: $fromStep -> $toStep');
       return;
     }
 
-    debugPrint('🏃 Moving pawn $pawnIndex to step $toStep');
+    final seq = _turnSeq;
     _isMoving = true;
     _gameState = LudoGameState.moving;
-    currentPlayer.highlightAllPawns(false);
+    selectedPlayer.highlightAllPawns(false);
     notifyListeners();
 
+    var committed = false;
     try {
-      final selectedPlayer = player(type);
-      final fromStep = selectedPlayer.pawns[pawnIndex].step;
-
-      // Clamp toStep to valid range
-      final maxStep = selectedPlayer.path.length - 1;
-      final clampedToStep = toStep.clamp(-1, maxStep);
-
-      debugPrint('📍 Moving from step $fromStep to $clampedToStep');
-
-      // Animate movement locally
-      for (int i = fromStep + 1; i <= clampedToStep; i++) {
+      for (int i = max(fromStep + 1, 0); i <= target; i++) {
+        if (_halted) return;
         selectedPlayer.movePawn(pawnIndex, i);
-        // Audio without await - don't block on audio errors
         Audio.playMove();
         notifyListeners();
         await Future.delayed(const Duration(milliseconds: 150));
       }
+      if (_halted) return;
 
-      // Check for kills
-      bool killed = _checkAndKill(type, pawnIndex, clampedToStep);
-      if (killed) {
-        debugPrint('💀 Killed opponent pawn!');
+      final result = await _service.commitMove(
+        matchId: matchId,
+        uid: _localUid ?? '',
+        color: type.name,
+        expectedSeq: seq,
+        pawnIndex: pawnIndex,
+      );
+      committed = result != null;
+      if (result != null && result.captured && !_disposed) {
+        Audio.playKill();
       }
-
-      // Check for win
-      _validateWin(type);
-
-      // Determine next turn
-      String? nextTurnColor;
-      if (_diceResult == 6 || killed) {
-        // Got 6 or killed - get another turn
-        _gameState = LudoGameState.throwDice;
-        debugPrint('🎯 Extra turn! (6 or kill)');
-      } else {
-        nextTurnColor = _getNextActiveColor(_currentTurnColor);
-        _gameState = LudoGameState.throwDice;
-        debugPrint('➡️ Next turn: $nextTurnColor');
-      }
-
-      notifyListeners();
-
-      // Send to Firestore
-      await _sendMove(type, pawnIndex, clampedToStep, nextTurnColor, killed);
-
     } catch (e) {
       debugPrint('❌ Move error: $e');
     } finally {
-      // IMPORTANT: Always reset _isMoving
       _isMoving = false;
-      debugPrint('✅ Move complete, _isMoving reset to false');
-    }
-  }
-
-  bool _checkAndKill(LudoPlayerType attackerType, int pawnIndex, int step) {
-    if (step < 0) return false;
-
-    final attackerPlayer = player(attackerType);
-    if (step >= attackerPlayer.path.length) return false;
-
-    final attackerPos = attackerPlayer.path[step];
-
-    // Check if position is safe
-    if (LudoPath.safeArea.any((safe) =>
-    safe[0] == attackerPos[0] && safe[1] == attackerPos[1])) {
-      return false;
-    }
-
-    bool killed = false;
-
-    for (final targetPlayer in players) {
-      if (targetPlayer.type == attackerType) continue;
-      if (!_activeColors.contains(targetPlayer.type.name)) continue;
-
-      for (int i = 0; i < targetPlayer.pawns.length; i++) {
-        final targetPawn = targetPlayer.pawns[i];
-        if (targetPawn.step < 0 || targetPawn.step >= targetPlayer.path.length) continue;
-
-        final targetPos = targetPlayer.path[targetPawn.step];
-
-        if (targetPos[0] == attackerPos[0] && targetPos[1] == attackerPos[1]) {
-          targetPlayer.movePawn(i, -1);
-          killed = true;
-          Audio.playKill();
+      if (!_disposed) {
+        if (committed) {
+          _applyPending((d) => LudoGameService.turnSeqOf(d) > seq);
+        } else {
+          // Rejected (turn moved on): restore the server's pawn positions.
+          _resync();
         }
-      }
-    }
-
-    return killed;
-  }
-
-  void _validateWin(LudoPlayerType type) {
-    if (winners.contains(type)) return;
-
-    final p = player(type);
-    final allFinished = p.pawns.every((pawn) =>
-    pawn.step == p.path.length - 1);
-
-    if (allFinished) {
-      winners.add(type);
-
-      final activeCount = _activeColors.length;
-      if (winners.length >= activeCount - 1) {
-        _gameState = LudoGameState.finish;
-      }
-    }
-  }
-
-  // ============ FIRESTORE WRITES ============
-
-  Future<void> _sendDiceResult(int dice, String? nextTurnColor) async {
-    final updates = <String, dynamic>{
-      'dice': dice,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (nextTurnColor != null) {
-      updates['turnColor'] = nextTurnColor;
-      updates['turnStartedAt'] = FieldValue.serverTimestamp();
-    }
-
-    try {
-      await _fs.collection('ludo_matches').doc(matchId).update(updates);
-      debugPrint('✅ Dice sent to Firestore');
-    } catch (e) {
-      debugPrint('❌ Failed to send dice: $e');
-    }
-  }
-
-  Future<void> _sendMove(
-      LudoPlayerType type,
-      int pawnIndex,
-      int toStep,
-      String? nextTurnColor,
-      bool killed,
-      ) async {
-    final pawnStepsMap = <String, List<int>>{};
-    for (final color in _activeColors) {
-      final p = player(_stringToType(color));
-      pawnStepsMap[color] = p.pawns.map((pw) => pw.step).toList();
-    }
-
-    final updates = <String, dynamic>{
-      'pawnSteps': pawnStepsMap,
-      'lastMove': {
-        'type': type.name,
-        'pawnIndex': pawnIndex,
-        'toStep': toStep,
-        'killed': killed,
-        'byUid': _localUid,
-        'ts': FieldValue.serverTimestamp(),
-      },
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (nextTurnColor != null) {
-      updates['turnColor'] = nextTurnColor;
-      updates['turnStartedAt'] = FieldValue.serverTimestamp();
-    }
-
-    if (winners.isNotEmpty) {
-      updates['winners'] = winners.map((w) => w.name).toList();
-    }
-
-    if (_gameState == LudoGameState.finish) {
-      updates['state'] = 'finished';
-    }
-
-    try {
-      await _fs.collection('ludo_matches').doc(matchId).update(updates);
-      debugPrint('✅ Move sent to Firestore');
-    } catch (e) {
-      debugPrint('❌ Failed to send move: $e');
-    }
-  }
-
-  // ============ TURN MANAGEMENT ============
-
-  String _getNextActiveColor(String current) {
-    final order = ['green', 'yellow', 'blue', 'red'];
-
-    final available = order.where((c) =>
-    _activeColors.contains(c) &&
-        !winners.any((w) => w.name == c)).toList();
-
-    if (available.isEmpty) return current;
-
-    int idx = available.indexOf(current);
-    if (idx < 0) idx = 0;
-
-    return available[(idx + 1) % available.length];
-  }
-
-  void _startTurnTimer(Map<String, dynamic> data) {
-    _turnTimer?.cancel();
-
-    final ts = data['turnStartedAt'] as Timestamp?;
-    if (ts == null) {
-      // No timestamp, start fresh
-      turnTimeLeft = turnDurationSeconds;
-    } else {
-      final startTime = ts.toDate();
-      final elapsed = DateTime.now().difference(startTime).inSeconds;
-      turnTimeLeft = (turnDurationSeconds - elapsed).clamp(0, turnDurationSeconds);
-    }
-
-    debugPrint('⏱️ Turn timer started: ${turnTimeLeft}s remaining');
-
-    if (turnTimeLeft <= 0 && isLocalPlayerTurn) {
-      _handleTurnTimeout();
-      return;
-    }
-
-    _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (turnTimeLeft > 0) {
-        turnTimeLeft--;
         notifyListeners();
       }
-
-      if (turnTimeLeft <= 0) {
-        timer.cancel();
-        if (isLocalPlayerTurn) {
-          _handleTurnTimeout();
-        }
-      }
-    });
+    }
   }
 
-  Future<void> _handleTurnTimeout() async {
-    if (!isLocalPlayerTurn) return;
+  // ============ TURN CLOCK / DEADLINES ============
 
-    debugPrint('⏰ Turn timeout! Skipping turn...');
-    final nextColor = _getNextActiveColor(_currentTurnColor);
+  void _tick() {
+    if (_disposed) return;
+    secondTick.value++;
+    if (_matchState != 'playing' || !isGameReady) return;
 
-    try {
-      await _fs.collection('ludo_matches').doc(matchId).update({
-        'turnColor': nextColor,
-        'turnStartedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('❌ Failed to skip turn: $e');
+    final elapsed = DateTime.now().difference(_turnObservedAt).inSeconds;
+    final left = turnDurationSeconds - elapsed;
+    turnTimeLeft.value = left.clamp(0, turnDurationSeconds);
+
+    if (!_actionsStopped && _localIsParticipant && !_advancing) {
+      final ownTurn = isLocalPlayerTurn;
+      final timedOut = ownTurn
+          ? left <= 0 && !_isMoving && !_diceStarted
+          : left <= -turnGraceSeconds;
+      if (timedOut) _advanceStalledTurn();
     }
+
+    _expireAwayPlayers();
+  }
+
+  Future<void> _advanceStalledTurn() async {
+    _advancing = true;
+    debugPrint('⏰ Turn timeout: skipping $_currentTurnColor');
+    final ok = await _service.advanceTurn(
+      matchId: matchId,
+      expectedColor: _currentTurnColor,
+      expectedSeq: _turnSeq,
+    );
+    // On failure the turn already moved on, or retry on the next tick.
+    if (!ok && !_disposed) {
+      Future.delayed(const Duration(seconds: 3), () => _advancing = false);
+    }
+  }
+
+  void _expireAwayPlayers() {
+    if (_actionsStopped || !_localIsParticipant) return;
+    final now = DateTime.now();
+    _awayObserved.forEach((uid, obs) {
+      if (uid == _localUid) return;
+      if (playersInfo[uid]?['skipped'] == true) return;
+      if (now.difference(obs.observedAt) < LudoGameService.awayGrace) return;
+      final key = '$uid:${obs.awaySince?.millisecondsSinceEpoch}';
+      if (!_expiryRequested.add(key)) return;
+      _service.expireAway(matchId: matchId, odId: uid, awaySince: obs.awaySince);
+    });
   }
 
   // ============ HELPERS ============
@@ -630,12 +557,17 @@ class LudoMultiplayerProvider extends ChangeNotifier {
 
   void disposeProvider() {
     _matchSub?.cancel();
-    _turnTimer?.cancel();
+    _matchSub = null;
+    _ticker?.cancel();
+    _ticker = null;
   }
 
   @override
   void dispose() {
+    _disposed = true;
     disposeProvider();
+    turnTimeLeft.dispose();
+    secondTick.dispose();
     super.dispose();
   }
 }

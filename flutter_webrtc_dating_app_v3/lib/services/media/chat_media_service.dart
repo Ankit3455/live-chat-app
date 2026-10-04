@@ -12,6 +12,7 @@ import '../../core/config/storage_config.dart';
 import '../storage/storage_repo.dart';
 import '../storage/cloudinary_storage_repo.dart';
 import '../storage/firebase_storage_repo.dart';
+import 'media_validator.dart';
 
 class ChatMediaService {
   static final ImagePicker _imagePicker = ImagePicker();
@@ -63,7 +64,17 @@ class ChatMediaService {
     }
   }
 
-  /// Compress image before upload
+  /// User-facing error if [file] cannot be sent as a chat image, else null.
+  static Future<String?> validateChatImage(File file) =>
+      MediaValidator.validateImageSource(file);
+
+  /// User-facing error if the recording cannot be sent, else null.
+  static Future<String?> validateVoiceMessage(
+          String localPath, int durationSeconds) =>
+      MediaValidator.validateVoice(File(localPath), durationSeconds);
+
+  /// Compress image (to JPEG) before upload. Returns null on failure; the
+  /// original is never uploaded uncompressed.
   static Future<File?> compressImage(File file) async {
     try {
       final dir = await getTemporaryDirectory();
@@ -79,11 +90,11 @@ class ChatMediaService {
         format: CompressFormat.jpeg,
       );
 
-      if (result == null) return file;
+      if (result == null) return null;
       return File(result.path);
     } catch (e) {
       debugPrint('❌ Error compressing image: $e');
-      return file; // Return original if compression fails
+      return null;
     }
   }
 
@@ -92,28 +103,28 @@ class ChatMediaService {
     required String conversationId,
     required File file,
   }) async {
+    File? compressed;
     try {
-      // Compress first
-      final compressed = await compressImage(file);
+      final error = await MediaValidator.validateImageSource(file);
+      if (error != null) throw MediaValidationException(error);
+
+      compressed = await compressImage(file);
       if (compressed == null) return null;
 
-      // Upload
-      final url = await _storage.uploadChatImage(
+      // Upload validates type/size of the compressed file.
+      return await _storage.uploadChatImage(
         conversationId: conversationId,
         file: compressed,
       );
-
-      // Clean up temp file
-      if (compressed.path != file.path) {
+    } catch (e) {
+      debugPrint('❌ Error uploading chat image: $e');
+      return null;
+    } finally {
+      if (compressed != null && compressed.path != file.path) {
         try {
           await compressed.delete();
         } catch (_) {}
       }
-
-      return url;
-    } catch (e) {
-      debugPrint('❌ Error uploading chat image: $e');
-      return null;
     }
   }
 
@@ -130,7 +141,8 @@ class ChatMediaService {
   // AUDIO/VOICE MESSAGE METHODS
   // =========================================================================
 
-  static const int kMaxVoiceDuration = 60; // seconds
+  /// Recording cap; same as the upload limit (DEST-013: voice <= 2 min).
+  static const int kMaxVoiceDuration = MediaValidator.maxVoiceSeconds;
 
   /// Check microphone permission
   static Future<bool> hasMicrophonePermission() async {
@@ -199,13 +211,16 @@ class ChatMediaService {
     required int durationSeconds,
   }) async {
     try {
+      final error = await validateVoiceMessage(localPath, durationSeconds);
+      if (error != null) throw MediaValidationException(error);
+
       final url = await _storage.uploadChatAudio(
         conversationId: conversationId,
         localPath: localPath,
         durationSeconds: durationSeconds,
       );
 
-      // Clean up temp file
+      // Clean up temp file only after a successful upload.
       try {
         await File(localPath).delete();
       } catch (_) {}

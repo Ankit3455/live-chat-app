@@ -1,63 +1,26 @@
 // lib/feature/games/love_physics/love_physics_game.dart
-// Love Physics - single-file prototype compatible with
-// flame: ^1.34.0 and flame_forge2d: ^0.19.2+2
+// Love Physics - solo puzzle: draw ramps so the two hearts roll into each other.
+// Targets flame ^1.34.0 and flame_forge2d ^0.19.2+2.
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flame/game.dart';
 import 'package:flame/components.dart';
-import 'package:flame/input.dart';
+import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
+import '../../../core/constants/app_colors.dart';
 
-// -----------------------------------------------------------------------------
-// Helpers & configuration
-// -----------------------------------------------------------------------------
-
-const double pixelsPerMeter = 100.0; // 100 px = 1 meter
+// Camera zoom: 100 logical px = 1 world meter. The camera is anchored top-left,
+// so world = screen / pixelsPerMeter.
+const double pixelsPerMeter = 100.0;
 
 Vector2 toWorld(Vector2 screen) => screen / pixelsPerMeter;
-Vector2 toScreen(Vector2 world) => world * pixelsPerMeter;
 
-double worldDistance(Vector2 a, Vector2 b) => (a - b).length;
-
-// -----------------------------------------------------------------------------
-// GameListScreen - entry to open the Love Physics game
-// -----------------------------------------------------------------------------
-
-class GameListScreen extends StatelessWidget {
-  const GameListScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Games'), backgroundColor: const Color(0xFF2D1B4E)),
-      backgroundColor: const Color(0xFF0D0221),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ListTile(
-            leading: const Icon(Icons.favorite, color: Colors.pinkAccent),
-            title: const Text('Love Physics', style: TextStyle(color: Colors.white)),
-            subtitle: const Text('Draw bridges to bring players together', style: TextStyle(color: Colors.white70)),
-            tileColor: const Color(0xFF2D1B4E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LovePhysicsScreen())),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            leading: const Icon(Icons.sports_esports, color: Colors.white30),
-            title: const Text('Coming soon...', style: TextStyle(color: Colors.white)),
-            tileColor: const Color(0xFF2D1B4E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-}
+const double _playerRadius = 0.3;
+const double _matchTolerance = 0.03;
+const double _lineStroke = 0.06;
+const int _maxLines = 30;
 
 // -----------------------------------------------------------------------------
-// LovePhysicsScreen - Flutter wrapper with GestureDetector (handles input)
+// LovePhysicsScreen - Flutter wrapper; handles drawing gestures and the result.
 // -----------------------------------------------------------------------------
 
 class LovePhysicsScreen extends StatefulWidget {
@@ -68,56 +31,115 @@ class LovePhysicsScreen extends StatefulWidget {
 
 class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
   late LovePhysicsGame _game;
-  List<Vector2> _currentDragPoints = [];
+  Vector2? _lastPoint;
 
   @override
   void initState() {
     super.initState();
-    // Create game with named gravity (compatible with flame_forge2d 0.19.x)
     _game = LovePhysicsGame();
   }
 
   @override
   void dispose() {
-    // Pause game when leaving to avoid running in background
     _game.pauseEngine();
+    _game.matched.dispose();
     super.dispose();
   }
 
+  void _restart() {
+    final old = _game;
+    setState(() => _game = LovePhysicsGame());
+    old.pauseEngine();
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.matched.dispose());
+  }
+
+  Vector2 _toWorld(Offset local) => toWorld(Vector2(local.dx, local.dy));
+
   void _onPanStart(DragStartDetails details) {
-    final box = context.findRenderObject() as RenderBox;
-    final local = box.globalToLocal(details.globalPosition);
-    final worldPt = toWorld(Vector2(local.dx, local.dy));
-    _currentDragPoints = [worldPt];
-    _game.startDrawingAt(worldPt);
+    final pt = _toWorld(details.localPosition);
+    _lastPoint = pt;
+    _game.startDrawingAt(pt);
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    final box = context.findRenderObject() as RenderBox;
-    final local = box.globalToLocal(details.globalPosition);
-    final worldPt = toWorld(Vector2(local.dx, local.dy));
-    if (_currentDragPoints.isEmpty || (_currentDragPoints.last - worldPt).length > 0.02) {
-      _currentDragPoints.add(worldPt);
-      _game.addDrawingPoint(worldPt);
+    final pt = _toWorld(details.localPosition);
+    if (_lastPoint == null || (_lastPoint! - pt).length > 0.05) {
+      _lastPoint = pt;
+      _game.addDrawingPoint(pt);
     }
   }
 
   void _onPanEnd(DragEndDetails details) {
     _game.finishDrawing();
-    _currentDragPoints.clear();
+    _lastPoint = null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0221),
-      appBar: AppBar(title: const Text('Love Physics'), backgroundColor: const Color(0xFF2D1B4E)),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: _onPanStart,
-        onPanUpdate: _onPanUpdate,
-        onPanEnd: _onPanEnd,
-        child: GameWidget(game: _game),
+      backgroundColor: AppColors.backgroundDarkest,
+      appBar: AppBar(
+        title: const Text('Love Physics'),
+        backgroundColor: AppColors.surfaceCard,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Restart',
+            onPressed: _restart,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanStart: _onPanStart,
+              onPanUpdate: _onPanUpdate,
+              onPanEnd: _onPanEnd,
+              child: GameWidget(key: ObjectKey(_game), game: _game),
+            ),
+          ),
+          const Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: IgnorePointer(
+              child: Text(
+                'Draw ramps with your finger to bring the hearts together',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _game.matched,
+            builder: (context, matched, _) {
+              if (!matched) return const SizedBox.shrink();
+              return Align(
+                alignment: const Alignment(0, -0.6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Match Found! ❤️',
+                      style: TextStyle(
+                        color: Colors.pinkAccent,
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _restart,
+                      child: const Text('Play again'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -128,271 +150,228 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
 // -----------------------------------------------------------------------------
 
 class LovePhysicsGame extends Forge2DGame {
-  LovePhysicsGame() : super(gravity: Vector2(0, 10));
+  LovePhysicsGame() : super(gravity: Vector2(0, 10), zoom: pixelsPerMeter);
 
-  late PlayerBodyA playerA;
-  late PlayerBodyB playerB;
+  final ValueNotifier<bool> matched = ValueNotifier<bool>(false);
+
+  late PlayerBody playerA;
+  late PlayerBody playerB;
 
   final List<Vector2> _drawingPoints = [];
-  final List<DrawnPath> _renderedPaths = [];
-
-  bool _matchFound = false;
-  late TextComponent _matchText;
+  final List<DrawnLineBody> _lines = [];
+  late _DrawingPreview _preview;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    camera.viewfinder.anchor = Anchor.topLeft;
 
-    // screen pixel size -> world conversion
-    final screenPx = size.clone(); // size in pixels
-    final worldW = toWorld(screenPx).x;
-    final worldH = toWorld(screenPx).y;
+    final worldSize = toWorld(size);
+    final w = worldSize.x;
+    final h = worldSize.y;
 
-    // world bounds (walls)
-    add(Wall(worldWidth: worldW, worldHeight: worldH));
-
-    // add two players far apart
-    playerA = PlayerBodyA(position: Vector2(worldW * 0.2, worldH * 0.2));
-    playerB = PlayerBodyB(position: Vector2(worldW * 0.8, worldH * 0.8));
-    add(playerA);
-    add(playerB);
-
-    // match text, anchored near top-center (in world coords)
-    _matchText = TextComponent(
-      text: '',
-      textRenderer: TextPaint(style: const TextStyle(color: Colors.pinkAccent, fontSize: 36, fontWeight: FontWeight.bold)),
-      anchor: Anchor.topCenter,
-      position: Vector2(screenPx.x / 2 / pixelsPerMeter, 24 / pixelsPerMeter),
-      priority: 1000,
+    playerA = PlayerBody(
+      initialPosition: Vector2(w * 0.2, h * 0.2),
+      color: Colors.pinkAccent,
+      nudge: Vector2(-0.05, 0),
     );
-    add(_matchText);
+    playerB = PlayerBody(
+      initialPosition: Vector2(w * 0.8, h * 0.8),
+      color: Colors.lightBlueAccent,
+      nudge: Vector2(0.05, 0),
+    );
+    _preview = _DrawingPreview(_drawingPoints);
+
+    world.addAll([
+      Wall(worldWidth: w, worldHeight: h),
+      playerA,
+      playerB,
+      _preview,
+    ]);
   }
 
-  // Called from widget gestures
+  // Called from widget gestures (world coordinates).
   void startDrawingAt(Vector2 worldPt) {
-    _drawingPoints.clear();
-    _drawingPoints.add(worldPt);
-    _renderedPaths.add(DrawnPath(points: List.from(_drawingPoints)));
+    if (matched.value) return;
+    _drawingPoints
+      ..clear()
+      ..add(worldPt);
   }
 
   void addDrawingPoint(Vector2 worldPt) {
     if (_drawingPoints.isEmpty) return;
     _drawingPoints.add(worldPt);
-    _renderedPaths.last.points = List.from(_drawingPoints);
   }
 
   void finishDrawing() {
-    if (_drawingPoints.length < 2) {
-      _drawingPoints.clear();
-      if (_renderedPaths.isNotEmpty) _renderedPaths.removeLast();
-      return;
+    if (_drawingPoints.length >= 2) {
+      final line = DrawnLineBody(points: List.of(_drawingPoints));
+      _lines.add(line);
+      world.add(line);
+      // Keep the body count bounded; removing a BodyComponent destroys its body.
+      if (_lines.length > _maxLines) {
+        _lines.removeAt(0).removeFromParent();
+      }
     }
-    add(DrawnLineBody(points: List.from(_drawingPoints)));
-    // leave the visual path in _renderedPaths so the bridge remains visible
     _drawingPoints.clear();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    if (matched.value || !playerA.isLoaded || !playerB.isLoaded) return;
 
-    if (_matchFound) return;
-
-    // Access bodies safely; body is late-initialized inside BodyComponent
-    Vector2? aPos;
-    Vector2? bPos;
-    try {
-      aPos = playerA.body.position;
-      bPos = playerB.body.position;
-    } catch (_) {
-      // Body not yet initialized; skip this tick
-      return;
-    }
-
-    if (aPos != null && bPos != null) {
-      if (worldDistance(aPos, bPos) <= 0.15) {
-        _matchFound = true;
-        _matchText.text = 'Match Found! ❤️';
-        // celebration impulses (guarded)
-        try {
-          playerA.body.applyLinearImpulse(Vector2(0, -0.3));
-          playerB.body.applyLinearImpulse(Vector2(0, -0.3));
-        } catch (_) {}
-      }
+    final distance = (playerA.body.position - playerB.body.position).length;
+    if (distance <= playerA.radius + playerB.radius + _matchTolerance) {
+      matched.value = true;
+      playerA.body.applyLinearImpulse(Vector2(0, -0.3));
+      playerB.body.applyLinearImpulse(Vector2(0, -0.3));
     }
   }
+}
+
+// -----------------------------------------------------------------------------
+// _DrawingPreview - renders the stroke currently being drawn.
+// -----------------------------------------------------------------------------
+
+class _DrawingPreview extends Component {
+  _DrawingPreview(this.points) : super(priority: 100);
+
+  final List<Vector2> points;
+
+  final Paint _paint = Paint()
+    ..color = Colors.pinkAccent.withOpacity(0.6)
+    ..strokeWidth = _lineStroke
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
   @override
   void render(Canvas canvas) {
-    super.render(canvas);
-
-    // draw all persistent drawn paths as thick pink paths
-    final paint = Paint()
-      ..color = Colors.pinkAccent
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    for (final p in _renderedPaths) {
-      if (p.points.length < 2) continue;
-      final path = Path();
-      final first = toScreen(p.points.first);
-      path.moveTo(first.x, first.y);
-      for (int i = 1; i < p.points.length; i++) {
-        final pt = toScreen(p.points[i]);
-        path.lineTo(pt.x, pt.y);
-      }
-      canvas.drawPath(path, paint);
-    }
+    if (points.length < 2) return;
+    canvas.drawPath(_pathOf(points), _paint);
   }
 }
 
-// -----------------------------------------------------------------------------
-// DrawnPath (visual helper)
-// -----------------------------------------------------------------------------
-
-class DrawnPath {
-  List<Vector2> points;
-  DrawnPath({required this.points});
+Path _pathOf(List<Vector2> points) {
+  final path = Path()..moveTo(points.first.x, points.first.y);
+  for (var i = 1; i < points.length; i++) {
+    path.lineTo(points[i].x, points[i].y);
+  }
+  return path;
 }
 
 // -----------------------------------------------------------------------------
-// DrawnLineBody: create small static circle bodies along the drawn path
-// (We create many small static bodies to approximate a continuous, thick ramp)
+// DrawnLineBody - one static body with a single chain fixture along the stroke.
 // -----------------------------------------------------------------------------
 
 class DrawnLineBody extends BodyComponent {
-  final List<Vector2> points; // world coords (meters)
-  final double segmentRadius = 0.06; // thickness in meters (~6 px if ppm=100)
-
   DrawnLineBody({required this.points});
 
+  final List<Vector2> points; // world coords (meters)
+
+  final Paint _linePaint = Paint()
+    ..color = Colors.pinkAccent
+    ..strokeWidth = _lineStroke
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+
   @override
   Body createBody() {
-    // Create a dummy static body for component contract
-    final dummyDef = BodyDef()..type = BodyType.static..position = Vector2.zero();
-    final dummy = world.createBody(dummyDef);
+    final bd = BodyDef()
+      ..type = BodyType.static
+      ..position = Vector2.zero();
+    final body = world.createBody(bd);
+    final chain = ChainShape()..createChain(points);
+    body.createFixture(FixtureDef(chain)
+      ..friction = 0.8
+      ..restitution = 0.0);
+    return body;
+  }
 
-    // Create many small static bodies placed along the points
-    for (int i = 0; i < points.length; i++) {
-      final p = points[i];
-      final bd = BodyDef()..type = BodyType.static..position = p;
-      final small = world.createBody(bd);
-      final cs = CircleShape()..radius = segmentRadius;
-      final fd = FixtureDef(cs)..friction = 0.8..restitution = 0.0;
-      small.createFixture(fd);
-    }
-
-    return dummy;
+  // The body sits at the origin, so local coordinates equal world coordinates.
+  @override
+  void render(Canvas canvas) {
+    canvas.drawPath(_pathOf(points), _linePaint);
   }
 }
 
 // -----------------------------------------------------------------------------
-// PlayerBodyA & PlayerBodyB - dynamic circle bodies (simple visual rendering)
+// PlayerBody - dynamic circle body
 // -----------------------------------------------------------------------------
 
-class PlayerBodyA extends BodyComponent {
-  final Vector2 position;
-  PlayerBodyA({required this.position});
+class PlayerBody extends BodyComponent {
+  PlayerBody({
+    required this.initialPosition,
+    required this.color,
+    required this.nudge,
+    this.radius = _playerRadius,
+  });
+
+  final Vector2 initialPosition;
+  final Color color;
+  final Vector2 nudge;
+  final double radius;
 
   @override
   Body createBody() {
-    final bd = BodyDef()..type = BodyType.dynamic..position = position..fixedRotation = false;
+    final bd = BodyDef()
+      ..type = BodyType.dynamic
+      ..position = initialPosition;
     final b = world.createBody(bd);
-    final shape = CircleShape()..radius = 1.2; // meters
-    final fd = FixtureDef(shape)..density = 1.0..friction = 0.3..restitution = 0.2;
-    b.createFixture(fd);
-    // nudge left to encourage movement
-    b.applyLinearImpulse(Vector2(-0.2, 0));
+    final shape = CircleShape()..radius = radius;
+    b.createFixture(FixtureDef(shape)
+      ..density = 1.0
+      ..friction = 0.3
+      ..restitution = 0.2);
+    b.applyLinearImpulse(nudge);
     return b;
   }
 
+  // Canvas is already in body-local space (meters).
   @override
   void render(Canvas canvas) {
-    // guard body access
-    try {
-      final pos = body.position;
-      final screen = toScreen(pos);
-      final rPx = 1.2 * pixelsPerMeter;
-      final paint = Paint()..color = Colors.pinkAccent;
-      canvas.drawCircle(Offset(screen.x, screen.y), rPx, paint);
-      final ring = Paint()..style = PaintingStyle.stroke..color = Colors.white..strokeWidth = 2;
-      canvas.drawCircle(Offset(screen.x, screen.y), rPx - 6, ring);
-    } catch (_) {
-      // body not ready yet; nothing to render
-      return;
-    }
-  }
-}
-
-class PlayerBodyB extends BodyComponent {
-  final Vector2 position;
-  PlayerBodyB({required this.position});
-
-  @override
-  Body createBody() {
-    final bd = BodyDef()..type = BodyType.dynamic..position = position..fixedRotation = false;
-    final b = world.createBody(bd);
-    final shape = CircleShape()..radius = 1.2;
-    final fd = FixtureDef(shape)..density = 1.0..friction = 0.3..restitution = 0.2;
-    b.createFixture(fd);
-    // nudge right
-    b.applyLinearImpulse(Vector2(0.2, 0));
-    return b;
-  }
-
-  @override
-  void render(Canvas canvas) {
-    try {
-      final pos = body.position;
-      final screen = toScreen(pos);
-      final rPx = 1.2 * pixelsPerMeter;
-      final paint = Paint()..color = Colors.lightBlueAccent;
-      canvas.drawCircle(Offset(screen.x, screen.y), rPx, paint);
-      final ring = Paint()..style = PaintingStyle.stroke..color = Colors.white..strokeWidth = 2;
-      canvas.drawCircle(Offset(screen.x, screen.y), rPx - 6, ring);
-    } catch (_) {
-      return;
-    }
+    canvas.drawCircle(Offset.zero, radius, Paint()..color = color);
+    canvas.drawCircle(
+      Offset.zero,
+      radius * 0.8,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = Colors.white
+        ..strokeWidth = 0.02,
+    );
   }
 }
 
 // -----------------------------------------------------------------------------
-// Wall - world boundaries (static boxes around the edges)
+// Wall - world boundaries as one closed chain loop.
 // -----------------------------------------------------------------------------
 
-class Wall extends Component with HasGameRef<Forge2DGame> {
-  final double worldWidth;
-  final double worldHeight;
+class Wall extends BodyComponent {
   Wall({required this.worldWidth, required this.worldHeight});
 
+  final double worldWidth;
+  final double worldHeight;
+
   @override
-  Future<void> onLoad() async {
-    super.onLoad();
-
-    // left
-    final leftDef = BodyDef()..position = Vector2(0, worldHeight / 2)..type = BodyType.static;
-    final leftBody = gameRef.world.createBody(leftDef);
-    final leftBox = PolygonShape()..setAsBoxXY(0.1, worldHeight);
-    leftBody.createFixtureFromShape(leftBox);
-
-    // right
-    final rightDef = BodyDef()..position = Vector2(worldWidth, worldHeight / 2)..type = BodyType.static;
-    final rightBody = gameRef.world.createBody(rightDef);
-    final rightBox = PolygonShape()..setAsBoxXY(0.1, worldHeight);
-    rightBody.createFixtureFromShape(rightBox);
-
-    // top
-    final topDef = BodyDef()..position = Vector2(worldWidth / 2, 0)..type = BodyType.static;
-    final topBody = gameRef.world.createBody(topDef);
-    final topBox = PolygonShape()..setAsBoxXY(worldWidth, 0.1);
-    topBody.createFixtureFromShape(topBox);
-
-    // bottom
-    final bottomDef = BodyDef()..position = Vector2(worldWidth / 2, worldHeight)..type = BodyType.static;
-    final bottomBody = gameRef.world.createBody(bottomDef);
-    final bottomBox = PolygonShape()..setAsBoxXY(worldWidth, 0.1);
-    bottomBody.createFixtureFromShape(bottomBox);
+  Body createBody() {
+    final bd = BodyDef()
+      ..type = BodyType.static
+      ..position = Vector2.zero();
+    final body = world.createBody(bd);
+    final loop = ChainShape()
+      ..createLoop([
+        Vector2(0, 0),
+        Vector2(worldWidth, 0),
+        Vector2(worldWidth, worldHeight),
+        Vector2(0, worldHeight),
+      ]);
+    body.createFixture(FixtureDef(loop)..friction = 0.5);
+    return body;
   }
+
+  // Screen edges are the walls; nothing to draw.
+  @override
+  void render(Canvas canvas) {}
 }

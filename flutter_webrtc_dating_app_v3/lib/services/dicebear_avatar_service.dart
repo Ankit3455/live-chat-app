@@ -1,21 +1,18 @@
 // lib/services/dicebear_avatar_service.dart
 //
-// FINAL WORKING VERSION
-// - Downloads SVG from DiceBear
-// - Converts to PNG before upload
-// - Works with Cloudinary restrictions
+// Downloads a DiceBear avataaars SVG built from explicit params
+// (AvatarMapping.dicebearParams), converts it to PNG and uploads it.
 
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:image/image.dart' as img;
 
 import '../core/config/storage_config.dart';
 import 'storage/cloudinary_storage_repo.dart';
@@ -31,12 +28,17 @@ class DiceBearAvatarService {
   static const String _baseUrl = 'https://api.dicebear.com/$_apiVersion';
   static const Duration _apiTimeout = Duration(seconds: 15);
 
+  // Debug-only logging; never log uid, answers, seed or URLs (PII).
+  static void _log(String message) {
+    if (kDebugMode) debugPrint(message);
+  }
+
   /// Generate avatar from questionnaire answers
   static Future<Map<String, dynamic>> generateAndSaveAvatar({
     required Map<String, dynamic> answers,
   }) async {
     if (_inProgress) {
-      debugPrint('⚠️ DiceBear: Generation already in progress');
+      _log('DiceBear: generation already in progress');
       throw Exception('Avatar generation already in progress');
     }
     _inProgress = true;
@@ -44,32 +46,24 @@ class DiceBearAvatarService {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        debugPrint('❌ DiceBear: User not authenticated');
+        _log('DiceBear: user not authenticated');
         throw Exception('User not authenticated');
       }
 
-      debugPrint('🎨 DiceBear: Starting generation for user: $uid');
+      _log('DiceBear: starting generation');
 
       final props = AvatarMapping.buildFromAnswers(answers);
-      debugPrint('📋 Mapped properties: $props');
 
       _validateProperties(props);
 
       final seed = _buildSeed(props);
-      debugPrint('🌱 Seed: $seed');
 
-      final apiUrl = _buildApiUrl(seed);
-      debugPrint('🔗 API URL: $apiUrl');
+      final apiUrl = _buildApiUrl(seed, props);
 
-      // Download SVG
       final svgBytes = await _downloadSvgWithRetry(apiUrl);
-      debugPrint('✅ Downloaded SVG: ${svgBytes.length} bytes');
 
-      // ✅ Convert SVG to PNG
       final pngBytes = await _convertSvgToPng(svgBytes);
-      debugPrint('✅ Converted to PNG: ${pngBytes.length} bytes');
 
-      // Upload PNG (not SVG!)
       final uploadResult = await _uploadPngImage(
         uid: uid,
         pngBytes: pngBytes,
@@ -77,9 +71,6 @@ class DiceBearAvatarService {
 
       final imageUrl = uploadResult['imageUrl'] as String;
 
-      debugPrint('🔗 Image URL: $imageUrl');
-
-      // Save to Firestore
       final avatarPropsToSave = <String, dynamic>{
         ...props,
         'avatarSeed': seed,
@@ -91,12 +82,12 @@ class DiceBearAvatarService {
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'profileImage': imageUrl,
-        'avatarProperties': avatarPropsToSave,
+        'avatarProperties': _withLegacyKeysRemoved(avatarPropsToSave),
         'isCustomAvatar': false,
         'avatarVersion': FieldValue.increment(1),
       }, SetOptions(merge: true));
 
-      debugPrint('💾 Saved to Firestore ✅');
+      _log('DiceBear: avatar saved');
 
       return {
         'uid': uid,
@@ -104,18 +95,21 @@ class DiceBearAvatarService {
         'avatarProperties': avatarPropsToSave,
       };
     } catch (e, st) {
-      debugPrint('❌ Generation failed: $e');
-      debugPrint('Stack: $st');
+      _log('DiceBear: generation failed: $e\n$st');
       rethrow;
     } finally {
       _inProgress = false;
     }
   }
 
-  /// Regenerate from stored properties
-  static Future<Map<String, dynamic>> regenerateFromStoredProperties() async {
+  /// Regenerate from stored properties. With [newVariation] a fresh seed is
+  /// used so the user gets a different avatar within the same constraints;
+  /// otherwise the stored seed reproduces the same avatar.
+  static Future<Map<String, dynamic>> regenerateFromStoredProperties({
+    bool newVariation = false,
+  }) async {
     if (_inProgress) {
-      debugPrint('⚠️ DiceBear: Regeneration already in progress');
+      _log('DiceBear: generation already in progress');
       throw Exception('Avatar generation already in progress');
     }
     _inProgress = true;
@@ -124,7 +118,7 @@ class DiceBearAvatarService {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('User not authenticated');
 
-      debugPrint('🔄 DiceBear: Regenerating for user: $uid');
+      _log('DiceBear: regenerating');
 
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -136,20 +130,26 @@ class DiceBearAvatarService {
       }
 
       final data = doc.data() ?? {};
-      var props = (data['avatarProperties'] as Map<String, dynamic>?) ?? {};
+      final stored = data['avatarProperties'] is Map
+          ? Map<String, dynamic>.from(data['avatarProperties'] as Map)
+          : <String, dynamic>{};
 
-      props = _mergeWithUserDocFields(props, data);
+      final merged = _mergeWithUserDocFields(stored, data);
 
-      if (props.isEmpty) {
-        throw Exception('No avatar data found');
-      }
+      // Re-run the mapping so older docs get the current props shape.
+      final props = AvatarMapping.buildFromAnswers(merged);
 
       _validateProperties(props);
 
-      final seed = (props['avatarSeed'] as String?) ?? _buildSeed(props);
-      debugPrint('🌱 Seed: $seed');
+      final storedSeed = stored['avatarSeed'] as String?;
+      final baseSeed = (storedSeed != null && storedSeed.isNotEmpty)
+          ? storedSeed
+          : _buildSeed(props);
+      final seed = newVariation
+          ? '${_buildSeed(props)}_${Random().nextInt(1000000000)}'
+          : baseSeed;
 
-      final apiUrl = _buildApiUrl(seed);
+      final apiUrl = _buildApiUrl(seed, props);
       final svgBytes = await _downloadSvgWithRetry(apiUrl);
       final pngBytes = await _convertSvgToPng(svgBytes);
 
@@ -163,16 +163,18 @@ class DiceBearAvatarService {
       final propsToSave = Map<String, dynamic>.from(props);
       propsToSave['avatarSeed'] = seed;
       propsToSave['avatarImageUrl'] = imageUrl;
+      propsToSave['avatarStyle'] = 'avataaars';
       propsToSave['generatedAt'] = DateTime.now().toUtc().toIso8601String();
+      propsToSave['generatedBy'] = 'dicebear-v7';
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'profileImage': imageUrl,
-        'avatarProperties': propsToSave,
+        'avatarProperties': _withLegacyKeysRemoved(propsToSave),
         'isCustomAvatar': false,
         'avatarVersion': FieldValue.increment(1),
       }, SetOptions(merge: true));
 
-      debugPrint('💾 Regenerated successfully ✅');
+      _log('DiceBear: regenerated');
 
       return {
         'uid': uid,
@@ -180,8 +182,7 @@ class DiceBearAvatarService {
         'avatarProperties': propsToSave,
       };
     } catch (e, st) {
-      debugPrint('❌ Regeneration failed: $e');
-      debugPrint('Stack: $st');
+      _log('DiceBear: regeneration failed: $e\n$st');
       rethrow;
     } finally {
       _inProgress = false;
@@ -190,17 +191,32 @@ class DiceBearAvatarService {
 
   // ==================== PRIVATE HELPERS ====================
 
-  /// Build DiceBear API URL (minimal params)
-  static String _buildApiUrl(String seed) {
+  /// Older avatarProperties stored exact DOB and bio; a merge write keeps
+  /// nested keys, so delete them explicitly.
+  static Map<String, dynamic> _withLegacyKeysRemoved(
+    Map<String, dynamic> props,
+  ) {
+    return <String, dynamic>{
+      ...props,
+      'dateOfBirth': FieldValue.delete(),
+      'dob': FieldValue.delete(),
+      'bio': FieldValue.delete(),
+      'avatarPngUrl': FieldValue.delete(),
+    };
+  }
+
+  /// Build DiceBear API URL: seed for stable randomness plus explicit
+  /// avataaars params mapped from the answers.
+  static String _buildApiUrl(String seed, Map<String, dynamic> props) {
     const String style = 'avataaars';
 
     final Map<String, String> params = <String, String>{
       'seed': seed,
       'size': '400',
-
-      // 👇 Avatar zoom + position
-      'scale': '180',        // 140 se bhi bada – kam background, zyada face
-      'translateY': '-10',   // thoda sa upar shift
+      // Zoom in on the face and shift up slightly.
+      'scale': '180',
+      'translateY': '-10',
+      ...AvatarMapping.dicebearParams(props),
     };
 
     final uri = Uri.parse('$_baseUrl/$style/svg');
@@ -217,30 +233,23 @@ class DiceBearAvatarService {
 
     for (var attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        debugPrint('📥 Attempt $attempt/$maxRetries: Downloading...');
-
         final response = await http.get(Uri.parse(url)).timeout(_apiTimeout);
-
-        debugPrint('📡 Response status: ${response.statusCode}');
 
         if (response.statusCode == 200) {
           final bytes = response.bodyBytes;
           if (bytes.isEmpty) {
             throw Exception('Downloaded SVG is empty');
           }
-          debugPrint('✅ Download successful (${bytes.length} bytes)');
           return bytes;
         } else {
-          debugPrint('❌ Response body: ${response.body}');
           throw Exception('HTTP ${response.statusCode}');
         }
       } catch (e) {
         lastError = e;
-        debugPrint('⚠️ Attempt $attempt failed: $e');
+        _log('DiceBear: download attempt $attempt/$maxRetries failed: $e');
 
         if (attempt < maxRetries) {
           final delay = Duration(seconds: attempt * 2);
-          debugPrint('⏳ Retrying in ${delay.inSeconds}s...');
           await Future.delayed(delay);
         }
       }
@@ -252,8 +261,6 @@ class DiceBearAvatarService {
   /// ✅ Convert SVG bytes to PNG bytes
   static Future<Uint8List> _convertSvgToPng(Uint8List svgBytes) async {
     try {
-      debugPrint('🔄 Converting SVG to PNG...');
-
       // Decode SVG string
       final svgString = String.fromCharCodes(svgBytes);
 
@@ -272,11 +279,9 @@ class DiceBearAvatarService {
       }
 
       final pngBytes = byteData.buffer.asUint8List();
-      debugPrint('✅ SVG converted to PNG: ${pngBytes.length} bytes');
-
       return pngBytes;
     } catch (e) {
-      debugPrint('❌ SVG to PNG conversion failed: $e');
+      _log('DiceBear: SVG to PNG conversion failed: $e');
       rethrow;
     }
   }
@@ -288,8 +293,6 @@ class DiceBearAvatarService {
   }) async {
     final fileName = '${uid}_avatar_${DateTime.now().millisecondsSinceEpoch}.png';
     final useCloudinary = StorageConfig.kUseCloudinaryForMedia;
-
-    debugPrint('📤 Uploading PNG to ${useCloudinary ? "Cloudinary" : "Firebase"}...');
 
     if (useCloudinary) {
       final repo = const CloudinaryStorageRepo();
@@ -338,12 +341,12 @@ class DiceBearAvatarService {
       merged['interests'] = userDoc['interests'];
     }
 
-    if (!merged.containsKey('dateOfBirth') && !merged.containsKey('dob')) {
-      merged['dateOfBirth'] = userDoc['dateOfBirth'];
+    if (merged['dateOfBirth'] == null && merged['dob'] == null) {
+      merged['dateOfBirth'] = userDoc['dateOfBirth'] ?? userDoc['dob'];
     }
 
-    if (!merged.containsKey('bio') || merged['bio'] == null) {
-      merged['bio'] = userDoc['bio'];
+    if (merged['profession'] == null) {
+      merged['profession'] = userDoc['profession'];
     }
 
     return merged;
@@ -352,7 +355,6 @@ class DiceBearAvatarService {
   /// Validate required properties
   static void _validateProperties(Map<String, dynamic> props) {
     if (!props.containsKey('gender') || props['gender'].toString().trim().isEmpty) {
-      debugPrint('⚠️ Warning: Gender missing, using "other"');
       props['gender'] = 'other';
     }
   }

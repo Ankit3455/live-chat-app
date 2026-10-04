@@ -1,7 +1,28 @@
 import 'package:flutter/material.dart';
 
-/// App-wide color constants converted from colors.xml
+/// App-wide colour constants. The Destined palette below is the single source
+/// for screens; legacy names further down alias into it.
 class AppColors {
+  // Destined palette
+  // brandPurple is for fills; use brandPurpleLight for text/icons on dark.
+  static const Color brandPurple = Color(0xFF7B2CBF);
+  static const Color brandPurpleMid = Color(0xFF9D4EDD);
+  static const Color brandPurpleLight = Color(0xFFC77DFF);
+  static const Color brandViolet = Color(0xFF9333EA);
+  static const Color brandMagenta = Color(0xFF9C27B0);
+  static const Color brandPink = Color(0xFFEC4899); // glow accent
+  static const Color backgroundDeep = Color(0xFF1A0E2E);
+  static const Color backgroundDarkest = Color(0xFF0D0221);
+  static const Color surfaceCard = Color(0xFF2D1B4E);
+  static const Color surfaceRaised = Color(0xFF1C1033);
+  static const Color lavender = Color(0xFFB39DDB); // secondary text, >= 5.8:1
+  static const Color lavenderLight = Color(0xFFD1C4E9);
+  static const Color textMuted = Color(0xB3FFFFFF); // white70, helper text
+  static const Color online = Color(0xFF00E676);
+  static const Color onlineDeep = Color(0xFF00C853);
+  static const Color cyan = Color(0xFF00BCD4);
+  static const Color gold = Color(0xFFFFD700);
+
   // Purple shades
   static const Color purple200 = Color(0xFFBB86FC);
   static const Color purple500 = Color(0xFF6200EE);
@@ -31,16 +52,16 @@ class AppColors {
   static const Color abbey = Color(0xFF4C4C54);
   
   // App background & primary colors
-  static const Color appBackground = Color(0xFF24172E);
-  static const Color purplePrimary = Color(0xFFA413EC);
-  static const Color purpleSecondary = Color(0xFFC252FF);
+  static const Color appBackground = backgroundDeep;
+  static const Color purplePrimary = brandPurple;
+  static const Color purpleSecondary = brandPurpleMid;
   static const Color buttonTextWhite = Color(0xFFFFFFFF);
   
   // Input field colors
-  static const Color hintPurple = Color(0xFFA482B5);
+  static const Color hintPurple = lavender;
   static const Color inputTextWhite = Color(0xFFFFFFFF);
   static const Color inputBackground = Color(0xFF3A2150);
-  static const Color purplePressed = Color(0xFF8A0BC9);
+  static const Color purplePressed = Color(0xFF5A1F8C);
   static const Color outlinePressedBg = Color(0xFF35293A);
   
   // Status colors
@@ -72,7 +93,7 @@ class AppColors {
   static const Color royalBlueDark = Color(0xFF1A237E);
   static const Color royalBlueMedium = Color(0xFF283593);
   static const Color royalBlueLight = Color(0xFF303F9F);
-  static const Color royalGold = Color(0xFFFFD700);
+  static const Color royalGold = gold;
   static const Color royalPurple = Color(0xFF4A148C);
   static const Color royalRed = Color(0xFFB71C1C);
   static const Color royalGreen = Color(0xFF1B5E20);
@@ -85,27 +106,27 @@ class AppColors {
   
   // Bottom navigation
   static const Color bottomNavTopDivider = Color(0x335A4664);
-  static const Color bottomNavActive = purpleSecondary; // #C252FF
-  static const Color bottomNavInactive = wisteria; // #9269A7
+  static const Color bottomNavActive = brandPurpleLight;
+  static const Color bottomNavInactive = lavender;
   
   // Google branding
   static const Color googleBlue = Color(0xFF4285F4);
   
   // Gradients
   static const LinearGradient purpleGradient = LinearGradient(
-    colors: [purplePrimary, purpleSecondary],
+    colors: [brandPurple, brandPurpleMid],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
   
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [Color(0xFFA413EC), Color(0xFFC252FF)],
+    colors: [brandPurple, brandPurpleMid],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );
   
   static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF3A2150), Color(0xFF24172E)],
+    colors: [surfaceCard, backgroundDeep],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );

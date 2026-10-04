@@ -9,8 +9,9 @@ import 'package:availchat/screens/questionnaire/widgets/progress_header.dart';
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
 import 'package:availchat/screens/profile/avatar_preview_screen.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
-// ✅ ADD this import
+import 'package:availchat/services/location_service.dart';
 import '../../features/onboarding/tour_prefs.dart';
+import '../../core/constants/app_colors.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   const QuestionnaireScreen({Key? key}) : super(key: key);
@@ -25,6 +26,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   final Map<String, dynamic> _answers = {};
   int _currentPage = 0;
   bool _isSaving = false;
+  bool _completed = false;
 
   @override
   void dispose() {
@@ -71,201 +73,203 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> _saveToFirestoreAndOpenAvatar() async {
-    if (_isSaving) return;
+    if (_isSaving || _completed) return;
 
     setState(() => _isSaving = true);
 
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) throw Exception('User not authenticated');
+      if (userId == null) throw StateError('Not signed in');
 
-      // Prepare data
-      final Map<String, dynamic> userData = Map.from(_answers);
+      final userData = <String, dynamic>{};
+      _answers.forEach((key, value) {
+        userData[key] = value is String ? value.trim() : value;
+      });
 
-      // --- Normalise & copy important top-level fields for consistency ---
-      final rawGender = (_answers['gender'] ?? '').toString().trim();
-      if (rawGender.isNotEmpty) {
-        // store normalized lowercase gender so other parts (filters, mapping) read consistent value
-        userData['gender'] = rawGender.toLowerCase();
-      }
+      // Normalised lowercase gender keeps filters and avatar mapping consistent.
+      final rawGender = (userData['gender'] ?? '').toString();
+      if (rawGender.isNotEmpty) userData['gender'] = rawGender.toLowerCase();
 
-      final rawLocation = (_answers['location'] ?? '').toString().trim();
-      if (rawLocation.isNotEmpty) {
-        userData['location'] = rawLocation;
-      }
+      // The location answer is the current city; birth place stays in
+      // birthLocation (written at signup).
+      final city = (userData['location'] ?? '').toString();
+      if (city.isNotEmpty) userData['currentCity'] = city;
 
-      // Build avatar seed properties (used by the generator)
-      userData['avatarProperties'] =
-          QuestionnaireHelper.buildAvatarProperties(_answers);
+      userData['avatarProperties'] = QuestionnaireHelper.buildAvatarProperties(
+        _answers,
+      );
+      userData['avatarVersion'] = 1;
+      userData['isCustomAvatar'] = false;
 
-      // set initial avatarVersion and isCustomAvatar properly
-      userData['avatarVersion'] = 1; // first time, increment later if changed
-      userData['isCustomAvatar'] = false; // using generated PNG, not uploaded photo
-
-      // Geocode if location is given
-      final location = _answers['location'] as String?;
-      if (location != null && location.isNotEmpty) {
+      if (city.isNotEmpty) {
         try {
-          final list = await locationFromAddress(location);
+          final list = await locationFromAddress(
+            city,
+          ).timeout(const Duration(seconds: 8));
           if (list.isNotEmpty) {
-            userData['userLatitude'] = list.first.latitude;
-            userData['userLongitude'] = list.first.longitude;
+            // Rounded coordinates plus a coarse geohash only (DEST-002/081).
+            userData.addAll(
+              LocationService.locationFields(
+                list.first.latitude,
+                list.first.longitude,
+              ),
+            );
           }
         } catch (e) {
-          debugPrint('Location error: $e');
+          debugPrint('Geocoding failed: $e');
         }
       }
 
-      // Save to Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .set(userData, SetOptions(merge: true));
 
-      // Mark as signup completed (phase 1)
+      // Also recomputes profileCompletionPercentage.
       await ProfileCompletionManager().markSignupComplete();
 
-      // Update profile completion percentage
-      final percent = await ProfileCompletionManager().getCompletionPercentage();
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({'profileCompletionPercentage': percent});
-
-      // ✅ SET FLAG so onboarding shows after reaching home
       await TourPrefs.setForceShowAfterSignup(true);
 
-      // ✅ Go to AVATAR PREVIEW SCREEN
+      if (!mounted) return;
+      _completed = true;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              AvatarPreviewScreen(answers: Map<String, dynamic>.from(_answers)),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Questionnaire save failed: $e');
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AvatarPreviewScreen(
-              answers: Map<String, dynamic>.from(_answers),
-            ),
-          ),
+        _showError(
+          'Could not save your answers. Check your connection and try again.',
         );
       }
-    } catch (e) {
-      if (mounted) {
-        _showError('Failed: $e');
-      }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted && !_completed) setState(() => _isSaving = false);
     }
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            ProgressHeader(
-              currentStep: _currentPage + 1,
-              totalSteps: _questions.length,
-              title: 'Basic Profile',
-            ),
-            const SizedBox(height: 24),
-
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (page) {
-                  setState(() => _currentPage = page);
-                },
-                itemCount: _questions.length,
-                itemBuilder: (context, index) {
-                  final q = _questions[index];
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: QuestionWidget(
-                      question: q,
-                      answer: _answers[q.fieldName],
-                      onAnswerChanged: (ans) {
-                        setState(() {
-                          _answers[q.fieldName] = ans;
-                        });
-                      },
-                    ),
-                  );
-                },
+    // Back steps through the questions; on the first question it leaves
+    // the app (this screen is the root of the onboarding chain).
+    return PopScope(
+      canPop: _currentPage == 0 && !_isSaving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_isSaving) _previousPage();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundDeep,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              ProgressHeader(
+                currentStep: _currentPage + 1,
+                totalSteps: _questions.length,
+                title: 'Basic Profile',
               ),
-            ),
+              const SizedBox(height: 24),
 
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Row(
-                children: [
-                  if (_currentPage > 0)
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (page) {
+                    setState(() => _currentPage = page);
+                  },
+                  itemCount: _questions.length,
+                  itemBuilder: (context, index) {
+                    final q = _questions[index];
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: QuestionWidget(
+                        question: q,
+                        answer: _answers[q.fieldName],
+                        onAnswerChanged: (ans) {
+                          setState(() {
+                            _answers[q.fieldName] = ans;
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  children: [
+                    if (_currentPage > 0)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isSaving ? null : _previousPage,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.brandPurple),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text(
+                            'Back',
+                            style: TextStyle(
+                              color: AppColors.brandPurpleLight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_currentPage > 0) const SizedBox(width: 16),
+
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: _previousPage,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFF7B2CBF)),
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _nextPage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brandPurple,
+                          disabledBackgroundColor: AppColors.surfaceCard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(28),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text(
-                          'Back',
-                          style: TextStyle(
-                            color: Color(0xFF7B2CBF),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                _currentPage == _questions.length - 1
+                                    ? 'Finish & Create Avatar'
+                                    : 'Continue',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
-                  if (_currentPage > 0) const SizedBox(width: 16),
-
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _nextPage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7B2CBF),
-                        disabledBackgroundColor: const Color(0xFF2D1B4E),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : Text(
-                        _currentPage == _questions.length - 1
-                            ? 'Finish & Create Avatar'
-                            : 'Continue',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

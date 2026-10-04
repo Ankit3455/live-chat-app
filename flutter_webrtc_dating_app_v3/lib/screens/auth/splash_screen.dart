@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
-import '../home/home_screen.dart';
-import 'login_screen.dart';
+import 'auth_router.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,11 +14,11 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
-
     // Setup animations
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),
@@ -47,25 +45,12 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  void _checkAuthAndNavigate() {
-  final user = FirebaseAuth.instance.currentUser;
-  
-  print('🔍 DEBUG: Current user: ${user?.email ?? "Not logged in"}');  // ← ADD THIS
-
-  if (mounted) {
-    if (user != null) {
-      print('🔍 DEBUG: Navigating to HomeScreen');  // ← ADD THIS
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } else {
-      print('🔍 DEBUG: Navigating to LoginScreen');  // ← ADD THIS
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    }
+  // Timer and CTA share this; the guard stops a double push.
+  Future<void> _checkAuthAndNavigate() async {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    await AuthRouter.routeCurrentUser(context);
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen>
                             'Discover a love written in the stars,\nyour celestial journey begins here 🌌',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFFD1C4E9),
+                              color: AppColors.lavenderLight,
                               fontSize: 16,
                               height: 1.5,
                             ),

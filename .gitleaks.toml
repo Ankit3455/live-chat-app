@@ -1,0 +1,84 @@
+# gitleaks config for the Destined repo. Requires gitleaks >= v8.25 ([[allowlists]]).
+#   Scan working tree:   gitleaks dir .
+#   Scan git history:    gitleaks git .
+# The pre-commit hook (.pre-commit-config.yaml) runs this on staged changes.
+
+title = "Destined secret scanning"
+
+[extend]
+useDefault = true
+
+# --- Project-specific rules (on top of the gitleaks defaults) ---
+
+[[rules]]
+id = "onesignal-rest-api-key"
+description = "OneSignal REST / Organization API key (v2 format)"
+regex = '''\b(os_v2_(?:app|org)_[a-z0-9]{50,})\b'''
+secretGroup = 1
+keywords = ["os_v2_"]
+
+[[rules]]
+id = "onesignal-legacy-rest-api-key"
+description = "OneSignal legacy REST API key assigned to a variable"
+regex = '''(?i)onesignal[\w.-]{0,30}(?:rest|api|auth)[\w.-]{0,20}key\w*['"]?\s*(?::|=|=>)\s*['"]([A-Za-z0-9+/=_-]{40,})['"]'''
+secretGroup = 1
+keywords = ["onesignal"]
+
+[[rules]]
+id = "cloudinary-url"
+description = "CLOUDINARY_URL with embedded API key and secret"
+regex = '''cloudinary://[0-9]{6,}:([A-Za-z0-9_-]{20,})@[A-Za-z0-9_-]+'''
+secretGroup = 1
+keywords = ["cloudinary://"]
+
+[[rules]]
+id = "cloudinary-api-secret"
+description = "Cloudinary API secret assigned to a variable"
+regex = '''(?i)cloudinary[\w.-]{0,20}(?:api)?[_.-]?secret\w*['"]?\s*(?::|=|=>)\s*['"]([A-Za-z0-9_-]{24,})['"]'''
+secretGroup = 1
+keywords = ["cloudinary"]
+
+[[rules]]
+id = "turn-static-auth-secret"
+description = "coturn static-auth-secret / TURN shared secret"
+regex = '''(?i)(?:static-auth-secret|turn[_-]?(?:shared[_-]?)?secret)\s*(?::|=)\s*['"]?([A-Za-z0-9+/=_-]{16,})['"]?'''
+secretGroup = 1
+keywords = ["static-auth-secret", "turn_secret", "turn-secret", "turn_shared_secret", "turnsecret"]
+
+# --- Allowlists ---
+
+# Firebase client config. These API keys are public identifiers by design and are
+# protected by API-key restrictions + App Check (see README "Secrets"), not secrecy.
+# Never put a server key, service account or REST key in these files.
+[[allowlists]]
+description = "Generated Firebase client config (public API keys)"
+targetRules = ["gcp-api-key", "generic-api-key"]
+paths = [
+  '''(^|/)lib/firebase_options\.dart$''',
+  '''(^|/)google-services\.json$''',
+  '''(^|/)GoogleService-Info\.plist$''',
+  '''(^|/)firebase_app_id_file\.json$''',
+]
+
+# The OneSignal REST key leaked in these two historical commits (DEST-007). It is
+# only acceptable to ignore once the key has been ROTATED and the old one revoked
+# (owner step O-1). Delete this block if history is rewritten with git filter-repo.
+[[allowlists]]
+description = "Revoked OneSignal key in pre-remediation history (DEST-007)"
+condition = "AND"
+targetRules = ["onesignal-rest-api-key", "onesignal-legacy-rest-api-key", "generic-api-key"]
+commits = [
+  "4b7a1240192e584b3e468ec5fcd80b170dacca2c",
+  "75f0aebc7fec5a1ccf2a4c74e2e96295ef2476b3",
+]
+paths = ['''(^|/)lib/services/notification/onesignal_sender\.dart$''']
+
+[[allowlists]]
+description = "Dependency lockfiles and build output"
+paths = [
+  '''(^|/)pubspec\.lock$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)build/''',
+  '''(^|/)\.dart_tool/''',
+]

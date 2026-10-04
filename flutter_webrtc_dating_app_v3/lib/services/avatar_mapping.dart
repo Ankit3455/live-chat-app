@@ -1,75 +1,201 @@
 // lib/services/avatar_mapping.dart
 //
-// Enhanced avatar mapping for DiceBear
-// Maps questionnaire answers to avatar properties
+// Maps questionnaire answers to avatar properties (the single props shape
+// stored in users/{uid}.avatarProperties) and turns those properties into
+// explicit DiceBear avataaars query params.
 
 class AvatarMapping {
-  /// Build avatar properties from questionnaire answers
-  static Map<String, dynamic> buildFromAnswers(Map<String, dynamic> answers) {
-    // Normalize gender (critical for DiceBear)
-    final rawGender = (answers['gender'] ?? '').toString().trim();
-    final gender = _normalizeGender(rawGender);
+  static const List<String> _maleTops = [
+    'shortFlat',
+    'shortRound',
+    'shortWaved',
+    'shortCurly',
+    'theCaesar',
+    'theCaesarAndSidePart',
+    'sides',
+    'shavedSides',
+    'frizzle',
+    'dreads01',
+  ];
 
-    // Habits
-    final rawHabits = (answers['habits'] ?? answers['habit'] ?? '').toString().trim();
+  static const List<String> _femaleTops = [
+    'bigHair',
+    'bob',
+    'bun',
+    'curly',
+    'curvy',
+    'frida',
+    'longButNotTooLong',
+    'miaWallace',
+    'straight01',
+    'straight02',
+    'straightAndStrand',
+  ];
+
+  static const List<String> _maleFacialHair = [
+    'beardLight',
+    'beardMedium',
+    'moustacheFancy',
+  ];
+
+  static const List<String> _readingAccessories = [
+    'prescription01',
+    'prescription02',
+    'round',
+  ];
+
+  /// Build avatar properties from questionnaire answers (or from a stored
+  /// avatarProperties map merged with user-doc fields; the shape is the same).
+  static Map<String, dynamic> buildFromAnswers(Map<String, dynamic> answers) {
+    final gender = normalizeGender(answers['gender']);
+
+    final rawHabits =
+        (answers['habits'] ?? answers['habit'] ?? '').toString().trim();
     final habits = rawHabits.isNotEmpty ? rawHabits.toLowerCase() : 'balanced';
 
-    // Interests
     final interests = (answers['interests'] is List)
-        ? List<String>.from((answers['interests'] as List).map((e) => e.toString().toLowerCase()))
+        ? List<String>.from((answers['interests'] as List)
+            .map((e) => e.toString().toLowerCase()))
         : <String>[];
 
-    // Username
-    final username = (answers['username'] ?? answers['userName'] ?? '').toString().trim();
+    final username =
+        (answers['username'] ?? answers['userName'] ?? '').toString().trim();
 
-    // Date of birth
-    final dob = answers['dateOfBirth'] ?? answers['dob'];
+    // Only the derived age group is kept; exact DOB is private.
+    final fromDob = ageGroupFromDob(answers['dateOfBirth'] ?? answers['dob']);
+    final ageGroup =
+        fromDob.isNotEmpty ? fromDob : (answers['ageGroup'] ?? '').toString();
 
-    // Bio
-    final bio = (answers['bio'] ?? '').toString().trim();
+    final profession = (answers['profession'] ?? '').toString().trim();
 
-    // Build properties map
     final props = <String, dynamic>{
-      'gender': gender, // ✅ Normalized
+      'gender': gender,
       'habit': habits,
       'interests': interests,
       if (username.isNotEmpty) 'username': username,
-      if (dob != null) 'dateOfBirth': dob,
-      if (bio.isNotEmpty) 'bio': bio,
+      if (ageGroup.isNotEmpty) 'ageGroup': ageGroup,
+      if (profession.isNotEmpty) 'profession': profession,
     };
 
-    // Derived boolean flags
     props['likesMusic'] = interests.any((i) => i.contains('music'));
-    props['likesSports'] = interests.any((i) => i.contains('sport'));
-    props['likesArt'] = interests.any((i) => i.contains('art'));
+    props['likesSports'] = interests.any(
+        (i) => i.contains('sport') || i.contains('yoga') || i.contains('danc'));
+    props['likesArt'] = interests.any(
+        (i) => i.contains('art') || i.contains('photo'));
     props['likesReading'] = interests.any((i) => i.contains('reading'));
 
-    // Background tone from habits
     props['bgTone'] = _bgToneFromHabits(habits);
 
     return props;
   }
 
-  /// Normalize gender to lowercase standard values
-  static String _normalizeGender(String? gender) {
-    if (gender == null || gender.isEmpty) return 'other';
+  /// Explicit avataaars params derived from [props]. The seed only adds
+  /// stable randomness inside these constraints.
+  static Map<String, String> dicebearParams(Map<String, dynamic> props) {
+    final gender = normalizeGender(props['gender']);
+    final fromDob = ageGroupFromDob(props['dateOfBirth'] ?? props['dob']);
+    final ageGroup =
+        fromDob.isNotEmpty ? fromDob : (props['ageGroup'] ?? '').toString();
+    final bgTone = (props['bgTone'] ??
+            _bgToneFromHabits(
+                (props['habit'] ?? props['habits'] ?? '').toString()))
+        .toString();
 
-    final g = gender.toLowerCase().trim();
+    final params = <String, String>{
+      'backgroundColor': _backgroundColors(bgTone).join(','),
+    };
 
-    // Male variations
+    switch (gender) {
+      case 'male':
+        params['top'] = _maleTops.join(',');
+        params['topProbability'] = '100';
+        params['facialHair'] = _maleFacialHair.join(',');
+        params['facialHairProbability'] =
+            ageGroup == 'adult' ? '60' : (ageGroup == 'young' ? '35' : '20');
+        break;
+      case 'female':
+        params['top'] = _femaleTops.join(',');
+        params['topProbability'] = '100';
+        params['facialHairProbability'] = '0';
+        break;
+      default:
+        params['topProbability'] = '100';
+        params['facialHairProbability'] = '0';
+    }
+
+    if (props['likesReading'] == true) {
+      params['accessories'] = _readingAccessories.join(',');
+      params['accessoriesProbability'] = '70';
+    } else {
+      params['accessoriesProbability'] = '10';
+    }
+
+    if (props['likesSports'] == true) {
+      params['clothing'] = 'hoodie,shirtCrewNeck,shirtVNeck';
+    } else if (props['likesArt'] == true) {
+      params['clothing'] = 'graphicShirt,overall,collarAndSweater';
+    } else if (ageGroup == 'adult') {
+      params['clothing'] = 'blazerAndShirt,blazerAndSweater,collarAndSweater';
+    }
+
+    return params;
+  }
+
+  /// Normalize gender to 'male' / 'female' / 'other'.
+  static String normalizeGender(dynamic gender) {
+    if (gender == null) return 'other';
+    final g = gender.toString().toLowerCase().trim();
     if (g == 'male' || g == 'man' || g == 'm') return 'male';
-
-    // Female variations
     if (g == 'female' || g == 'woman' || g == 'f') return 'female';
-
-    // Everything else
     return 'other';
   }
 
-  /// Background tone from habits
+  /// 'young' (<=35), 'adult' (>35) or '' when DOB is unknown.
+  /// Accepts DateTime, ISO string, epoch int, or a Firestore Timestamp
+  /// (duck-typed via toDate()).
+  static String ageGroupFromDob(dynamic raw) {
+    DateTime? dob;
+    try {
+      if (raw is DateTime) {
+        dob = raw;
+      } else if (raw is String) {
+        dob = DateTime.tryParse(raw);
+      } else if (raw is int) {
+        dob = raw > 1000000000000
+            ? DateTime.fromMillisecondsSinceEpoch(raw)
+            : DateTime.fromMillisecondsSinceEpoch(raw * 1000);
+      } else if (raw != null) {
+        final dynamic d = (raw as dynamic).toDate();
+        if (d is DateTime) dob = d;
+      }
+    } catch (_) {}
+    if (dob == null) return '';
+
+    final now = DateTime.now();
+    final age = now.year -
+        dob.year -
+        ((now.month < dob.month ||
+                (now.month == dob.month && now.day < dob.day))
+            ? 1
+            : 0);
+    return age <= 35 ? 'young' : 'adult';
+  }
+
+  static List<String> _backgroundColors(String tone) {
+    switch (tone) {
+      case 'dark':
+        return ['65c9ff', '5199e4', 'c0aede'];
+      case 'light':
+        return ['ffdfbf', 'ffd5dc', 'fff2b3'];
+      default:
+        return ['b6e3f4', 'd1d4f9', 'c0aede'];
+    }
+  }
+
   static String _bgToneFromHabits(String habits) {
-    if (habits.contains('night')) return 'dark';
-    if (habits.contains('early') || habits.contains('morning')) return 'light';
+    final h = habits.toLowerCase();
+    if (h.contains('night')) return 'dark';
+    if (h.contains('early') || h.contains('morning')) return 'light';
     return 'neutral';
   }
 }

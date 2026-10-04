@@ -1,16 +1,14 @@
 // lib/screens/profile/profile_edit_screen.dart
-import 'dart:io';
+//
+// Text fields and voice intro only. Photo/avatar actions live in
+// My Profile's Change Avatar sheet (ProfilePhotoService).
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/services/location_service.dart';
 import 'package:availchat/widgets/voice/voice_intro_section.dart';
-
-import 'package:availchat/core/config/storage_config.dart';
-import 'package:availchat/services/storage/storage_repo.dart';
-import 'package:availchat/services/storage/firebase_storage_repo.dart';
-import 'package:availchat/services/storage/cloudinary_storage_repo.dart';
+import '../../core/constants/app_colors.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final UserModel user;
@@ -29,10 +27,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late TextEditingController _locationController;
 
   bool _isSaving = false;
-  bool _isRefreshing = false;
-
-  StorageRepo get _storage =>
-      StorageConfig.kUseCloudinaryForMedia ? const CloudinaryStorageRepo() : FirebaseStorageRepo();
+  Stream<DocumentSnapshot>? _voiceDocStream;
 
   @override
   void initState() {
@@ -54,6 +49,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
+    if (widget.user.uid == null) return;
 
     setState(() => _isSaving = true);
 
@@ -68,11 +64,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         'location': _locationController.text.trim(),
       });
 
+      // City changed: re-geocode so distance follows the new city (DEST-081).
+      final newCity = _locationController.text.trim();
+      final cityFound = newCity.isEmpty ||
+          newCity == (widget.user.location ?? '').trim() ||
+          await LocationService.instance.updateFromCity(newCity);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Profile updated successfully!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(cityFound
+              ? '✅ Profile updated successfully!'
+              : 'Profile updated. Could not find that city; distance may be inaccurate.'),
+          backgroundColor: cityFound ? Colors.green : null,
         ),
       );
       Navigator.pop(context, true);
@@ -85,100 +89,41 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  /// Reloads the profile and puts the latest values into the fields.
   Future<void> _refresh() async {
-    if (widget.user.uid == null) return;
-    setState(() => _isRefreshing = true);
+    final uid = widget.user.uid;
+    if (uid == null) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).get();
-
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('🔄 Refreshed')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Refresh failed: $e')));
-    } finally {
-      if (mounted) setState(() => _isRefreshing = false);
-    }
-  }
-
-  Future<void> _changePhoto() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-
-    try {
-      if (mounted) {
+      if (!doc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Uploading photo...')),
-        );
+            const SnackBar(content: Text('Profile not found')));
+        return;
       }
-
-      final url = await _storage.uploadImageFile(
-        folder: 'profile_photos',
-        file: File(picked.path),
-      );
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({
-        'profileImage': url,
-        // user uploaded photo -> custom avatar true
-        'isCustomAvatar': true,
-        'avatarVersion': FieldValue.increment(1),
+      final fresh = UserModel.fromFirestore(doc);
+      setState(() {
+        _usernameController.text = fresh.username;
+        _bioController.text = fresh.bio ?? '';
+        _professionController.text = fresh.profession ?? '';
+        _locationController.text = fresh.location ?? '';
       });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Profile photo updated')),
-      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-    }
-  }
-
-  Future<void> _resetToAvatar() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).get();
-      final data = doc.data() ?? {};
-      final props = (data['avatarProperties'] as Map<String, dynamic>?) ?? {};
-      final avatarUrl = (props['avatarPngUrl'] as String?) ?? '';
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.user.uid)
-          .update({
-        'profileImage': avatarUrl.isNotEmpty ? avatarUrl : null,
-        // reset to generated avatar -> NOT custom
-        'isCustomAvatar': false,
-        'avatarVersion': FieldValue.increment(1),
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Reset to Avatar'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed: $e')));
+      debugPrint('Profile refresh failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not refresh. Please try again.')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Edit Profile'),
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         actions: [
           if (_isSaving)
             const Padding(
@@ -194,6 +139,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             )
           else
             IconButton(
+              tooltip: 'Save changes',
               icon: const Icon(Icons.check, color: Colors.white),
               onPressed: _saveChanges,
             ),
@@ -202,13 +148,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: Colors.white,
-        backgroundColor: const Color(0xFF2D1B4E),
+        backgroundColor: AppColors.surfaceCard,
         child: Form(
           key: _formKey,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24.0),
             children: [
+              _buildSectionHeader('About you'),
               _buildTextField(
                 controller: _usernameController,
                 label: 'Username',
@@ -225,7 +172,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 maxLines: 5,
                 maxLength: 150,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              _buildSectionHeader('Work & location'),
               _buildTextField(
                 controller: _professionController,
                 label: 'Profession',
@@ -237,66 +185,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 label: 'Location',
                 icon: Icons.location_on,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
               const Divider(color: Colors.white24, height: 1),
               const SizedBox(height: 18),
               _liveVoiceSection(widget.user),
-              const SizedBox(height: 18),
-              const Divider(color: Colors.white24, height: 1),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D1B4E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Profile Photo',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _changePhoto,
-                          icon: const Icon(Icons.photo),
-                          label: const Text('Change Photo'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7B2CBF),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton(
-                          onPressed: _resetToAvatar,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white38),
-                          ),
-                          child: const Text(
-                            'Reset to Avatar',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
               const SizedBox(height: 32),
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveChanges,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7B2CBF),
-                    disabledBackgroundColor: const Color(0xFF2D1B4E),
+                    backgroundColor: AppColors.brandPurple,
+                    disabledBackgroundColor: AppColors.surfaceCard,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
                     ),
@@ -320,7 +220,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   ),
                 ),
               ),
-              if (_isRefreshing) const SizedBox(height: 24),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -333,10 +233,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return VoiceIntroSection(user: base);
     }
 
-    final docRef = FirebaseFirestore.instance.collection('users').doc(base.uid);
+    _voiceDocStream ??=
+        FirebaseFirestore.instance.collection('users').doc(base.uid).snapshots();
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: docRef.snapshots(),
+      stream: _voiceDocStream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -371,6 +272,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
   }
 
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -386,17 +301,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFFB39DDB)),
-        prefixIcon: Icon(icon, color: const Color(0xFF7B2CBF)),
+        labelStyle: const TextStyle(color: AppColors.lavender),
+        prefixIcon: Icon(icon, color: AppColors.brandPurpleLight),
         filled: true,
-        fillColor: const Color(0xFF2D1B4E),
+        fillColor: AppColors.surfaceCard,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF7B2CBF), width: 2),
+          borderSide: const BorderSide(color: AppColors.brandPurple, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

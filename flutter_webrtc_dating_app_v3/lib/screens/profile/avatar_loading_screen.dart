@@ -1,5 +1,6 @@
 // lib/screens/profile/avatar_loading_screen.dart
 import 'package:flutter/material.dart';
+import '../../core/constants/app_colors.dart';
 
 class AvatarLoadingScreen extends StatelessWidget {
   final String title;
@@ -14,7 +15,7 @@ class AvatarLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A0E2E),
+      backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
         child: Center(
           child: Padding(

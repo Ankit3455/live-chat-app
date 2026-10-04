@@ -2,6 +2,7 @@ import '../../../models/question_model.dart';
 import '../../../models/question_type.dart';
 import '../../../models/question_category.dart';
 import '../../../models/profile_section_model.dart';
+import '../../../services/avatar_mapping.dart';
 
 /// Helper class containing all questionnaire questions
 /// Converted from QuestionnaireHelper.kt
@@ -101,7 +102,7 @@ class QuestionnaireHelper {
         fieldName: 'location',
         category: QuestionCategory.basic,
         icon: '📍',
-        helperText: 'We\'ll show you people nearby for easier meetups!',
+        helperText: 'Your current city. We\'ll show you people nearby for easier meetups!',
       ),
       const Question(
         text: 'Tell us about yourself (short bio)',
@@ -109,7 +110,7 @@ class QuestionnaireHelper {
         fieldName: 'bio',
         category: QuestionCategory.basic,
         icon: '✍️',
-        helperText: 'Your bio is your first impression! Share what makes you unique. (Max 500 words)',
+        helperText: 'Your bio is your first impression! Share what makes you unique. (Max 500 characters)',
       ),
     ];
   }
@@ -142,7 +143,7 @@ class QuestionnaireHelper {
           'Open for everything',
           'Casual dating',
         ],
-        inputType: QuestionType.singleChoice,
+        inputType: QuestionType.multiChoice,
         fieldName: 'hereFor',
         category: QuestionCategory.relationship,
         isMandatory: true,
@@ -467,12 +468,8 @@ class QuestionnaireHelper {
     }
   }
 
-  // ✅ NEW: Build avatar properties for avatar generation
+  /// Avatar properties in the shape DiceBearAvatarService stores.
   static Map<String, dynamic> buildAvatarProperties(Map<String, dynamic> answers) {
-    return {
-      'gender': answers['gender'],
-      'interests': answers['interests'] ?? [],
-      'habits': answers['habits'],
-    };
+    return AvatarMapping.buildFromAnswers(answers);
   }
 }

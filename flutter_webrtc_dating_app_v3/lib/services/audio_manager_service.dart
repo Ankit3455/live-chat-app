@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 
@@ -11,9 +12,9 @@ class AudioManagerService {
 
     try {
       await _channel.invokeMethod('setCallAudioMode', {'inCall': inCall});
-      print('✅ Audio mode set: inCall=$inCall');
+      debugPrint('✅ Audio mode set: inCall=$inCall');
     } catch (e) {
-      print('❌ Failed to set audio mode: $e');
+      debugPrint('❌ Failed to set audio mode: $e');
     }
   }
 
@@ -23,9 +24,9 @@ class AudioManagerService {
 
     try {
       await _channel.invokeMethod('setSpeakerphone', {'enabled': enabled});
-      print('🔊 Speakerphone: ${enabled ? "ON" : "OFF"}');
+      debugPrint('🔊 Speakerphone: ${enabled ? "ON" : "OFF"}');
     } catch (e) {
-      print('❌ Failed to set speakerphone: $e');
+      debugPrint('❌ Failed to set speakerphone: $e');
     }
   }
 }

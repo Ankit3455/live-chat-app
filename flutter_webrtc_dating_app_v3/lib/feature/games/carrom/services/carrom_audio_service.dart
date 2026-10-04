@@ -2,6 +2,16 @@
 // STATUS: NEW FILE ✅
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
+
+// Reuses the sounds already bundled under assets/sounds/ (declared in
+// pubspec). Swap these paths if dedicated Carrom sounds are added.
+const String _strikeSound = 'sounds/move.wav';
+const String _pocketSound = 'sounds/move.wav';
+const String _collisionSound = 'sounds/move.wav';
+const String _victorySound = 'sounds/win.mp3';
+const String _defeatSound = 'sounds/lose.mp3';
+const String _foulSound = 'sounds/laugh.mp3';
 
 class CarromAudioService {
   static final CarromAudioService _instance = CarromAudioService._internal();
@@ -33,7 +43,7 @@ class CarromAudioService {
 
       _isInitialized = true;
     } catch (e) {
-      print('Audio init error: $e');
+      debugPrint('Carrom audio init error: $e');
     }
   }
 
@@ -46,11 +56,11 @@ class CarromAudioService {
     try {
       await _strikePlayer.stop();
       await _strikePlayer.play(
-        AssetSource('games/carrom/audio/strike.mp3'),
+        AssetSource(_strikeSound),
         volume: 0.7,
       );
     } catch (e) {
-      // Silently fail if audio not available
+      debugPrint('Carrom sound failed: $e');
     }
   }
 
@@ -59,11 +69,11 @@ class CarromAudioService {
     try {
       await _pocketPlayer.stop();
       await _pocketPlayer.play(
-        AssetSource('games/carrom/audio/pocket.mp3'),
+        AssetSource(_pocketSound),
         volume: 0.8,
       );
     } catch (e) {
-      // Silently fail
+      debugPrint('Carrom sound failed: $e');
     }
   }
 
@@ -72,11 +82,11 @@ class CarromAudioService {
     try {
       await _collisionPlayer.stop();
       await _collisionPlayer.play(
-        AssetSource('games/carrom/audio/collision.mp3'),
+        AssetSource(_collisionSound),
         volume: 0.4,
       );
     } catch (e) {
-      // Silently fail
+      debugPrint('Carrom sound failed: $e');
     }
   }
 
@@ -85,11 +95,11 @@ class CarromAudioService {
     try {
       await _victoryPlayer.stop();
       await _victoryPlayer.play(
-        AssetSource('games/carrom/audio/victory.mp3'),
+        AssetSource(_victorySound),
         volume: 0.8,
       );
     } catch (e) {
-      // Silently fail
+      debugPrint('Carrom sound failed: $e');
     }
   }
 
@@ -98,11 +108,11 @@ class CarromAudioService {
     try {
       await _defeatPlayer.stop();
       await _defeatPlayer.play(
-        AssetSource('games/carrom/audio/defeat.mp3'),
+        AssetSource(_defeatSound),
         volume: 0.6,
       );
     } catch (e) {
-      // Silently fail
+      debugPrint('Carrom sound failed: $e');
     }
   }
 
@@ -111,11 +121,11 @@ class CarromAudioService {
     try {
       await _foulPlayer.stop();
       await _foulPlayer.play(
-        AssetSource('games/carrom/audio/foul.mp3'),
+        AssetSource(_foulSound),
         volume: 0.7,
       );
     } catch (e) {
-      // Silently fail
+      debugPrint('Carrom sound failed: $e');
     }
   }
 

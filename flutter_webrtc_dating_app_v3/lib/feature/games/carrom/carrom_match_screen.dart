@@ -6,7 +6,9 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
+import '../../../core/constants/app_colors.dart';
 
 class CarromMatchScreen extends StatefulWidget {
   final String matchId;
@@ -33,7 +35,19 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   // Countdown
   int _countdown = 3;
   bool _countdownStarted = false;
+  bool _countdownDone = false;
   bool _showGo = false;
+
+  // If the match has not started by then, it is cancelled.
+  static const Duration _joinTimeout = Duration(seconds: 20);
+  static const Duration _startTimeout = Duration(seconds: 15);
+  Timer? _joinTimer;
+  bool _navigated = false;
+  bool _closing = false;
+  String? _myUid;
+
+  DocumentReference<Map<String, dynamic>> get _ref =>
+      _firestore.collection('carrom_matches').doc(widget.matchId);
 
   // Animation Controllers
   late AnimationController _vsController;
@@ -53,8 +67,21 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   @override
   void initState() {
     super.initState();
+    _myUid = _auth.currentUser?.uid;
     _initAnimations();
+    _markJoined();
     _listenMatch();
+    _joinTimer = Timer(_joinTimeout, _onStartTimeout);
+  }
+
+  Future<void> _markJoined() async {
+    final uid = _myUid;
+    if (uid == null) return;
+    try {
+      await _ref.update({'joined.$uid': true});
+    } catch (e) {
+      debugPrint('Carrom join failed: $e');
+    }
   }
 
   void _initAnimations() {
@@ -125,15 +152,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   }
 
   void _listenMatch() {
-    final myUid = _auth.currentUser?.uid;
+    final myUid = _myUid;
 
-    _sub = _firestore
-        .collection('carrom_matches')
-        .doc(widget.matchId)
-        .snapshots()
-        .listen((snap) {
+    _sub = _ref.snapshots().listen((snap) {
+      if (!mounted) return;
       if (!snap.exists) {
-        Navigator.pop(context);
+        _close('Match was cancelled');
         return;
       }
 
@@ -155,26 +179,34 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       });
 
       final status = data['status'] as String? ?? 'waiting';
+      final joined = Map<String, dynamic>.from(data['joined'] ?? {});
+      final bothJoined =
+          players.length >= 2 && players.keys.every((u) => joined[u] == true);
 
-      if (status == 'ready' && !_countdownStarted) {
+      if (status == 'ready' && bothJoined && !_countdownStarted) {
         _startMatchSequence(data['host'] == myUid);
-      }
-
-      if (status == 'started' && _countdown <= 0) {
+      } else if (status == 'started' &&
+          (_countdownDone || !_countdownStarted)) {
         _navigateToGame();
+      } else if (status == 'cancelled' || status == 'finished') {
+        _close('Match was cancelled');
       }
-    });
+    }, onError: (Object e) => debugPrint('Carrom match listener error: $e'));
   }
 
   Future<void> _startMatchSequence(bool isHost) async {
     _countdownStarted = true;
+    _joinTimer?.cancel();
+    _joinTimer = Timer(_startTimeout, _onStartTimeout);
 
     // Step 1: Slide in players
     await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
     _playerSlideController.forward();
 
     // Step 2: Show VS badge
     await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
     _vsController.forward();
 
     // Step 3: Start countdown
@@ -196,21 +228,58 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     _countdownController.forward(from: 0);
 
     await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    _countdownDone = true;
 
-    // Host sets status to started
-    if (isHost && mounted) {
-      await _firestore
-          .collection('carrom_matches')
-          .doc(widget.matchId)
-          .update({
-        'status': 'started',
-        'startedAt': FieldValue.serverTimestamp(),
+    if (isHost) {
+      try {
+        await _firestore.runTransaction((tx) async {
+          final d = (await tx.get(_ref)).data();
+          if (d == null || d['status'] != 'ready') return;
+          tx.update(_ref, {
+            'status': 'started',
+            'startedAt': FieldValue.serverTimestamp(),
+            'turnStartedAt': FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (e) {
+        debugPrint('Carrom start failed: $e');
+      }
+    }
+
+    // The 'started' snapshot may already have arrived during the countdown.
+    if (mounted && _matchData?['status'] == 'started') _navigateToGame();
+  }
+
+  /// Nobody joined or started in time: cancel so neither player is stuck.
+  Future<void> _onStartTimeout() async {
+    if (!mounted || _navigated) return;
+    await _cancelIfNotStarted();
+    if (mounted && _matchData?['status'] != 'started') {
+      _close('Opponent did not join. Please try again.');
+    }
+  }
+
+  Future<void> _cancelIfNotStarted() async {
+    try {
+      await _firestore.runTransaction((tx) async {
+        final d = (await tx.get(_ref)).data();
+        if (d == null || d['status'] != 'ready') return;
+        tx.update(_ref, {
+          'status': 'cancelled',
+          'cancelledBy': _myUid,
+          'cancelledAt': FieldValue.serverTimestamp(),
+        });
       });
+    } catch (e) {
+      debugPrint('Carrom cancel failed: $e');
     }
   }
 
   void _navigateToGame() {
-    if (!mounted) return;
+    if (!mounted || _navigated || _closing) return;
+    _navigated = true;
+    _joinTimer?.cancel();
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
@@ -228,21 +297,27 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   }
 
   Future<void> _cancelMatch() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid != null && !_countdownStarted) {
-      try {
-        await _firestore
-            .collection('carrom_matches')
-            .doc(widget.matchId)
-            .delete();
-      } catch (_) {}
+    if (_navigated || _closing) return;
+    await _cancelIfNotStarted();
+    if (mounted && _matchData?['status'] != 'started') _close(null);
+  }
+
+  void _close(String? message) {
+    if (!mounted || _navigated || _closing) return;
+    _closing = true;
+    _joinTimer?.cancel();
+    _sub?.cancel();
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    if (message != null) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     }
-    if (mounted) Navigator.pop(context);
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _joinTimer?.cancel();
     _vsController.dispose();
     _playerSlideController.dispose();
     _countdownController.dispose();
@@ -253,7 +328,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancelMatch();
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // Animated Background
@@ -280,14 +360,16 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
 
                 const Spacer(flex: 2),
 
-                // Cancel Button
-                if (!_countdownStarted) _buildCancelButton(),
+                // Cancel Button (until the game has started)
+                if (!_navigated && _matchData?['status'] != 'started')
+                  _buildCancelButton(),
 
                 const SizedBox(height: 32),
               ],
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -310,10 +392,10 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                 math.sin((_backgroundController.value + 0.5) * 2 * math.pi) * 0.5,
               ),
               colors: const [
-                Color(0xFF1A0E2E),
-                Color(0xFF2D1B4E),
+                AppColors.backgroundDeep,
+                AppColors.surfaceCard,
                 Color(0xFF3D2B5E),
-                Color(0xFF2D1B4E),
+                AppColors.surfaceCard,
               ],
               stops: const [0.0, 0.3, 0.7, 1.0],
             ),
@@ -462,10 +544,11 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               ),
               child: ClipOval(
                 child: avatar.isNotEmpty
-                    ? Image.network(
-                  avatar,
+                    ? CachedNetworkImage(
+                  imageUrl: avatar,
+                  memCacheWidth: 270,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _defaultAvatar(name, color),
+                  errorWidget: (_, __, ___) => _defaultAvatar(name, color),
                 )
                     : _defaultAvatar(name, color),
               ),

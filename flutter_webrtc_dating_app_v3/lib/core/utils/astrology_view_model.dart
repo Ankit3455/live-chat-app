@@ -1,186 +1,157 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
-/// ViewModel for astrology questionnaire
-/// Single source of truth used across the app
+import '../../models/user_model.dart';
+import 'astrology_utils.dart';
+
+/// State of the astrology flow. Created per flow (never global), preloaded from
+/// `users/{uid}`, and saves only the fields the user answered (DEST-077).
+///
+/// Only questions that feed or explain the compatibility score are asked:
+/// preferred signs (score bonus) and one belief question (old steps 2 + 4).
+/// Answers saved by the older 8-step flow stay untouched in the user doc.
 class AstrologyViewModel extends ChangeNotifier {
-  // Stored fields
+  AstrologyViewModel({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  /// Belief answers: value -> (label saved, bool saved, level saved).
+  static const Map<String, ({String label, bool believes, int level})>
+      beliefOptions = {
+    'yes': (label: 'Yes', believes: true, level: 9),
+    'somewhat': (label: 'Somewhat', believes: true, level: 6),
+    'no': (label: 'No', believes: false, level: 2),
+    'unsure': (label: 'Unsure', believes: false, level: 5),
+  };
+
   List<String> _preferredSigns = [];
-  bool _believesInAstrology = false;         // boolean form (used in some flows)
-  String? _believesInAstrologyLabel;         // string form (e.g., 'Yes', 'Somewhat', 'No', 'Unsure')
-  String? _personalityPriority;
-  String? _astrologyBeliefLevel;             // stored as string to match UI
-  String? _relationshipPriority;
-  String? _vibePreference;
-  String? _lifestyle;                        // maps to 'sleepSchedule' in review/save
-  String? _idealDate;
+  String? _belief;
+  String? _ownSign;
+  bool _loading = false;
+  bool _saving = false;
+  bool _disposed = false;
+  final Set<String> _dirty = {};
 
-  // Getters
-  List<String> get preferredSigns => _preferredSigns;
-  bool get believesInAstrology => _believesInAstrology;
-  String? get believesInAstrologyLabel => _believesInAstrologyLabel;
-  String? get personalityPriority => _personalityPriority;
-  String? get astrologyBeliefLevel => _astrologyBeliefLevel;
-  String? get relationshipPriority => _relationshipPriority;
-  String? get vibePreference => _vibePreference;
-  String? get lifestyle => _lifestyle;
-  String? get idealDate => _idealDate;
+  List<String> get preferredSigns => List.unmodifiable(_preferredSigns);
+  String? get belief => _belief;
 
-  // Setters (primary)
-  void setPreferredSigns(List<String> signs) {
-    _preferredSigns = signs;
-    notifyListeners();
-  }
+  /// My sun sign from the stored sign or my DOB; null if no DOB yet.
+  String? get ownSign => _ownSign;
+  bool get isLoading => _loading;
+  bool get isSaving => _saving;
+  bool get hasChanges => _dirty.isNotEmpty;
 
-  void setBelievesInAstrology(bool value) {
-    _believesInAstrology = value;
-    // keep label in sync with bool
-    _believesInAstrologyLabel = value ? 'Yes' : 'No';
-    notifyListeners();
-  }
+  Future<void> load(String uid) async {
+    _loading = true;
+    _notify();
+    try {
+      final snap = await _firestore.collection('users').doc(uid).get();
+      final data = snap.data() ?? const <String, dynamic>{};
 
-  void setPersonalityPriority(String? value) {
-    _personalityPriority = value;
-    notifyListeners();
-  }
+      final dob = UserModel.parseDob(data['dateOfBirth']) ??
+          UserModel.parseDob(data['dob']);
+      _ownSign = AstrologyUtils.normalizeSign(data['zodiacSign']?.toString()) ??
+          AstrologyUtils.normalizeSign(data['sunSign']?.toString()) ??
+          (dob != null ? AstrologyUtils.zodiacFromDate(dob) : null);
 
-  void setAstrologyBeliefLevel(String? value) {
-    _astrologyBeliefLevel = value;
-    notifyListeners();
-  }
-
-  void setRelationshipPriority(String? value) {
-    _relationshipPriority = value;
-    notifyListeners();
-  }
-
-  void setVibePreference(String? value) {
-    _vibePreference = value;
-    notifyListeners();
-  }
-
-  void setLifestyle(String? value) {
-    _lifestyle = value;
-    notifyListeners();
-  }
-
-  void setIdealDate(String? value) {
-    _idealDate = value;
-    notifyListeners();
-  }
-
-  /// Validate step by index
-  /// 0 - Preferred Signs
-  /// 1 - Believes in Astrology
-  /// 2 - Personality Priority
-  /// 3 - Astrology Belief Level
-  /// 4 - Relationship Priority
-  /// 5 - Vibe Preference
-  /// 6 - Sleep Schedule (lifestyle)
-  /// 7 - Ideal Date
-  bool isStepValid(int stepIndex) {
-    switch (stepIndex) {
-      case 0:
-        return _preferredSigns.isNotEmpty;
-      case 1:
-        // Often a toggle or single select; treat as valid to not block
-        return true;
-      case 2:
-        return _personalityPriority != null && _personalityPriority!.isNotEmpty;
-      case 3:
-        return _astrologyBeliefLevel != null && _astrologyBeliefLevel!.isNotEmpty;
-      case 4:
-        return _relationshipPriority != null && _relationshipPriority!.isNotEmpty;
-      case 5:
-        return _vibePreference != null && _vibePreference!.isNotEmpty;
-      case 6:
-        return _lifestyle != null && _lifestyle!.isNotEmpty;
-      case 7:
-        return _idealDate != null && _idealDate!.isNotEmpty;
-      default:
-        return true;
+      // Keep anything the user already touched while the doc was loading.
+      if (!_dirty.contains('preferredSigns')) {
+        final raw = data['preferredSigns'];
+        _preferredSigns = raw is List
+            ? raw
+                .map((e) => AstrologyUtils.normalizeSign(e?.toString()))
+                .whereType<String>()
+                .toSet()
+                .toList()
+            : [];
+      }
+      if (!_dirty.contains('belief')) {
+        _belief = _beliefFrom(data);
+      }
+    } catch (e) {
+      debugPrint('AstrologyViewModel.load failed: $e');
+    } finally {
+      _loading = false;
+      _notify();
     }
   }
 
-  /// Map for Firestore (generic)
-  Map<String, dynamic> toMap() {
-    return {
-      'preferredSigns': _preferredSigns,
-      'believesInAstrology': _believesInAstrology,        // bool
-      'believesInAstrologyLabel': _believesInAstrologyLabel, // optional label
-      'personalityPriority': _personalityPriority,
-      'astrologyBeliefLevel': _astrologyBeliefLevel,
-      'relationshipPriority': _relationshipPriority,
-      'vibePreference': _vibePreference,
-      'lifestyle': _lifestyle,
-      'idealDate': _idealDate,
-    };
+  void toggleSign(String sign) {
+    final s = AstrologyUtils.normalizeSign(sign);
+    if (s == null) return;
+    _preferredSigns.contains(s)
+        ? _preferredSigns.remove(s)
+        : _preferredSigns.add(s);
+    _dirty.add('preferredSigns');
+    _notify();
   }
 
-  /// Used by UI (review/save screens)
-  /// Provides keys that your UI expects (including 'sleepSchedule')
-  Map<String, dynamic> getAllAnswers() {
-    return {
-      'preferredSigns': _preferredSigns,
-      // UI expects a human-readable string; default to 'yes'/'no' if label missing
-      'believesInAstrology': _believesInAstrologyLabel ??
-          (_believesInAstrology ? 'yes' : 'no'),
-      'personalityPriority': _personalityPriority,
-      'astrologyBeliefLevel': _astrologyBeliefLevel,
-      'relationshipPriority': _relationshipPriority,
-      'vibePreference': _vibePreference,
-      'sleepSchedule': _lifestyle, // Important: UI expects 'sleepSchedule'
-      'idealDate': _idealDate,
-    };
+  void setBelief(String value) {
+    if (!beliefOptions.containsKey(value)) return;
+    _belief = value;
+    _dirty.add('belief');
+    _notify();
   }
 
-  // Aliases to support existing calls in step screens (updateXxx)
-  void updatePreferredSigns(List<String> signs) => setPreferredSigns(signs);
-
-  void updateBelievesInAstrology(String value) {
-    // Accept common string inputs and normalize
-    final v = value.trim().toLowerCase();
-    _believesInAstrologyLabel = _capitalize(value);
-
-    if (v == 'yes' || v == 'true' || v == '1') {
-      _believesInAstrology = true;
-    } else if (v == 'no' || v == 'false' || v == '0') {
-      _believesInAstrology = false;
+  /// Firestore fields for the answered questions only, so skipping a question
+  /// never overwrites a stored answer.
+  Map<String, dynamic> changedFields() {
+    final out = <String, dynamic>{};
+    if (_dirty.contains('preferredSigns')) {
+      out['preferredSigns'] = List<String>.from(_preferredSigns);
     }
-    // For 'somewhat', 'unsure', etc., keep bool as-is but store label
-    notifyListeners();
+    final option = beliefOptions[_belief];
+    if (_dirty.contains('belief') && option != null) {
+      out['believesInAstrology'] = option.believes;
+      out['believesInAstrologyLabel'] = option.label;
+      out['astrologyBeliefLevel'] = option.level;
+    }
+    return out;
   }
 
-  void updatePersonalityPriority(String value) =>
-      setPersonalityPriority(value);
-
-  void updateAstrologyBeliefLevel(int level) =>
-      setAstrologyBeliefLevel(level.toString());
-
-  void updateRelationshipPriority(String value) =>
-      setRelationshipPriority(value);
-
-  void updateVibePreference(String value) => setVibePreference(value);
-
-  void updateSleepSchedule(String value) => setLifestyle(value);
-
-  void updateIdealDate(String value) => setIdealDate(value);
-
-  /// Reset everything
-  void reset() {
-    _preferredSigns = [];
-    _believesInAstrology = false;
-    _believesInAstrologyLabel = null;
-    _personalityPriority = null;
-    _astrologyBeliefLevel = null;
-    _relationshipPriority = null;
-    _vibePreference = null;
-    _lifestyle = null;
-    _idealDate = null;
-    notifyListeners();
+  /// Saves the answered fields. Returns false on failure.
+  Future<bool> save(String uid) async {
+    final fields = changedFields();
+    if (fields.isEmpty) return true;
+    _saving = true;
+    _notify();
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .set(fields, SetOptions(merge: true));
+      _dirty.clear();
+      return true;
+    } catch (e) {
+      debugPrint('AstrologyViewModel.save failed: $e');
+      return false;
+    } finally {
+      _saving = false;
+      _notify();
+    }
   }
 
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
+  static String? _beliefFrom(Map<String, dynamic> data) {
+    final label = data['believesInAstrologyLabel'];
+    // The old flow stored the label in `believesInAstrology` itself.
+    final legacy = data['believesInAstrology'];
+    for (final raw in [label, legacy]) {
+      if (raw is String && beliefOptions.containsKey(raw.trim().toLowerCase())) {
+        return raw.trim().toLowerCase();
+      }
+    }
+    if (legacy is bool) return legacy ? 'yes' : 'no';
+    return null;
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

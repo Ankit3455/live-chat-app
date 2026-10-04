@@ -1,5 +1,7 @@
+import '../core/constants/app_colors.dart';
   // lib/widgets/user_avatar.dart
   import 'package:flutter/material.dart';
+  import 'package:cached_network_image/cached_network_image.dart';
   import 'package:availchat/models/user_model.dart';
 
   String cacheBustedUrl(String url, int? version) {
@@ -22,10 +24,15 @@
       this.onTap,
     });
 
+    // profileImage is the current photo (custom or generated); fall back to
+    // the stored generated avatar if it is empty.
     String? _bestUrl(UserModel u) {
-      final propUrl = (u.avatarProperties?['avatarPngUrl'] as String?);
-      final profile = u.profileImage;
-      String? chosen = (propUrl != null && propUrl.trim().isNotEmpty) ? propUrl : (profile.isNotEmpty ? profile : null);
+      final profile = u.profileImage.trim();
+      final avatarUrl =
+          (u.avatarProperties?['avatarImageUrl'] as String?)?.trim() ?? '';
+      final chosen = profile.isNotEmpty
+          ? profile
+          : (avatarUrl.isNotEmpty ? avatarUrl : null);
       if (chosen == null) return null;
       return cacheBustedUrl(chosen, u.avatarVersion);
     }
@@ -50,17 +57,15 @@
       if (url != null && (url.startsWith('http://') || url.startsWith('https://'))) {
         content = ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: Image.network(
-            url,
+          child: CachedNetworkImage(
+            imageUrl: url,
+            memCacheWidth: (size * 3).round(),
             width: size,
             height: size,
             fit: BoxFit.cover,
-            gaplessPlayback: true,
-            loadingBuilder: (ctx, child, progress) {
-              if (progress == null) return child;
-              return _skeleton();
-            },
-            errorBuilder: (ctx, err, stack) => _fallback(),
+            useOldImageOnUrlChange: true,
+            placeholder: (_, __) => _skeleton(),
+            errorWidget: (_, __, ___) => _fallback(),
           ),
         );
       } else {
@@ -75,7 +80,7 @@
           height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: const Color(0xFF7B2CBF), width: 2),
+            border: Border.all(color: AppColors.brandPurple, width: 2),
           ),
           child: content,
         ),
@@ -87,7 +92,7 @@
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: Center(
@@ -108,7 +113,7 @@
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: const Color(0xFF2D1B4E),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: const Center(
