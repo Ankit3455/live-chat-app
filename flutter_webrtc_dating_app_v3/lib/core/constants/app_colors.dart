@@ -5,23 +5,41 @@ import 'package:flutter/material.dart';
 class AppColors {
   // Destined palette
   // brandPurple is for fills; use brandPurpleLight for text/icons on dark.
-  static const Color brandPurple = Color(0xFF7B2CBF);
-  static const Color brandPurpleMid = Color(0xFF9D4EDD);
-  static const Color brandPurpleLight = Color(0xFFC77DFF);
-  static const Color brandViolet = Color(0xFF9333EA);
-  static const Color brandMagenta = Color(0xFF9C27B0);
-  static const Color brandPink = Color(0xFFEC4899); // glow accent
-  static const Color backgroundDeep = Color(0xFF1A0E2E);
-  static const Color backgroundDarkest = Color(0xFF0D0221);
-  static const Color surfaceCard = Color(0xFF2D1B4E);
-  static const Color surfaceRaised = Color(0xFF1C1033);
-  static const Color lavender = Color(0xFFB39DDB); // secondary text, >= 5.8:1
-  static const Color lavenderLight = Color(0xFFD1C4E9);
-  static const Color textMuted = Color(0xB3FFFFFF); // white70, helper text
-  static const Color online = Color(0xFF00E676);
-  static const Color onlineDeep = Color(0xFF00C853);
+  static const Color brandPurple = Color(0xFF7C3AED);
+  static const Color brandPurpleMid = Color(0xFF8B5CF6);
+  static const Color brandPurpleLight = Color(0xFFC4B5FD);
+  static const Color brandViolet = Color(0xFF7C3AED);
+  static const Color brandMagenta = Color(0xFFC026D3);
+  static const Color brandPink = Color(0xFFEC4899);
+
+  // Design system tokens (see destined-ui-design/css/design-system.css).
+  static const Color surface2 = Color(0xFF2A1F42);
+  static const Color border = Color(0x24C4B5FD);
+  static const Color borderStrong = Color(0x47C4B5FD);
+  static const Color textSubtle = Color(0xFF8D82A8); // captions only, 5.3:1
+  static const Color pinkLight = Color(0xFFF9A8D4);
+  static const Color success = Color(0xFF34D399);
+  static const Color warning = Color(0xFFFBBF24);
+  static const Color error = Color(0xFFF87171);
+
+  /// Primary CTA / sent-bubble gradient.
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [Color(0xFF7C3AED), Color(0xFFC026D3), Color(0xFFEC4899)],
+    stops: [0.0, 0.55, 1.0],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static const Color backgroundDeep = Color(0xFF0F0A1A);
+  static const Color backgroundDarkest = Color(0xFF07040D);
+  static const Color surfaceCard = Color(0xFF1E1531);
+  static const Color surfaceRaised = Color(0xFF160F25);
+  static const Color lavender = Color(0xFFB9AED3);
+  static const Color lavenderLight = Color(0xFFE4DDF5);
+  static const Color textMuted = Color(0xFFB9AED3);
+  static const Color online = Color(0xFF34D399);
+  static const Color onlineDeep = Color(0xFF10B981);
   static const Color cyan = Color(0xFF00BCD4);
-  static const Color gold = Color(0xFFFFD700);
+  static const Color gold = Color(0xFFF5C26B);
 
   // Purple shades
   static const Color purple200 = Color(0xFFBB86FC);
@@ -60,8 +78,8 @@ class AppColors {
   // Input field colors
   static const Color hintPurple = lavender;
   static const Color inputTextWhite = Color(0xFFFFFFFF);
-  static const Color inputBackground = Color(0xFF3A2150);
-  static const Color purplePressed = Color(0xFF5A1F8C);
+  static const Color inputBackground = Color(0xFF2A1F42);
+  static const Color purplePressed = Color(0xFF6D28D9);
   static const Color outlinePressedBg = Color(0xFF35293A);
   
   // Status colors
@@ -70,12 +88,12 @@ class AppColors {
   
   // UI element colors
   static const Color darkGray = Color(0xFF1E1E1E);
-  static const Color dividerGray = Color(0x33FFFFFF); // Semi-transparent white
-  static const Color dangerRed = Color(0xFFFF3B30);
-  static const Color accentPurple = Color(0xFF9C4DFF);
+  static const Color dividerGray = Color(0x24C4B5FD);
+  static const Color dangerRed = Color(0xFFF87171);
+  static const Color accentPurple = Color(0xFF8B5CF6);
   static const Color navInactive = Color(0xFF9E9E9E);
   static const Color bottomNavRipple = Color(0x33FFFFFF);
-  static const Color navPrimary = Color(0xFFFF7DFF);
+  static const Color navPrimary = Color(0xFFF9A8D4);
   
   // Material color shades
   static const Color green500 = Color(0xFF4CAF50);
@@ -105,7 +123,7 @@ class AppColors {
   static const Color blue = Color(0xFF2196F3);
   
   // Bottom navigation
-  static const Color bottomNavTopDivider = Color(0x335A4664);
+  static const Color bottomNavTopDivider = Color(0x24C4B5FD);
   static const Color bottomNavActive = brandPurpleLight;
   static const Color bottomNavInactive = lavender;
   
@@ -114,13 +132,13 @@ class AppColors {
   
   // Gradients
   static const LinearGradient purpleGradient = LinearGradient(
-    colors: [brandPurple, brandPurpleMid],
+    colors: [brandPurple, brandMagenta, brandPink],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
   
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [brandPurple, brandPurpleMid],
+    colors: [brandPurple, brandMagenta, brandPink],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );

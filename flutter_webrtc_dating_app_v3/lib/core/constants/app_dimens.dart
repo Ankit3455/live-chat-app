@@ -16,11 +16,11 @@ class AppDimens {
   static const double marginNormal = 16.0;
   static const double marginLarge = 24.0;
   
-  // Border radius
-  static const double borderRadiusSmall = 8.0;
-  static const double borderRadiusMedium = 12.0;
-  static const double borderRadiusLarge = 16.0;
-  static const double borderRadiusXLarge = 24.0;
+  // Border radius (design system: 10 / 14 / 20 / 28 / pill)
+  static const double borderRadiusSmall = 10.0;
+  static const double borderRadiusMedium = 14.0;
+  static const double borderRadiusLarge = 20.0;
+  static const double borderRadiusXLarge = 28.0;
   static const double borderRadiusCircular = 100.0;
   
   // Text sizes

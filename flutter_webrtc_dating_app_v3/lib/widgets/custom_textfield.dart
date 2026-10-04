@@ -8,7 +8,7 @@ class CustomTextField extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
-  final Widget? suffixIcon;     // ✅ Added support
+  final Widget? suffixIcon;
   final bool enabled;
 
   const CustomTextField({
@@ -19,7 +19,7 @@ class CustomTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.validator,
-    this.suffixIcon,            // ✅ Added
+    this.suffixIcon,
     this.enabled = true,
   }) : super(key: key);
 
@@ -31,20 +31,12 @@ class CustomTextField extends StatelessWidget {
       validator: validator,
       enabled: enabled,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppColors.white, fontSize: 15),
+      // Fill, borders and hint colours come from AppTheme's input theme.
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-        prefixIcon: icon != null
-            ? Icon(icon, color: AppColors.brandViolet)
-            : null,
-        suffixIcon: suffixIcon,        // ✅ Works now
-        filled: true,
-        fillColor: Colors.grey[850],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
-        ),
+        prefixIcon: icon != null ? Icon(icon, size: 20) : null,
+        suffixIcon: suffixIcon,
       ),
     );
   }

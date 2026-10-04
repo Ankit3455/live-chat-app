@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/app_colors.dart';
 
 enum ButtonType { primary, outline, text }
@@ -61,7 +62,7 @@ class _CustomButtonState extends State<CustomButton>
   double get _height {
     switch (widget.size) {
       case ButtonSize.small:
-        return 42;
+        return 44;
       case ButtonSize.medium:
         return 52;
       case ButtonSize.large:
@@ -92,8 +93,7 @@ class _CustomButtonState extends State<CustomButton>
   }
 
   List<Color> get _gradientColors {
-    return widget.gradientColors ??
-        [AppColors.brandViolet, AppColors.brandPink];
+    return widget.gradientColors ?? AppColors.primaryGradient.colors;
   }
 
   bool get _isDisabled => widget.onPressed == null || widget.isLoading;
@@ -146,33 +146,38 @@ class _CustomButtonState extends State<CustomButton>
     }
   }
 
+  BorderRadius get _radius => BorderRadius.circular(_height / 2);
+
   Widget _buildPrimaryButton() {
     return Container(
       width: widget.width ?? double.infinity,
       constraints: BoxConstraints(minHeight: _height),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       decoration: BoxDecoration(
+        color: _isDisabled ? AppColors.surface2 : null,
         gradient: _isDisabled
-            ? LinearGradient(
-          colors: [Colors.grey.shade400, Colors.grey.shade500],
-        )
+            ? null
             : LinearGradient(
-          colors: _gradientColors,
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
+                colors: _gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: _radius,
         boxShadow: _isDisabled
-            ? []
+            ? const []
             : [
-          BoxShadow(
-            color: _gradientColors.first.withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+                BoxShadow(
+                  color: AppColors.brandPink.withOpacity(0.28),
+                  blurRadius: 28,
+                  offset: const Offset(0, 8),
+                ),
+              ],
       ),
-      child: Center(child: _buildContent(Colors.white)),
+      child: Center(
+        child: _buildContent(
+          _isDisabled && !widget.isLoading ? AppColors.textSubtle : Colors.white,
+        ),
+      ),
     );
   }
 
@@ -180,18 +185,15 @@ class _CustomButtonState extends State<CustomButton>
     return Container(
       width: widget.width ?? double.infinity,
       constraints: BoxConstraints(minHeight: _height),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _isDisabled ? Colors.grey : _gradientColors.first,
-          width: 2,
-        ),
+        color: AppColors.surfaceCard,
+        borderRadius: _radius,
+        border: Border.all(color: AppColors.borderStrong),
       ),
       child: Center(
         child: _buildContent(
-          _isDisabled ? Colors.grey : _gradientColors.first,
+          _isDisabled ? AppColors.textSubtle : Colors.white,
         ),
       ),
     );
@@ -200,10 +202,11 @@ class _CustomButtonState extends State<CustomButton>
   Widget _buildTextButton() {
     return Container(
       width: widget.width,
-      constraints: BoxConstraints(minHeight: _height),
+      constraints: BoxConstraints(minHeight: _height < 48 ? 48 : _height),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Center(
         child: _buildContent(
-          _isDisabled ? Colors.grey : _gradientColors.first,
+          _isDisabled ? AppColors.textSubtle : AppColors.brandPurpleLight,
         ),
       ),
     );
@@ -231,9 +234,9 @@ class _CustomButtonState extends State<CustomButton>
             child: Text(
               widget.text,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: GoogleFonts.montserrat(
                 fontSize: _fontSize,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: color,
               ),
             ),
@@ -253,11 +256,11 @@ class _CustomButtonState extends State<CustomButton>
           child: Text(
             widget.text,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: GoogleFonts.montserrat(
               fontSize: _fontSize,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: color,
-              letterSpacing: 0.5,
+              letterSpacing: 0.15,
             ),
           ),
         ),
