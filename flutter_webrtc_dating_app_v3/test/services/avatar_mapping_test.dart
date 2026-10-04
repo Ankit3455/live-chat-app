@@ -58,4 +58,35 @@ void main() {
     expect(adult['facialHairProbability'], '70');
     expect(listOf(young, 'skinColor'), isNot(contains('f8d25c')));
   });
+
+  test('zodiac element from DOB picks the palette, night owls get the dark one', () {
+    // 5 Apr = Aries (fire), 12 Mar = Pisces (water).
+    final fireDay = paramsFor({'dateOfBirth': DateTime(1996, 4, 5), 'habits': 'Early Riser'});
+    final waterNight = paramsFor({'dateOfBirth': DateTime(2000, 3, 12), 'habits': 'Night Owl'});
+    expect(fireDay['backgroundColor'], 'ffd1c1,ffb3a7');
+    expect(waterNight['backgroundColor'], '1f2f5c,3b2a6b');
+    expect(AvatarMapping.buildFromAnswers({'dateOfBirth': DateTime(2000, 3, 12)})['element'], 'water');
+  });
+
+  test('personality overrides interest-based expression', () {
+    final extro = paramsFor({'personalityType': 'Extrovert', 'interests': ['Meditation']});
+    final intro = paramsFor({'personalityType': 'Introvert', 'interests': ['Sports']});
+    expect(extro['mouth'], 'smile,twinkle');
+    expect(intro['mouth'], 'default,smile');
+  });
+
+  test('T-shirt print follows interests and is only set for graphic shirts', () {
+    final cook = paramsFor({'profession': 'Engineer', 'interests': ['Cooking', 'Astrology']});
+    expect(listOf(cook, 'clothingGraphic'), containsAll(['pizza', 'diamond']));
+    final doctor = paramsFor({'profession': 'Doctor', 'interests': ['Cooking']});
+    expect(doctor.containsKey('clothingGraphic'), isFalse);
+  });
+
+  test('post-signup answers add variety', () {
+    expect(paramsFor({'exerciseFrequency': 'Daily'})['clothing'], 'shirtVNeck,hoodie');
+    expect(paramsFor({'musicGenres': ['Classical']})['clothing'], contains('collarAndSweater'));
+    expect(paramsFor({'partyingFrequency': 'Love it, often'})['accessories'], 'wayfarers,sunglasses');
+    expect(listOf(paramsFor({'profession': 'Artist'}), 'hairColor'), contains('f59797'));
+    expect(listOf(paramsFor({'profession': 'Doctor'}), 'hairColor'), isNot(contains('f59797')));
+  });
 }

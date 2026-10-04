@@ -326,6 +326,18 @@ class DiceBearAvatarService {
       merged['profession'] = userDoc['profession'];
     }
 
+    // Post-signup answers that shape the avatar (see AvatarMapping).
+    for (final key in const [
+      'personalityType',
+      'exerciseFrequency',
+      'partyingFrequency',
+      'musicGenres',
+      'zodiacSign',
+      'sunSign',
+    ]) {
+      merged[key] ??= userDoc[key];
+    }
+
     return merged;
   }
 
