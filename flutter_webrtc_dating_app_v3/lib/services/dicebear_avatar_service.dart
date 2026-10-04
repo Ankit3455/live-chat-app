@@ -1,18 +1,18 @@
 // lib/services/dicebear_avatar_service.dart
 //
-// Downloads a DiceBear avataaars SVG built from explicit params
-// (AvatarMapping.dicebearParams), converts it to PNG and uploads it.
+// Downloads a DiceBear avataaars PNG built from explicit params
+// (AvatarMapping.dicebearParams) and uploads it. DiceBear renders the PNG
+// server-side, so there is no client SVG conversion (flutter_svg does not
+// draw avataaars' masks reliably).
 
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/config/storage_config.dart';
 import 'storage/cloudinary_storage_repo.dart';
@@ -24,7 +24,7 @@ class DiceBearAvatarService {
 
   static bool _inProgress = false;
 
-  static const String _apiVersion = '7.x';
+  static const String _apiVersion = '9.x';
   static const String _baseUrl = 'https://api.dicebear.com/$_apiVersion';
   static const Duration _apiTimeout = Duration(seconds: 15);
 
@@ -52,7 +52,17 @@ class DiceBearAvatarService {
 
       _log('DiceBear: starting generation');
 
-      final props = AvatarMapping.buildFromAnswers(answers);
+      // Questionnaire answers don't include the DOB (written at signup), so
+      // fill missing fields from the user doc before mapping.
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final merged = _mergeWithUserDocFields(
+        Map<String, dynamic>.from(answers),
+        userDoc.data() ?? const <String, dynamic>{},
+      );
+      final props = AvatarMapping.buildFromAnswers(merged);
 
       _validateProperties(props);
 
@@ -60,9 +70,7 @@ class DiceBearAvatarService {
 
       final apiUrl = _buildApiUrl(seed, props);
 
-      final svgBytes = await _downloadSvgWithRetry(apiUrl);
-
-      final pngBytes = await _convertSvgToPng(svgBytes);
+      final pngBytes = await _downloadWithRetry(apiUrl);
 
       final uploadResult = await _uploadPngImage(
         uid: uid,
@@ -77,7 +85,7 @@ class DiceBearAvatarService {
         'avatarImageUrl': imageUrl,
         'avatarStyle': 'avataaars',
         'generatedAt': DateTime.now().toUtc().toIso8601String(),
-        'generatedBy': 'dicebear-v7',
+        'generatedBy': 'dicebear-v9',
       };
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
@@ -150,8 +158,7 @@ class DiceBearAvatarService {
           : baseSeed;
 
       final apiUrl = _buildApiUrl(seed, props);
-      final svgBytes = await _downloadSvgWithRetry(apiUrl);
-      final pngBytes = await _convertSvgToPng(svgBytes);
+      final pngBytes = await _downloadWithRetry(apiUrl);
 
       final uploadResult = await _uploadPngImage(
         uid: uid,
@@ -165,7 +172,7 @@ class DiceBearAvatarService {
       propsToSave['avatarImageUrl'] = imageUrl;
       propsToSave['avatarStyle'] = 'avataaars';
       propsToSave['generatedAt'] = DateTime.now().toUtc().toIso8601String();
-      propsToSave['generatedBy'] = 'dicebear-v7';
+      propsToSave['generatedBy'] = 'dicebear-v9';
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'profileImage': imageUrl,
@@ -210,22 +217,20 @@ class DiceBearAvatarService {
   static String _buildApiUrl(String seed, Map<String, dynamic> props) {
     const String style = 'avataaars';
 
+    // 256 is DiceBear's PNG maximum. No zoom: scaling crops long hair.
     final Map<String, String> params = <String, String>{
       'seed': seed,
-      'size': '400',
-      // Zoom in on the face and shift up slightly.
-      'scale': '180',
-      'translateY': '-10',
+      'size': '256',
       ...AvatarMapping.dicebearParams(props),
     };
 
-    final uri = Uri.parse('$_baseUrl/$style/svg');
+    final uri = Uri.parse('$_baseUrl/$style/png');
     return uri.replace(queryParameters: params).toString();
   }
 
 
-  /// Download SVG with retry logic
-  static Future<Uint8List> _downloadSvgWithRetry(
+  /// Download the avatar PNG with retry logic
+  static Future<Uint8List> _downloadWithRetry(
       String url, {
         int maxRetries = 3,
       }) async {
@@ -238,7 +243,7 @@ class DiceBearAvatarService {
         if (response.statusCode == 200) {
           final bytes = response.bodyBytes;
           if (bytes.isEmpty) {
-            throw Exception('Downloaded SVG is empty');
+            throw Exception('Downloaded avatar is empty');
           }
           return bytes;
         } else {
@@ -256,34 +261,6 @@ class DiceBearAvatarService {
     }
 
     throw Exception('Failed after $maxRetries attempts: $lastError');
-  }
-
-  /// ✅ Convert SVG bytes to PNG bytes
-  static Future<Uint8List> _convertSvgToPng(Uint8List svgBytes) async {
-    try {
-      // Decode SVG string
-      final svgString = String.fromCharCodes(svgBytes);
-
-      // Parse SVG
-      final pictureInfo = await vg.loadPicture(
-        SvgStringLoader(svgString),
-        null,
-      );
-
-      // Convert to image
-      final image = await pictureInfo.picture.toImage(400, 400);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-
-      if (byteData == null) {
-        throw Exception('Failed to convert image to bytes');
-      }
-
-      final pngBytes = byteData.buffer.asUint8List();
-      return pngBytes;
-    } catch (e) {
-      _log('DiceBear: SVG to PNG conversion failed: $e');
-      rethrow;
-    }
   }
 
   /// Upload PNG image (not SVG!)
