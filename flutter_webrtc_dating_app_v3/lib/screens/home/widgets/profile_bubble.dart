@@ -1,255 +1,130 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../models/user_model.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:flutter/material.dart';
 
-class ProfileBubble extends StatefulWidget {
+import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/models/user_model.dart';
+
+/// 60px avatar with presence dot and first name, for the "Online now" strip.
+class ProfileBubble extends StatelessWidget {
   const ProfileBubble({
-    Key? key,
+    super.key,
     required this.user,
     required this.onTap,
-  }) : super(key: key);
+  });
+
+  static const double size = 60;
 
   final UserModel user;
   final VoidCallback onTap;
 
-  @override
-  State<ProfileBubble> createState() => _ProfileBubbleState();
-}
-
-class _ProfileBubbleState extends State<ProfileBubble>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _floatY;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3800),
-    )..repeat(reverse: true);
-
-    _floatY = Tween<double>(begin: -6, end: 6)
-        .chain(CurveTween(curve: Curves.easeInOut))
-        .animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
   String _initial() {
-    final name = (widget.user.username).trim();
+    final name = user.username.trim();
     return name.isNotEmpty ? name[0].toUpperCase() : 'U';
   }
 
-  /// cache-busted avatar url (profileImage + avatarVersion)
   String? _avatarUrl() {
-    final url = widget.user.profileImage;
+    final url = user.profileImage;
     if (url.isEmpty) return null;
-    final v = widget.user.avatarVersion ?? 0;
+    final v = user.avatarVersion ?? 0;
     return url.contains('?') ? '$url&v=$v' : '$url?v=$v';
   }
 
-  Widget _avatarContent() {
-    final url = _avatarUrl();
-
-    // agar url nahi hai to initials bubble
-    if (url == null) {
-      return Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          _initial(),
-          style: const TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-      );
-    }
-
-    // warna network image
-    return Container(
+  Widget _avatar() {
+    final fallback = DecoratedBox(
       decoration: const BoxDecoration(
-        shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: [AppColors.brandPurple, AppColors.brandPurpleLight],
+          colors: [AppColors.brandPurple, AppColors.brandPink],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      padding: const EdgeInsets.all(2),
-      child: ClipOval(
-        child: CachedNetworkImage(
-          imageUrl: url,
-          memCacheWidth: 240,
-          fit: BoxFit.cover,
-          errorWidget: (_, __, ___) {
-            // network fail → initials
-            return Container(
-              color: AppColors.backgroundDeep,
-              alignment: Alignment.center,
-              child: Text(
-                _initial(),
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            );
-          },
+      child: Center(
+        child: Text(
+          _initial(),
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: AppColors.white,
+          ),
         ),
       ),
+    );
+
+    final url = _avatarUrl();
+    return ClipOval(
+      child: url == null
+          ? fallback
+          : CachedNetworkImage(
+              imageUrl: url,
+              memCacheWidth: 180,
+              fit: BoxFit.cover,
+              placeholder: (_, __) =>
+                  const ColoredBox(color: AppColors.surface2),
+              errorWidget: (_, __, ___) => fallback,
+            ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final online = widget.user.online == true;
+    final online = user.online;
+    final firstName = user.username.trim().split(' ').first;
 
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        return Transform.translate(
-          offset: Offset(0, _floatY.value),
-          child: child,
-        );
-      },
-      child: Semantics(
-        button: true,
-        label: online
-            ? '${widget.user.username}, online'
-            : widget.user.username,
-        excludeSemantics: true,
-        onTap: widget.onTap,
-        child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: 92,
-          // yahi height flutter ne constraint me dikhayi thi (104), thoda safety margin
-          constraints: const BoxConstraints(
-            minHeight: 100,
-            maxHeight: 110,
-          ),
-          margin: const EdgeInsets.only(right: 12),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.25),
-                blurRadius: 10,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-
-          // 🔑 Overflow fix: pura content FittedBox me, jo need hone par
-          // thoda scale-down kar dega => RenderFlex overflow nahi hoga.
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.center,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: _avatarContent(),
-                      ),
-                      if (online)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(.25),
-                                  blurRadius: 6,
-                                )
-                              ],
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: Colors.greenAccent,
-                                shape: BoxShape.circle,
-                              ),
+    return Semantics(
+      button: true,
+      label: online ? '${user.username}, online' : user.username,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: size,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: size,
+                height: size,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _avatar()),
+                    if (online)
+                      Positioned(
+                        right: 1,
+                        bottom: 1,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.backgroundDeep,
+                              width: 2.5,
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // name text ko bhi thoda compress-friendly banaya
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 80),
-                    child: Text(
-                      widget.user.username,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        height: 1.1,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: online
-                          ? Colors.green.withOpacity(.15)
-                          : Colors.white.withOpacity(.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      online ? 'Online' : 'Offline',
-                      style: TextStyle(
-                        color:
-                        online ? Colors.greenAccent : AppColors.hintPurple,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              Text(
+                firstName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.lavender,
+                  fontSize: 12,
+                  height: 1.2,
+                ),
+              ),
+            ],
           ),
         ),
-      ),
       ),
     );
   }
 }
-

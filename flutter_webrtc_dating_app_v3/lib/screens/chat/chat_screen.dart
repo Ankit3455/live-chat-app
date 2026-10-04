@@ -25,9 +25,12 @@ import '../../services/safety_service.dart';
 
 // UI Components
 import '../../core/constants/app_colors.dart';
+import '../../widgets/app_states.dart';
 import 'widgets/attachment_sheet.dart';
+import 'widgets/call_settings_sheet.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/report_dialog.dart';
+import 'widgets/typing_bubble.dart';
 import 'widgets/voice_recording_sheet.dart';
 
 // Call Screens
@@ -68,6 +71,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// Latest conversation doc (null while no message was ever sent).
   Conversation? _conversation;
   Map<String, dynamic>? _convData;
+
+  /// Mirrors [_convData] for the call settings sheet.
+  final ValueNotifier<Map<String, dynamic>?> _convDataNotifier = ValueNotifier(
+    null,
+  );
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _convSub;
 
   UserModel? _otherUser;
@@ -152,6 +160,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
+    _convDataNotifier.dispose();
     super.dispose();
   }
 
@@ -324,6 +333,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _applyConversation(DocumentSnapshot<Map<String, dynamic>> snap) {
     _convData = snap.data();
+    _convDataNotifier.value = _convData;
     _conversation = snap.exists ? Conversation.fromFirestore(snap) : null;
   }
 
@@ -604,33 +614,45 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         CallConsent.isAllowed(data, _myUid, widget.otherUserId, type);
   }
 
-  bool _myCallEnabled(CallType type) {
-    final data = _convData;
-    return data != null && CallConsent.isEnabledFor(data, _myUid, type);
-  }
+  /// Neither call type is currently allowed for both users.
+  bool get _callsOff =>
+      !_callAllowed(CallType.audio) && !_callAllowed(CallType.video);
 
-  Future<void> _toggleCallEnabled(CallType type) async {
+  /// Writes my call setting; returns false on failure.
+  Future<bool> _setCallEnabled(CallType type, bool enabled) async {
     final convId = _conversationId;
     if (convId == null || _conversation == null) {
       _showSnackBar('Send a message first to enable calls.');
-      return;
+      return false;
     }
-    final enable = !_myCallEnabled(type);
     try {
       await CallConsent.setCallEnabled(
         conversationId: convId,
         uid: _myUid,
         type: type,
-        enabled: enable,
+        enabled: enabled,
       );
-      if (!mounted) return;
-      if (enable && !_callAllowed(type)) {
-        _showSnackBar(CallConsent.consentTooltip);
-      }
+      return true;
     } catch (e) {
       _log('setCallEnabled', e);
       _showSnackBar('Could not update call permission. Try again.');
+      return false;
     }
+  }
+
+  void _openCallSettings() {
+    if (!_canSend) return;
+    unawaited(
+      CallSettingsSheet.show(
+        context,
+        otherName: _displayName,
+        myUid: _myUid,
+        otherUid: widget.otherUserId,
+        conversation: _convDataNotifier,
+        canEdit: _conversation != null,
+        onChanged: _setCallEnabled,
+      ),
+    );
   }
 
   Future<void> _startCall(CallType type) async {
@@ -715,7 +737,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         e.message,
         action: SnackBarAction(
           label: 'Settings',
-          textColor: Colors.white,
+          textColor: AppColors.white,
           onPressed: openAppSettings,
         ),
       );
@@ -756,33 +778,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     if (_isLoading || _conversationId == null) {
       return const Scaffold(
-        backgroundColor: AppColors.appBackground,
+        backgroundColor: AppColors.backgroundDeep,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.purplePrimary),
+          child: CircularProgressIndicator(color: AppColors.brandPurpleMid),
         ),
       );
     }
 
+    final editing = _editingMessage;
+    final replyTo = _replyToMessage;
+
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
+      backgroundColor: AppColors.backgroundDeep,
       appBar: _buildAppBar(),
       body: Column(
         children: [
+          if (_canSend && _callsOff) _buildCallsOffCard(),
           Expanded(child: _buildMessagesList()),
           _buildTypingIndicator(),
-          if (_canSend && _editingMessage != null)
+          if (_canSend && editing != null)
             _buildComposerBanner(
               icon: Icons.edit,
               title: 'Editing message',
-              text: _editingMessage!.message,
+              text: editing.message,
               onClose: _cancelEdit,
             )
-          else if (_canSend && _replyToMessage != null)
+          else if (_canSend && replyTo != null)
             _buildComposerBanner(
               icon: Icons.reply,
               title:
-                  'Replying to ${_replyToMessage!.senderId == _myUid ? "yourself" : _displayName}',
-              text: _replyToMessage!.previewText,
+                  'Replying to ${replyTo.senderId == _myUid ? "yourself" : _displayName}',
+              text: replyTo.previewText,
               onClose: () => setState(() => _replyToMessage = null),
             ),
           _canSend ? _buildMessageInput() : _buildUnavailableInput(),
@@ -793,40 +819,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildInitError() {
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
+      backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
-        backgroundColor: AppColors.purplePrimary,
+        backgroundColor: AppColors.surfaceRaised,
+        surfaceTintColor: Colors.transparent,
+        shape: const Border(bottom: BorderSide(color: AppColors.border)),
         title: const Text('Chat'),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.cloud_off,
-                color: AppColors.hintPurple,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _initError!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.inputTextWhite),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.purplePrimary,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: _myUid.isEmpty ? null : _retryInit,
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+      body: AppEmptyState(
+        icon: Icons.cloud_off,
+        title: 'Chat unavailable',
+        message: _initError,
+        actionLabel: 'Retry',
+        onAction: _myUid.isEmpty ? null : _retryInit,
       ),
     );
   }
@@ -838,58 +843,87 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final isOnline = _otherOnline == true;
 
     return AppBar(
-      backgroundColor: AppColors.purplePrimary,
-      title: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: avatarUrl != null
-                ? CachedNetworkImageProvider(avatarUrl, maxWidth: 120)
-                : null,
-            backgroundColor: AppColors.purpleSecondary,
-            child: avatarUrl == null
-                ? Text(
-                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                    style: const TextStyle(color: Colors.white),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: AppColors.surfaceRaised,
+      surfaceTintColor: Colors.transparent,
+      shape: const Border(bottom: BorderSide(color: AppColors.border)),
+      titleSpacing: 0,
+      title: Semantics(
+        label: showOnline
+            ? '$displayName, ${isOnline ? 'online' : 'offline'}'
+            : displayName,
+        excludeSemantics: true,
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
               children: [
-                Text(
-                  displayName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: avatarUrl != null
+                      ? CachedNetworkImageProvider(avatarUrl, maxWidth: 120)
+                      : null,
+                  backgroundColor: AppColors.surface2,
+                  child: avatarUrl == null
+                      ? Text(
+                          displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      : null,
                 ),
-                if (showOnline)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isOnline ? Colors.greenAccent : Colors.grey,
-                          shape: BoxShape.circle,
+                if (showOnline && isOnline)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.surfaceRaised,
+                          width: 2,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isOnline ? 'Online' : 'Offline',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isOnline ? Colors.greenAccent : Colors.white70,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    displayName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (showOnline)
+                    Text(
+                      isOnline ? 'Online' : 'Offline',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isOnline
+                            ? AppColors.success
+                            : AppColors.lavender,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         if (_conversation?.isMuted(_myUid) ?? false)
@@ -898,18 +932,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             child: Icon(
               Icons.volume_off,
               size: 18,
-              color: Colors.white70,
+              color: AppColors.lavender,
               semanticLabel: 'Muted',
             ),
           ),
         if (_canSend) ...[
-          _buildCallButton(CallType.video),
           _buildCallButton(CallType.audio),
+          _buildCallButton(CallType.video),
         ],
         _buildMenu(),
       ],
     );
   }
+
+  static const String _callsOffTooltip =
+      'Calls work when both of you turn them on';
 
   Widget _buildCallButton(CallType type) {
     final isVideo = type == CallType.video;
@@ -917,17 +954,82 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final enabled = allowed && !_isCallInProgress;
     return IconButton(
       icon: Icon(
-        isVideo ? Icons.videocam : Icons.call,
-        color: enabled ? Colors.white : Colors.white38,
+        isVideo ? Icons.videocam_outlined : Icons.call_outlined,
+        color: enabled ? AppColors.white : AppColors.textSubtle,
       ),
       tooltip: allowed
-          ? (isVideo ? 'Video Call' : 'Voice Call')
-          : CallConsent.consentTooltip,
+          ? (isVideo ? 'Video call' : 'Voice call')
+          : _callsOffTooltip,
       onPressed: _isCallInProgress
           ? null
-          : (allowed
-                ? () => _startCall(type)
-                : () => _showSnackBar(CallConsent.consentTooltip)),
+          : (allowed ? () => _startCall(type) : _openCallSettings),
+    );
+  }
+
+  /// Shown above the messages while no call type is allowed for both users.
+  Widget _buildCallsOffCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.brandPurpleMid.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.shield_outlined,
+              size: 18,
+              color: AppColors.brandPurpleLight,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Calls are off for this chat',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Calls work only when both of you turn them on.',
+                  style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: _openCallSettings,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.white,
+              backgroundColor: AppColors.surfaceCard,
+              side: const BorderSide(color: AppColors.borderStrong),
+              minimumSize: const Size(64, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            child: const Text('Set up'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -936,13 +1038,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final blockedByMe = SafetyService.instance.hasBlocked(widget.otherUserId);
 
     return PopupMenuButton<String>(
+      tooltip: 'Chat options',
+      icon: const Icon(Icons.more_vert, color: AppColors.white),
       onSelected: (value) {
         switch (value) {
-          case 'audio':
-            _toggleCallEnabled(CallType.audio);
-            break;
-          case 'video':
-            _toggleCallEnabled(CallType.video);
+          case 'calls':
+            _openCallSettings();
             break;
           case 'clear':
             _clearChat();
@@ -960,25 +1061,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       },
       itemBuilder: (context) => [
         if (_canSend) ...[
-          CheckedPopupMenuItem<String>(
-            value: 'audio',
-            checked: _myCallEnabled(CallType.audio),
-            enabled: hasConversation,
-            child: const Text('Enable Audio'),
-          ),
-          CheckedPopupMenuItem<String>(
-            value: 'video',
-            checked: _myCallEnabled(CallType.video),
-            enabled: hasConversation,
-            child: const Text('Enable Video'),
-          ),
           const PopupMenuItem<String>(
-            enabled: false,
-            height: 32,
-            child: Text(
-              CallConsent.consentTooltip,
-              style: TextStyle(fontSize: 12, color: AppColors.hintPurple),
-            ),
+            value: 'calls',
+            child: Text('Call settings'),
           ),
           const PopupMenuDivider(),
         ],
@@ -1065,12 +1150,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // Messages list with infinite scroll
   Widget _buildMessagesList() {
     if (_messages.isEmpty && !_hasMore && !_pageError) {
-      return Center(
-        child: Text(
-          _isOtherDeleted ? 'No messages' : 'No messages yet. Say hi!',
-          style: const TextStyle(color: AppColors.hintPurple),
-        ),
-      );
+      return _isOtherDeleted
+          ? const AppEmptyState(
+              icon: Icons.chat_bubble_outline,
+              title: 'No messages',
+            )
+          : AppEmptyState(
+              icon: Icons.waving_hand_outlined,
+              title: 'No messages yet',
+              message: 'Say hi to $_displayName!',
+            );
     }
 
     return NotificationListener<ScrollNotification>(
@@ -1115,7 +1204,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     message: message,
                     isMe: isMe,
                     otherUserName: _displayName,
-                    otherUserAvatar: _otherAvatar,
                     repliedMessage: legacyReplyId == null
                         ? null
                         : _findLoaded(legacyReplyId),
@@ -1173,39 +1261,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildTypingIndicator() {
     if (!_otherTyping || !_canSend) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Text(
-            '$_displayName is typing',
-            style: const TextStyle(
-              color: AppColors.hintPurple,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(3, (index) {
-                return Container(
-                  width: 4,
-                  height: 4,
-                  decoration: const BoxDecoration(
-                    color: AppColors.purplePrimary,
-                    shape: BoxShape.circle,
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
+    return TypingBubble(name: _displayName);
   }
 
   /// Reply / edit banner above the input.
@@ -1216,12 +1272,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     required VoidCallback onClose,
   }) {
     return Container(
-      padding: const EdgeInsets.all(8),
-      color: AppColors.inputBackground,
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
       child: Row(
         children: [
-          Container(width: 4, height: 40, color: AppColors.purplePrimary),
-          const SizedBox(width: 8),
+          Container(
+            width: 3,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.brandPurpleMid,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
           Icon(icon, size: 18, color: AppColors.brandPurpleLight),
           const SizedBox(width: 8),
           Expanded(
@@ -1243,18 +1309,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
-                    color: AppColors.hintPurple,
+                    color: AppColors.lavender,
                   ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(
-              Icons.close,
-              size: 20,
-              color: AppColors.hintPurple,
-            ),
+            icon: const Icon(Icons.close, size: 20, color: AppColors.lavender),
             tooltip: 'Cancel',
             onPressed: onClose,
           ),
@@ -1279,7 +1341,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.inputBackground,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
       child: SafeArea(
         top: false,
         child: Row(
@@ -1287,7 +1352,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(color: AppColors.hintPurple),
+                style: const TextStyle(color: AppColors.lavender),
               ),
             ),
             if (blockedByMe && !_isOtherDeleted)
@@ -1306,40 +1371,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildMessageInput() {
     final isEditing = _editingMessage != null;
+    final attachDisabled = _isUploadingMedia || isEditing;
+    const pillRadius = BorderRadius.all(Radius.circular(22));
 
     return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.inputBackground,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
               icon: Icon(
-                Icons.attach_file,
-                color: _isUploadingMedia || isEditing
-                    ? AppColors.brandPurpleLight.withOpacity(0.5)
-                    : AppColors.brandPurpleLight,
+                Icons.add,
+                color: attachDisabled
+                    ? AppColors.textSubtle
+                    : AppColors.lavender,
               ),
-              tooltip: 'Attach',
-              onPressed: _isUploadingMedia || isEditing
-                  ? null
-                  : _showAttachmentSheet,
+              tooltip: 'Attach photo or voice note',
+              onPressed: attachDisabled ? null : _showAttachmentSheet,
             ),
             Expanded(
               child: TextField(
                 controller: _messageController,
                 focusNode: _messageFocusNode,
-                style: const TextStyle(color: AppColors.inputTextWhite),
+                style: const TextStyle(color: AppColors.white, fontSize: 15),
+                cursorColor: AppColors.brandPurpleLight,
                 maxLines: 5,
                 minLines: 1,
                 maxLength: ChatMessage.maxLength,
@@ -1357,7 +1418,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       return Text(
                         '$currentLength/${ChatMessage.maxLength}',
                         style: const TextStyle(
-                          color: AppColors.hintPurple,
+                          color: AppColors.lavender,
                           fontSize: 11,
                         ),
                       );
@@ -1365,51 +1426,100 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  hintStyle: const TextStyle(color: AppColors.hintPurple),
+                  hintText: 'Message $_displayName…',
+                  hintStyle: const TextStyle(color: AppColors.textSubtle),
                   filled: true,
-                  fillColor: AppColors.inputBackground,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide.none,
+                  fillColor: AppColors.surfaceCard,
+                  isDense: true,
+                  border: const OutlineInputBorder(
+                    borderRadius: pillRadius,
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: pillRadius,
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius: pillRadius,
+                    borderSide: BorderSide(color: AppColors.brandPurpleMid),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
+                    horizontal: 16,
+                    vertical: 13,
                   ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
             ),
             const SizedBox(width: 8),
-            // Send button or upload indicator
-            _isUploadingMedia
-                ? Container(
-                    width: 48,
-                    height: 48,
-                    padding: const EdgeInsets.all(12),
-                    child: const CircularProgressIndicator(
-                      color: AppColors.purplePrimary,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : CircleAvatar(
-                    radius: 24,
-                    backgroundColor: AppColors.purplePrimary,
-                    child: IconButton(
-                      icon: Icon(
-                        _isSending
-                            ? Icons.hourglass_empty
-                            : (isEditing ? Icons.check : Icons.send),
-                        color: Colors.white,
-                      ),
-                      tooltip: isEditing ? 'Save' : 'Send',
-                      onPressed: _isSending ? null : _sendMessage,
-                    ),
-                  ),
+            _buildComposerAction(isEditing),
           ],
         ),
       ),
+    );
+  }
+
+  /// Round gradient button: mic while empty, send (or save) with text.
+  Widget _buildComposerAction(bool isEditing) {
+    if (_isUploadingMedia) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Padding(
+          padding: EdgeInsets.all(12),
+          child: CircularProgressIndicator(
+            color: AppColors.brandPurpleMid,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _messageController,
+      builder: (context, value, _) {
+        final showSend = isEditing || value.text.trim().isNotEmpty;
+        final IconData icon;
+        final String label;
+        final VoidCallback? onPressed;
+        if (showSend) {
+          icon = _isSending
+              ? Icons.hourglass_empty
+              : (isEditing ? Icons.check : Icons.send_rounded);
+          label = isEditing ? 'Save' : 'Send';
+          onPressed = _isSending ? null : _sendMessage;
+        } else {
+          icon = Icons.mic_none_rounded;
+          label = 'Record voice message';
+          onPressed = _showVoiceRecordingSheet;
+        }
+
+        return Semantics(
+          button: true,
+          enabled: onPressed != null,
+          child: Tooltip(
+            message: label,
+            child: Material(
+              type: MaterialType.transparency,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: Ink(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle,
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onPressed,
+                  child: Icon(icon, color: AppColors.white, size: 22),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1433,28 +1543,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       dateText = '${date.day}/${date.month}/${date.year}';
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: Divider(color: AppColors.hintPurple.withOpacity(0.3)),
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.border),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              dateText,
-              style: const TextStyle(
-                color: AppColors.hintPurple,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+          child: Text(
+            dateText,
+            style: const TextStyle(
+              color: AppColors.lavender,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          Expanded(
-            child: Divider(color: AppColors.hintPurple.withOpacity(0.3)),
-          ),
-        ],
+        ),
       ),
     );
   }

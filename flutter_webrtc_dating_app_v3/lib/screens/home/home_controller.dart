@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'package:availchat/managers/filter_preferences.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/discovery_feed_service.dart';
@@ -53,6 +54,9 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _feed?.hasMore ?? false;
   String? get error => _error;
+
+  /// Filters the current feed was loaded with.
+  DiscoveryFilters get filters => _filters;
 
   int get profileCompletionPercentage => _profileCompletionPercentage;
   bool get showBanner =>
@@ -260,6 +264,17 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> onFiltersChanged() async {
     _filters = await DiscoveryFilters.load();
     await _reloadFeed();
+  }
+
+  /// Turns discovery filters off (saved values are kept) and reloads.
+  Future<void> clearFilters() async {
+    try {
+      final prefs = await FilterPreferences.getInstance();
+      await prefs.setApplyFilters(false);
+    } catch (e) {
+      debugPrint('Clear filters failed: $e');
+    }
+    await onFiltersChanged();
   }
 
   bool isValidUserForChat(UserModel user) {

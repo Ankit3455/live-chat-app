@@ -1,24 +1,32 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 
-import '../../../models/user_model.dart';
-import '../../astrology/widgets/compatibility_chip.dart';
+import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/core/utils/astrology_utils.dart';
+import 'package:availchat/core/utils/compatibility_utils.dart';
+import 'package:availchat/models/user_model.dart';
+
 import 'profile_quick_sheet.dart';
-import '../../../core/constants/app_colors.dart';
 
-/// Tap opens the quick sheet; its Message button calls [onTap].
+/// Discover grid card. Tap calls [onTap] (full profile); long-press opens the
+/// quick sheet, whose Message button calls [onMessage].
 class ProfileCard extends StatefulWidget {
   const ProfileCard({
-    Key? key,
+    super.key,
     required this.user,
     required this.currentUser,
     required this.onTap,
-  }) : super(key: key);
+    this.onMessage,
+    this.distanceKm,
+  });
 
   final UserModel user;
   final UserModel? currentUser;
   final VoidCallback onTap;
+  final VoidCallback? onMessage;
+
+  /// Shown when the user has no city.
+  final int? distanceKm;
 
   @override
   State<ProfileCard> createState() => _ProfileCardState();
@@ -26,8 +34,9 @@ class ProfileCard extends StatefulWidget {
 
 class _ProfileCardState extends State<ProfileCard>
     with SingleTickerProviderStateMixin {
+  static const _radius = BorderRadius.all(Radius.circular(20));
+
   late final AnimationController _tapCtrl;
-  bool _floating = false;
 
   @override
   void initState() {
@@ -35,40 +44,27 @@ class _ProfileCardState extends State<ProfileCard>
     _tapCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 160),
-      lowerBound: .94,
+      lowerBound: .96,
       upperBound: 1.0,
       value: 1.0,
     );
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Float only while visible and when the user allows motion.
-    final shouldFloat = TickerMode.of(context) &&
-        !MediaQuery.of(context).disableAnimations;
-    if (shouldFloat != _floating) {
-      _floating = shouldFloat;
-      shouldFloat ? _CardFloat.instance.acquire() : _CardFloat.instance.release();
-    }
-  }
-
-  @override
   void dispose() {
-    if (_floating) _CardFloat.instance.release();
     _tapCtrl.dispose();
     super.dispose();
   }
 
   void _openQuickSheet() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => ProfileQuickSheet(
         currentUser: widget.currentUser,
         user: widget.user,
-        onMessage: widget.onTap,
+        onMessage: widget.onMessage,
       ),
     );
   }
@@ -85,283 +81,251 @@ class _ProfileCardState extends State<ProfileCard>
     return url.contains('?') ? '$url&v=$v' : '$url?v=$v';
   }
 
-  Widget _avatarBox() {
-    final url = _avatarUrl();
+  String? _place() {
+    final city = widget.user.location?.trim() ?? '';
+    if (city.isNotEmpty) return city;
+    final km = widget.distanceKm;
+    if (km == null) return null;
+    return km <= 5 ? 'Nearby' : '~$km km away';
+  }
 
-    final fallback = Container(
-      alignment: Alignment.center,
+  Widget _photo() {
+    final fallback = DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.brandPurple, AppColors.accentPurple],
+          colors: [AppColors.brandPurple, AppColors.brandPink],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Text(
-        _initial(),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 72,
-          fontWeight: FontWeight.w800,
+      child: Center(
+        child: Text(
+          _initial(),
+          style: const TextStyle(
+            color: AppColors.white,
+            fontSize: 64,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
 
-    if (url == null) {
-      return fallback;
-    }
-
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: CachedNetworkImage(
-        imageUrl: url,
-        memCacheWidth: 600,
-        fit: BoxFit.cover,
-        errorWidget: (_, __, ___) => fallback,
-      ),
+    final url = _avatarUrl();
+    if (url == null) return fallback;
+    return CachedNetworkImage(
+      imageUrl: url,
+      memCacheWidth: 600,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => const ColoredBox(color: AppColors.surface2),
+      errorWidget: (_, __, ___) => fallback,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final online = widget.user.online == true;
-    final age = widget.user.age;
+    final user = widget.user;
+    final age = user.age;
+    final place = _place();
+    final score =
+        CompatibilityService.compatibilityScore(widget.currentUser, user);
+    final hasVoice = (user.voiceIntroUrl ?? '').isNotEmpty;
+    final nameStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+          color: AppColors.white,
+        );
+
     final semanticsLabel = [
-      widget.user.username,
+      user.username,
       if (age != null) '$age',
-      if (online) 'online',
+      if (place != null) place,
+      if (score != null) '$score% compatible',
+      if (user.online) 'online',
+      if (hasVoice) 'has voice intro',
     ].join(', ');
 
-    final card = Semantics(
+    return Semantics(
       button: true,
       label: semanticsLabel,
       hint: 'Open profile',
       excludeSemantics: true,
-      onTap: _openQuickSheet,
-      child: GestureDetector(
-      onTapDown: (_) => _tapCtrl.reverse(),
-      onTapCancel: () => _tapCtrl.forward(),
-      onTapUp: (_) {
-        _tapCtrl.forward();
-        _openQuickSheet();
-      },
+      onTap: widget.onTap,
       onLongPress: _openQuickSheet,
+      child: GestureDetector(
+        onTapDown: (_) => _tapCtrl.reverse(),
+        onTapCancel: () => _tapCtrl.forward(),
+        onTapUp: (_) {
+          _tapCtrl.forward();
+          widget.onTap();
+        },
+        onLongPress: _openQuickSheet,
         child: ScaleTransition(
           scale: _tapCtrl,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: const LinearGradient(
-                colors: [AppColors.brandPurple, AppColors.accentPurple],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(.25),
-                  blurRadius: 16,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // glossy overlay
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withOpacity(.10),
-                            Colors.white.withOpacity(.02),
-                          ],
-                        ),
+          child: ClipRRect(
+            borderRadius: _radius,
+            child: ColoredBox(
+              color: AppColors.surfaceCard,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _photo(),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.45, 1.0],
+                        colors: [
+                          AppColors.backgroundDeep.withOpacity(0),
+                          AppColors.backgroundDeep.withOpacity(0.9),
+                        ],
                       ),
                     ),
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // avatar area (image or initials)
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(child: _avatarBox()),
-                          Positioned(
-                            left: 8,
-                            top: 8,
-                            child: CompatibilityChip(
-                              currentUser: widget.currentUser,
-                              user: widget.user,
-                            ),
-                          ),
-                          if (online)
-                            Positioned(
-                              right: 10,
-                              top: 10,
-                              child: Container(
-                                width: 16,
-                                height: 16,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Container(
-                                  margin: const EdgeInsets.all(2),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.greenAccent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    right: 10,
+                    child: Row(
+                      children: [
+                        if (score != null) _CompatChip(score: score, user: user),
+                        const Spacer(),
+                        if (user.online) const _OnlineDot(),
+                      ],
                     ),
-
-                    // dark label strip
-                    Container(
-                      padding:
-                      const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF150B25).withOpacity(.70),
-                        borderRadius: const BorderRadius.vertical(
-                          bottom: Radius.circular(20),
+                  ),
+                  if (hasVoice)
+                    Positioned(
+                      right: 10,
+                      bottom: 54,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.backgroundDeep.withOpacity(0.6),
+                        ),
+                        child: const Icon(
+                          Icons.mic_rounded,
+                          size: 15,
+                          color: AppColors.pinkLight,
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.user.username,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.work_outline,
-                                  size: 14, color: Colors.white70),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  widget.user.profession?.isNotEmpty == true
-                                      ? widget.user.profession!
-                                      : '—',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
+                    ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 10,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          age != null ? '${user.username}, $age' : user.username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: nameStyle,
+                        ),
+                        if (place != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.place_outlined,
+                                  size: 13,
+                                  color: AppColors.lavender,
+                                ),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(
+                                    place,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.lavender,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          _buildInterestsRow(widget.user.interests),
-                        ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-      ),
-      ),
-    );
-
-    return RepaintBoundary(
-      child: _floating
-          ? ValueListenableBuilder<double>(
-              valueListenable: _CardFloat.instance.phase,
-              builder: (_, t, child) => Transform.translate(
-                offset: Offset(-4 + 8 * t, -3 + 6 * t),
-                child: child,
+                  ),
+                ],
               ),
-              child: card,
-            )
-          : card,
-    );
-  }
-
-  Widget _buildInterestsRow(List<String> interests) {
-    final chips = interests.take(2).toList();
-    if (chips.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 6,
-      children: chips
-          .map(
-            (e) => Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.10),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: Colors.white.withOpacity(.15), width: 1),
-          ),
-          child: Text(
-            e,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-      )
-          .toList(),
+      ),
     );
   }
 }
 
-/// One ticker shared by every visible card instead of one controller per card
-/// (DEST-096). Runs only while at least one card is floating.
-class _CardFloat {
-  _CardFloat._();
-  static final _CardFloat instance = _CardFloat._();
+/// Gold compatibility chip on a glass background (zodiac emoji + score).
+class _CompatChip extends StatelessWidget {
+  const _CompatChip({required this.score, required this.user});
 
-  static const _halfPeriodMs = 5200;
+  final int score;
+  final UserModel user;
 
-  final ValueNotifier<double> phase = ValueNotifier<double>(0.5);
-  Ticker? _ticker;
-  int _users = 0;
-  int _offsetMs = 0;
-  int _lastMs = 0;
-
-  void acquire() {
-    if (_users++ > 0) return;
-    _ticker ??= Ticker(_onTick, debugLabel: 'ProfileCardFloat');
-    _ticker!.start();
+  @override
+  Widget build(BuildContext context) {
+    final sign = CompatibilityService.signOf(user);
+    final emoji = AstrologyUtils.zodiacEmoji[sign] ?? '';
+    return Tooltip(
+      message: CompatibilityService.tooltip,
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 3),
+      child: Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDeep.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (emoji.isNotEmpty) ...[
+              Text(emoji, style: const TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              '$score%',
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+}
 
-  void release() {
-    if (_users == 0 || --_users > 0) return;
-    _ticker?.stop();
-    _offsetMs += _lastMs;
-    _lastMs = 0;
-  }
+class _OnlineDot extends StatelessWidget {
+  const _OnlineDot();
 
-  void _onTick(Duration elapsed) {
-    _lastMs = elapsed.inMilliseconds;
-    final ms = (_offsetMs + _lastMs) % (2 * _halfPeriodMs);
-    final linear =
-        ms < _halfPeriodMs ? ms / _halfPeriodMs : 2 - ms / _halfPeriodMs;
-    phase.value = Curves.easeInOut.transform(linear);
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: AppColors.success,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.backgroundDeep.withOpacity(0.7),
+          width: 2,
+        ),
+      ),
+    );
   }
 }

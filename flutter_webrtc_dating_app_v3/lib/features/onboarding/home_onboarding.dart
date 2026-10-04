@@ -198,7 +198,7 @@ class HomeOnboarding {
     final topPadding = MediaQuery.of(context).padding.top;
 
     // =========================================================================
-    // Step 1: Top Matches (Bubbles) - Tooltip BELOW the bubbles
+    // Step 1: Online now strip - tooltip below it
     // =========================================================================
     if (hasBubbles) {
       targets.add(
@@ -221,9 +221,9 @@ class HomeOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
                   iconColor: AppColors.gold,
-                  title: "Your Top Matches ✨",
+                  title: "Online now ✨",
                   description:
-                  "These are your best matches based on compatibility! Scroll horizontally to discover amazing people.",
+                  "People who are online right now. Scroll sideways and tap someone to start a chat.",
                   buttonText: "Next",
                   isLastStep: false,
                   onButtonTap: () {
@@ -568,7 +568,7 @@ class HomeOnboarding {
     );
   }
 
-  // Bubbles are optional (hidden when there are no top matches);
+  // Bubbles are optional (hidden when nobody is online);
   // the first grid card is required.
   static bool _validateKeys(HomeTourKeys keys) {
     final bubblesOk = keys.bubbles.currentContext != null;

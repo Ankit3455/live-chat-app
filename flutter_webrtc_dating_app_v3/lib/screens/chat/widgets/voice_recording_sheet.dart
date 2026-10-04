@@ -192,7 +192,7 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.mic_off, color: Colors.red, size: 48),
+            const Icon(Icons.mic_off, color: AppColors.error, size: 48),
             const SizedBox(height: 16),
             Text(
               _permissionDenied
@@ -305,13 +305,13 @@ class _VoiceRecordingSheetState extends State<VoiceRecordingSheet> {
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.2),
+                        color: AppColors.error.withOpacity(0.2),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.red, width: 2),
+                        border: Border.all(color: AppColors.error, width: 2),
                       ),
                       child: const Icon(
                         Icons.close,
-                        color: Colors.red,
+                        color: AppColors.error,
                         size: 30,
                       ),
                     ),
@@ -385,7 +385,7 @@ class _RecordingDotState extends State<_RecordingDot>
           width: 12,
           height: 12,
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.5 + (_controller.value * 0.5)),
+            color: AppColors.error.withOpacity(0.5 + (_controller.value * 0.5)),
             shape: BoxShape.circle,
           ),
         );

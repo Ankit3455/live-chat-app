@@ -1,167 +1,127 @@
 import 'package:flutter/material.dart';
-import '../../questionnaire/profile_completion_screen.dart';
-import '../../../core/constants/app_colors.dart';
 
+import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/screens/questionnaire/profile_completion_screen.dart';
+
+/// Slim profile-completion nudge shown at the top of the Discover feed.
 class ProfileCompletionBanner extends StatelessWidget {
   final int completionPercentage;
   final VoidCallback onDismiss;
 
   const ProfileCompletionBanner({
-    Key? key,
+    super.key,
     required this.completionPercentage,
     required this.onDismiss,
-  }) : super(key: key);
+  });
+
+  void _openCompletion(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileCompletionScreen()),
+    ).then((_) => onDismiss());
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pct = completionPercentage.clamp(0, 100);
+
     return Container(
-      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
+          colors: [
+            AppColors.brandPurple.withOpacity(0.22),
+            AppColors.brandPink.withOpacity(0.14),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brandPurple.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderStrong),
       ),
-      child: Stack(
+      child: Row(
         children: [
-          // Close Button
-          Positioned(
-            top: 0,
-            right: 0,
-            child: IconButton(
-              tooltip: 'Dismiss',
-              icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-              onPressed: onDismiss,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          Semantics(
+            label: 'Profile $pct% complete',
+            excludeSemantics: true,
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox.expand(
+                    child: CircularProgressIndicator(
+                      value: pct / 100,
+                      strokeWidth: 4,
+                      color: AppColors.brandPink,
+                      backgroundColor: AppColors.surface2,
+                    ),
+                  ),
+                  Text(
+                    '$pct%',
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(20),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Boost Your Profile!',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '$completionPercentage% complete',
-                            style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: completionPercentage / 100,
-                    backgroundColor: Colors.white.withOpacity(0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 16),
                 Text(
-                  _getMessage(completionPercentage),
+                  'Complete your profile',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.95),
-                    fontSize: 15,
-                    height: 1.4,
+                    color: AppColors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: onDismiss,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white, width: 2),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text('Later', style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const ProfileCompletionScreen()
-                              )
-                          ).then((_) => onDismiss());
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.brandPurple,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 0,
-                        ),
-                        child: const Text('Complete Now',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15)),
-                      ),
-                    ),
-                  ],
+                SizedBox(height: 2),
+                Text(
+                  'Complete profiles stand out in Discover.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.lavender, fontSize: 13),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: () => _openCompletion(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.white,
+              backgroundColor: AppColors.surfaceCard,
+              side: const BorderSide(color: AppColors.borderStrong),
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            child: const Text('Complete'),
+          ),
+          IconButton(
+            tooltip: 'Dismiss',
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 18, color: AppColors.lavender),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            padding: EdgeInsets.zero,
+          ),
         ],
       ),
     );
-  }
-
-  String _getMessage(int percentage) {
-    if (percentage >= 80) {
-      return '🎉 Almost there! Complete your profile to get 5x more matches and stand out from the crowd.';
-    } else if (percentage >= 60) {
-      return '✨ Great start! Add more details to attract better matches and increase your visibility.';
-    } else {
-      return '🚀 Complete your profile to unlock premium features and get noticed by compatible matches!';
-    }
   }
 }

@@ -1,15 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 // Core
 import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/managers/filter_preferences.dart';
 
 // Models
 import 'package:availchat/models/user_model.dart';
 
 // Screens
 import 'package:availchat/screens/chat/chat_screen.dart';
+import 'package:availchat/screens/profile/profile_details_screen.dart';
 import 'package:availchat/screens/settings/discovery_settings_screen.dart';
 import 'package:availchat/screens/shell/main_shell.dart';
 
@@ -18,8 +22,7 @@ import 'widgets/profile_bubble.dart';
 import 'widgets/profile_card.dart';
 import 'widgets/profile_completion_banner.dart';
 
-// Shimmers
-import 'package:availchat/widgets/shimmers/shimmer_bubble.dart';
+import 'package:availchat/widgets/app_states.dart';
 
 // Onboarding
 import '../../features/onboarding/home_onboarding.dart';
@@ -144,6 +147,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
     }
   }
 
+  Future<void> _clearFilters() => _controller.clearFilters();
+
+  void _openProfile(UserModel user) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProfileDetailsScreen(user: user)),
+    );
+  }
+
   void _navigateToChat(UserModel user) {
     if (!_controller.isValidUserForChat(user)) {
       _showSnackBar('Unable to open chat. Invalid user.');
@@ -173,8 +185,16 @@ class _DiscoverTabState extends State<DiscoverTab> {
   // BUILD METHOD
   // ===========================================================================
 
+  static const _gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    childAspectRatio: 4 / 5,
+    crossAxisSpacing: 12,
+    mainAxisSpacing: 12,
+  );
+
   @override
   Widget build(BuildContext context) {
+    final filterLabels = _activeFilterLabels();
     return Scaffold(
       backgroundColor: AppColors.appBackground,
       body: Stack(
@@ -184,14 +204,45 @@ class _DiscoverTabState extends State<DiscoverTab> {
             bottom: false,
             child: Column(
               children: [
-                _buildHeader(),
-                Expanded(child: _buildContent()),
+                _buildHeader(filterLabels.isNotEmpty),
+                Expanded(child: _buildFeed(filterLabels)),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  // ===========================================================================
+  // Filters
+  // ===========================================================================
+
+  /// Chip labels for the filters that currently narrow the feed.
+  List<String> _activeFilterLabels() {
+    final f = _controller.filters;
+    if (!f.applyFilters) return const [];
+
+    String? gender;
+    if (f.gender == 'male') {
+      gender = 'Men';
+    } else if (f.gender == 'female') {
+      gender = 'Women';
+    }
+    final ageNarrowed = f.ageMin > FilterPreferences.minAllowedAge ||
+        f.ageMax < FilterPreferences.maxAllowedAge;
+    final ages = '${f.ageMin}–${f.ageMax}';
+
+    return [
+      if (gender != null && ageNarrowed)
+        '$gender · $ages'
+      else if (gender != null)
+        gender
+      else if (ageNarrowed)
+        'Ages $ages',
+      if (f.distanceKm > 0) 'Within ${f.distanceKm} km',
+      if (f.onlineOnly) 'Online only',
+    ];
   }
 
   // ===========================================================================
@@ -206,12 +257,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
             'assets/animations/space.json',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
-              return Container(
-                decoration: const BoxDecoration(
+              return const DecoratedBox(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [AppColors.backgroundDeep, AppColors.backgroundDarkest],
+                    colors: [
+                      AppColors.backgroundDeep,
+                      AppColors.backgroundDarkest,
+                    ],
                   ),
                 ),
               );
@@ -219,96 +273,51 @@ class _DiscoverTabState extends State<DiscoverTab> {
           ),
         ),
         Positioned.fill(
-          child: Container(color: Colors.black.withOpacity(0.3)),
+          child: ColoredBox(color: AppColors.black.withOpacity(0.3)),
         ),
       ],
     );
   }
 
-
-  Widget _buildHeader() {
+  Widget _buildHeader(bool filtersActive) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+      padding: const EdgeInsets.fromLTRB(20, 8, 8, 4),
       child: Row(
         children: [
-          const Expanded(
-            child: Text(
-              'Discover',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                'Discover',
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.tune, color: Colors.white),
             tooltip: 'Discovery filters',
             onPressed: _openDiscoverySettings,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    // Error State
-    if (_controller.error != null) {
-      return _buildErrorState();
-    }
-
-    // Loading State
-    if (_controller.isLoading) {
-      return _buildLoadingState();
-    }
-
-    // Empty State
-    if (_controller.displayedUsers.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    // Users List
-    return _buildUsersList();
-  }
-
-  Widget _buildLoadingState() {
-    return const Column(
-      children: [
-        SizedBox(height: 8),
-        ShimmerBubbleStrip(),
-        SizedBox(height: 16),
-        Expanded(child: ShimmerBubbleGrid()),
-      ],
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.redAccent.withOpacity(0.7),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _controller.error ?? 'Something went wrong',
-            style: const TextStyle(color: AppColors.lavender, fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _onRefresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try Again'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.tune_rounded, color: AppColors.white),
+                if (filtersActive)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.brandPink,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.backgroundDeep,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -316,88 +325,176 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 100,
-            color: AppColors.lavender.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No users found',
-            style: TextStyle(
-              color: AppColors.lavender,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Try adjusting your search or filters',
-            style: TextStyle(color: AppColors.lavender, fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: _openDiscoverySettings,
-            icon: const Icon(Icons.tune),
-            label: const Text('Adjust Filters'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.brandPurpleLight,
-              side: const BorderSide(color: AppColors.brandPurple),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUsersList() {
+  /// One scroll view: chips, nudge, online strip and grid all scroll together.
+  Widget _buildFeed(List<String> filterLabels) {
+    final filtersActive = filterLabels.isNotEmpty;
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: AppColors.brandPurple,
       backgroundColor: AppColors.surfaceCard,
-      child: Column(
-        children: [
-          // Profile Completion Banner
-          if (_controller.showBanner)
-            ProfileCompletionBanner(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onFeedScroll,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (filtersActive)
+              SliverToBoxAdapter(child: _buildFilterChips(filterLabels)),
+            ..._buildStateSlivers(filtersActive),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Paginated feed: fetch the next page near the end of the grid.
+  bool _onFeedScroll(ScrollNotification n) {
+    if (n.metrics.axis == Axis.vertical &&
+        n.metrics.extentAfter < 600 &&
+        _controller.displayedUsers.isNotEmpty) {
+      unawaited(_controller.loadMore());
+    }
+    return false;
+  }
+
+  List<Widget> _buildStateSlivers(bool filtersActive) {
+    if (_controller.error != null) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AppEmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: "Couldn't load people",
+            message: 'Check your connection and try again.',
+            actionLabel: 'Try again',
+            onAction: _onRefresh,
+          ),
+        ),
+      ];
+    }
+
+    if (_controller.isLoading) return [_buildSkeletonGrid()];
+
+    final users = _controller.displayedUsers;
+    if (users.isEmpty) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _buildEmptyState(filtersActive),
+        ),
+      ];
+    }
+
+    final online = users.where((u) => u.online).take(20).toList();
+    return [
+      if (_controller.showBanner)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: ProfileCompletionBanner(
               completionPercentage: _controller.profileCompletionPercentage,
               onDismiss: _controller.dismissBanner,
             ),
+          ),
+        ),
+      if (online.isNotEmpty) ...[
+        SliverToBoxAdapter(
+          child: _buildSectionTitle(
+            'Online now',
+            online.length == 1 ? '1 person' : '${online.length} people',
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildOnlineStrip(online)),
+      ],
+      SliverToBoxAdapter(
+        child: _buildSectionTitle('For you', 'Recently active'),
+      ),
+      _buildProfileGrid(users),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: _controller.isLoadingMore
+              ? const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.brandPurpleLight,
+                    ),
+                  ),
+                )
+              : const SizedBox(height: 24),
+        ),
+      ),
+    ];
+  }
 
-          // Top Matches Bubbles
-          _buildTopMatchesBubbles(),
-
-          // Profile Grid
-          Expanded(child: _buildProfileGrid()),
+  Widget _buildFilterChips(List<String> labels) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final label in labels)
+            Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.brandPurpleMid.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.brandPurpleMid),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.brandPurpleLight,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildTopMatchesBubbles() {
-    final topUsers = _controller.topUsers;
-    if (topUsers.isEmpty) return const SizedBox.shrink();
+  Widget _buildSectionTitle(String title, String caption) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          Text(caption, style: textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
 
-    return Container(
+  Widget _buildOnlineStrip(List<UserModel> users) {
+    return SizedBox(
       key: _tourKeys.bubbles,
-      height: 120,
-      child: ListView.builder(
+      height: 92,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: topUsers.length,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: users.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemBuilder: (context, index) {
-          final user = topUsers[index];
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
+          final user = users[index];
+          return Align(
+            alignment: Alignment.topCenter,
             child: ProfileBubble(
               user: user,
               onTap: () => _navigateToChat(user),
@@ -408,70 +505,82 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
-  Widget _buildProfileGrid() {
-    final users = _controller.displayedUsers;
+  Widget _buildProfileGrid(List<UserModel> users) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      sliver: SliverGrid(
+        gridDelegate: _gridDelegate,
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final user = users[index];
+            final card = ProfileCard(
+              user: user,
+              currentUser: _controller.currentUser,
+              distanceKm: _controller.distanceKmFor(user),
+              onTap: () => _openProfile(user),
+              onMessage: () => _navigateToChat(user),
+            );
 
-    final grid = GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+            // Onboarding tour targets.
+            if (index == 0) {
+              return KeyedSubtree(key: _tourKeys.firstGridItem, child: card);
+            }
+            if (index == 1) {
+              return KeyedSubtree(key: _tourKeys.secondGridItem, child: card);
+            }
+            return card;
+          },
+          childCount: users.length,
+        ),
       ),
-      itemCount: users.length,
-      itemBuilder: (context, index) {
-        final user = users[index];
-
-        final profileCard = ProfileCard(
-          user: user,
-          currentUser: _controller.currentUser,
-          onTap: () => _navigateToChat(user),
-        );
-
-        // Onboarding keys
-        if (index == 0) {
-          return Container(
-            key: _tourKeys.firstGridItem,
-            child: profileCard,
-          );
-        } else if (index == 1) {
-          return Container(
-            key: _tourKeys.secondGridItem,
-            child: profileCard,
-          );
-        }
-
-        return profileCard;
-      },
     );
+  }
 
-    // Paginated feed: fetch the next page near the end of the grid.
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 600) {
-          _controller.loadMore();
-        }
-        return false;
-      },
-      child: Stack(
-        children: [
-          grid,
-          if (_controller.isLoadingMore)
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+  Widget _buildSkeletonGrid() {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      sliver: SliverGrid(
+        gridDelegate: _gridDelegate,
+        delegate: SliverChildBuilderDelegate(
+          (_, index) => Semantics(
+            label: index == 0 ? 'Loading people' : null,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(20)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.surfaceCard, AppColors.surface2],
                 ),
               ),
             ),
-        ],
+          ),
+          childCount: 6,
+        ),
       ),
+    );
+  }
+
+  Widget _buildEmptyState(bool filtersActive) {
+    final String message;
+    if (!filtersActive) {
+      message = 'Check back soon — new people join every day.';
+    } else if (_controller.filters.onlineOnly) {
+      message = 'Your filters are narrow. Widen the distance or turn off '
+          '“Online only” to see more people.';
+    } else {
+      message = 'Your filters are narrow. Widen the distance or age range '
+          'to see more people.';
+    }
+
+    return AppEmptyState(
+      icon: Icons.nights_stay_outlined,
+      title: 'No one new right now',
+      message: message,
+      actionLabel: 'Adjust filters',
+      onAction: _openDiscoverySettings,
+      secondaryLabel: filtersActive ? 'Clear all filters' : null,
+      onSecondary: filtersActive ? _clearFilters : null,
     );
   }
 }
