@@ -256,7 +256,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
         // may still exist, so look it up once instead of scanning forever.
         if (entryGone) {
           _myQueueDocId = null;
-          return _findMatchCreatedSince(uid, searchStart);
+          return await _findMatchCreatedSince(uid, searchStart);
         }
 
         await Future.any([claimed.future, Future.delayed(_recheckEvery)]);

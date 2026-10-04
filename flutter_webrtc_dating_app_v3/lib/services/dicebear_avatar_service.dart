@@ -387,7 +387,7 @@ class DiceBearAvatarService {
         if (raw is DateTime) {
           dob = raw;
         } else if (raw is Timestamp) {
-          dob = (raw as Timestamp).toDate();
+          dob = raw.toDate();
         } else if (raw is String) {
           dob = DateTime.tryParse(raw);
         } else if (raw is int) {

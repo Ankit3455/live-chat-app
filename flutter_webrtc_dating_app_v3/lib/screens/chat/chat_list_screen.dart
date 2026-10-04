@@ -609,7 +609,7 @@ class _ErrorState extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   final String title;
   final String subtitle;
-  const _EmptyState({super.key, required this.title, required this.subtitle});
+  const _EmptyState({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {

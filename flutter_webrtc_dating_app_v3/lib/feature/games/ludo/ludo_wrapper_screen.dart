@@ -536,7 +536,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen> with WidgetsBindi
       title = '🎉 You Win!';
       subtitle = reason == 'forfeit'
           ? 'Opponent forfeited the game!'
-          : 'Congratulations! Winner: ${winner?.name.toUpperCase()}';
+          : 'Congratulations! Winner: ${winner.name.toUpperCase()}';
       icon = Icons.emoji_events;
       iconColor = Colors.amber;
     } else if (localRank > 1) {

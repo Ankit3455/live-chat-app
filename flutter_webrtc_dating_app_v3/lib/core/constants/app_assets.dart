@@ -6,7 +6,6 @@ class AppAssets {
   static const String _animationsPath = '$_basePath/animations';
   static const String _iconsPath = '$_basePath/icons';
   static const String _soundsPath = '$_basePath/sounds';
-  static const String _fontsPath = '$_basePath/fonts';
   
   // Images
   static const String googleIcon = '$_imagesPath/google_icon.png';

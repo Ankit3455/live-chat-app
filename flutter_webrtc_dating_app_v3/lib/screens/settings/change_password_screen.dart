@@ -224,6 +224,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: _validateNew,
               ),
+              const SizedBox(height: 8),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _newCtl,
+                builder: (_, __, ___) => _buildPasswordHints(),
+              ),
 
 // Confirm Password
               CustomTextField(
@@ -264,17 +269,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-
   Widget _buildPasswordHints() {
     final password = _newCtl.text;
 
@@ -286,7 +280,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       ),
       child: Column(
         children: [
-          _buildHintRow('At least 8 characters', password.length >= 8),
+          _buildHintRow(
+            'At least ${AuthValidators.minPasswordLength} characters',
+            password.length >= AuthValidators.minPasswordLength,
+          ),
           const SizedBox(height: 6),
           _buildHintRow('Contains a letter', RegExp(r'[A-Za-z]').hasMatch(password)),
           const SizedBox(height: 6),

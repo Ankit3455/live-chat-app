@@ -372,7 +372,7 @@ class SignalingService {
       receiverName: '',
       type: (typeStr == 'audio') ? CallType.audio : CallType.video,
       status: CallStatus.ringing,
-      timestamp: sentAt!,
+      timestamp: sentAt,
       roomId: callId,
     );
   }
