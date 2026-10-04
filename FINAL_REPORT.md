@@ -1,9 +1,9 @@
 # Destined: Final Remediation Report
 
-App: `flutter_webrtc_dating_app_v3` (package `availchat`). Branch: `fix/audit-remediation` (not pushed). Report date: 2026-10-04.
+App: `flutter_webrtc_dating_app_v3` (package `availchat`). Branch: `fix/audit-remediation`, merged into `main` (pushed). Report date: 2026-10-04 (updated after the first CI run).
 Inputs: `AUDIT.md` (137-issue inventory), `FIX_PLAN.md`, `DECISIONS.md`, `git log main..HEAD`, implementer status per work package (WP), five wave integration checks, and two independent re-audits.
 
-**Status rule used in this report.** When a re-audit gave a verdict, that verdict is the status (136 of 137 issues). DEST-091 had no re-audit verdict, so the implementer's status is used. "Verified fixed" means the fix was confirmed by reading the code. It does **not** mean it was confirmed on a device or by `flutter test`; neither has been run (see section 11).
+**Status rule used in this report.** When a re-audit gave a verdict, that verdict is the status (136 of 137 issues). DEST-091 had no re-audit verdict, so the implementer's status is used. "Verified fixed" means the fix was confirmed by reading the code. Since this report was first written, GitHub Actions CI has run on `main` and is green: `flutter analyze` (0 errors, 0 warnings), 75 Flutter tests, the Firebase rules emulator suite, Functions tests and gitleaks (see section 11). It has still **not** been confirmed on a device.
 
 No secret values appear in this report.
 
@@ -45,14 +45,14 @@ Most partial items are code-complete and wait on an owner console action (deploy
 
 | ID | Issue | Status | What is done / what is left |
 |---|---|---|---|
-| DEST-001 | The repo has no security rules. | Partially fixed (re-audit) | Done: Repo-tracked default-deny rules v1+v2 for Firestore, RTDB, Storage, registered in firebase.json. Left: Rules never compiled or emulator-tested; not deployed; game bodies still client-authoritative; no emailVerified gating; RTDB call consent not enforced. Next: Install Java, run test/rules emulator suite; O-2 export current rules; O-4 deploy after this client ships, backfill run and a minimum-version gate. |
+| DEST-001 | The repo has no security rules. | Partially fixed (re-audit) | Done: Repo-tracked default-deny rules v1+v2 for Firestore, RTDB, Storage, registered in firebase.json. Left: Rules pass the emulator suite in CI but are not deployed; game bodies still client-authoritative; no emailVerified gating; RTDB call consent not enforced. Next: O-2 export current rules; O-4 deploy after this client ships, backfill run and a minimum-version gate. |
 | DEST-002 | Every signed-in user downloads other users' full profile docs: email, DOB, birth time and place, exact GPS, fcmTokens, settings. | Partially fixed (re-audit) | Done: public_profiles mirror (age not DOB, geohash not coordinates); users/{uid} owner-only in v2 rules. Left: Exposure ends only after v2 rules deploy and backfill; public_profiles readable for users with discovery off; client keeps users-doc fallbacks. Next: Deploy mirrorPublicProfile, run backfill_public_profiles.js --apply, deploy v2 rules (O-3, O-4); remove fallbacks afterwards. |
 | DEST-003 | Block and Report were fake (snackbar only); Blocked Users tile was a TODO. | Verified fixed (re-audit, code review) | SafetyService: users/{me}/blocked + users/{other}/blockedBy mirror; create-only reports collection; Blocked Users screen; rules refuse messages between blocked pairs; push functions skip blocked pairs; onBlockWritten drops ringing calls; chat input/call buttons hidden when blocked. |
 | DEST-004 | Dice, moves, scores, winners, stats and leaderboards are all decided by the client and written straight to Firestore. | Partially fixed (re-audit) | Done: Player-only writes, immutable membership, dice bounds, stats/leaderboard bounds + 10 s throttle. Left: Any player can still write winner/pawnSteps/scores; bounded fake wins possible. Next: WP-22 before coins launch: game callables, Functions-only stats/leaderboards. |
 | DEST-005 | New Google users skipped onboarding and were never discoverable. | Verified fixed (re-audit, code review) | First login (or doc without createdAt) writes onboarding defaults (discoveryEnabled:false, signupCompleted:false); cancel returns null; AuthRouter routes to age gate / questionnaire. |
 | DEST-006 | Carrom scoring not implemented; every game ended 0-0. | Verified fixed (re-audit, code review) | Pure carrom_rules.dart (resolveShot/resolveTimeout) per DECISIONS: own coin 1, Queen 3 with cover, striker foul -1 (min 0), win on clearing own coins; scores written in the shot transaction. |
 
-Three of the six critical issues are still partial: DEST-001, DEST-002 and DEST-004. DEST-001 and DEST-002 need the rules to be compiled, tested and deployed. DEST-004 needs WP-22.
+Three of the six critical issues are still partial: DEST-001, DEST-002 and DEST-004. DEST-001 and DEST-002 need the rules (now emulator-tested in CI) to be deployed. DEST-004 needs WP-22.
 
 ---
 
@@ -255,15 +255,15 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 
 | ID | Original issue | Root cause | Fix | Test / validation | Result |
 |---|---|---|---|---|---|
-| DEST-003 | Block and Report were fake (snackbar only); Blocked Users tile was a TODO. | No storage or enforcement existed for blocks or reports. | SafetyService: users/{me}/blocked + users/{other}/blockedBy mirror; create-only reports collection; Blocked Users screen; rules refuse messages between blocked pairs; push functions skip blocked pairs; onBlockWritten drops ringing calls; chat input/call buttons hidden when blocked. | Code review against rules; rules tests written (not run). Device: block from chat, confirm other side loses input/calls; report saved in console. | Verified fixed (re-audit, code review) |
+| DEST-003 | Block and Report were fake (snackbar only); Blocked Users tile was a TODO. | No storage or enforcement existed for blocks or reports. | SafetyService: users/{me}/blocked + users/{other}/blockedBy mirror; create-only reports collection; Blocked Users screen; rules refuse messages between blocked pairs; push functions skip blocked pairs; onBlockWritten drops ringing calls; chat input/call buttons hidden when blocked. | Code review against rules; rules tests written; passes in CI. Device: block from chat, confirm other side loses input/calls; report saved in console. | Verified fixed (re-audit, code review) |
 | DEST-005 | New Google users skipped onboarding and were never discoverable. | signInWithGoogle merge-wrote profile on every login with no first-login branch; login always routed to Home. | First login (or doc without createdAt) writes onboarding defaults (discoveryEnabled:false, signupCompleted:false); cancel returns null; AuthRouter routes to age gate / questionnaire. | dart format parse; caller grep. Device: new Google account lands on age gate then questionnaire. | Verified fixed (re-audit, code review) |
-| DEST-006 | Carrom scoring not implemented; every game ended 0-0. | _finalizeShot only did scores.putIfAbsent(0). | Pure carrom_rules.dart (resolveShot/resolveTimeout) per DECISIONS: own coin 1, Queen 3 with cover, striker foul -1 (min 0), win on clearing own coins; scores written in the shot transaction. | dart analyze on carrom_rules.dart clean; standalone Dart script of the rule cases; carrom_rules_test.dart written (not run). Rule interpretations need owner confirmation. | Verified fixed (re-audit, code review) |
+| DEST-006 | Carrom scoring not implemented; every game ended 0-0. | _finalizeShot only did scores.putIfAbsent(0). | Pure carrom_rules.dart (resolveShot/resolveTimeout) per DECISIONS: own coin 1, Queen 3 with cover, striker foul -1 (min 0), win on clearing own coins; scores written in the shot transaction. | dart analyze on carrom_rules.dart clean; standalone Dart script of the rule cases; carrom_rules_test.dart written; passes in CI. Rule interpretations need owner confirmation. | Verified fixed (re-audit, code review) |
 | DEST-009 | Push identity never bound on signup or unbound on logout; cache not cleared. | OneSignal bound only in login screen; two divergent sign-out paths. | SessionService singleton: authStateChanges drives OneSignal.login + presence; single signOut does presence offline, token removal, OneSignal logout, Google/Firebase sign-out, Firestore terminate+clearPersistence, account prefs cleared. | Grep: OneSignal login/logout and auth signOut only in session_service. Device: log out, log in as another user, no cross-account pushes. | Verified fixed (re-audit, code review) |
 | DEST-010 | No 18+ gate. | Feed age filter off by default; no DOB requirement; mirror published minors. | DOB required; under-18 routed to underage screen; feed excludes unknown/<18 ages; mirror publishes discoveryEnabled only when age>=18; rules reject a timestamp DOB under 18. | Node stub test of mirror; code review. Device: legacy account with no DOB does not appear in feed. | Verified fixed (re-audit, code review) |
 | DEST-014 | Mic kept recording after voice sheet dismissed. | dispose only cancelled the timer; parent popped blindly. | Sheet pops itself with a result; _finishing guard; dispose cancels active recording; PopScope discard confirm; Open Settings on denial. | Code review. Device: start recording, press back, mic indicator turns off. | Verified fixed (re-audit, code review) |
 | DEST-016 | LateInitializationError when chat init fails. | late _conversationId read before async assignment. | Nullable id, init error state with Retry; streams built only after id is set. | Grep; parse check. Device: open new chat in airplane mode, see Retry screen. | Verified fixed (re-audit, code review) |
 | DEST-017 | Help-sheet tutorial popped twice (black screen). | Double Navigator.pop removed root HomeScreen. | Drawer removed (WP-26); tutorial launched via callback with a single pop; Settings uses replay hint. | Grep of call sites. Device: Settings > View App Tutorial. | Verified fixed (re-audit, code review) |
-| DEST-019 | Second incoming call ended the active call. | No call state machine; reject ran endCall on the current call. | CallPhase state machine; operations scoped by callId; busy auto-reject with endReason busy; rejectCall no longer ends the active call. | Grep (no endCall in rejectCall); call_service_test.dart written (not run). Device: A-B in call, C calls A. | Verified fixed (re-audit, code review) |
+| DEST-019 | Second incoming call ended the active call. | No call state machine; reject ran endCall on the current call. | CallPhase state machine; operations scoped by callId; busy auto-reject with endReason busy; rejectCall no longer ends the active call. | Grep (no endCall in rejectCall); call_service_test.dart written; passes in CI. Device: A-B in call, C calls A. | Verified fixed (re-audit, code review) |
 | DEST-020 | Callee could answer before the offer existed. | Inbox entry and push written before SDP offer. | Order: consent, permission, offer, onDisconnect, inbox, push; callee waitForOffer tolerates late offer. | Code review of ordering. Device: answer immediately. | Verified fixed (re-audit, code review) |
 | DEST-021 | Back left call media running with no UI. | Call lifecycle tied to the red button; dispose skipped endCall. | ActiveCallScreenMixin: PopScope confirm, follows phase, ends live call on dispose, wakelock. | Parse check; grep. Device: press back during call. | Verified fixed (re-audit, code review) |
 | DEST-022 | Ghost incoming calls from stale inbox entries. | Inbox entries never removed; onChildAdded replayed them. | Caller marks/removes entry on cancel/end/fail; callee clears own entry; listener drops stale/non-ringing entries by server time; scheduled sweep. | Code review. Device: caller hangs up, restart callee, no ghost call. | Verified fixed (re-audit, code review) |
@@ -272,10 +272,10 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-026 | Blank names / callee saw own name on call screens. | receiverName '' with ?? fallback; avatar ignored. | CallModel.otherNameFor/otherAvatarFor; CallService loads profile cards from public_profiles/users. | Parse check. Device: both sides see the other's name and photo. | Verified fixed (re-audit, code review) |
 | DEST-027 | Notification taps did nothing. | No OneSignal click listener; local tap only printed. | PendingIntent + PendingIntentRouter queue drained after splash; OneSignal click listener; handles chat, call and missed_call. | Grep; parse. Device: tap chat push from killed state. | Verified fixed (re-audit, code review) |
 | DEST-028 | Feed was a live listener on 120 arbitrary docs; filters silently skipped. | Current user looked up inside the feed; no orderBy or pagination. | Own doc loaded separately; paginated get() ordered by lastSeen (30 per page); loadMore on scroll; indexes added. | Code review. Device: distance filter with discovery off; scroll past 30. | Verified fixed (re-audit, code review) |
-| DEST-029 | Compatibility chip never computed. | Score functions had no callers; matchPercentage never written. | CompatibilityService (sun-sign table + preferred-sign bonus) shown as chip on ProfileCard; card tap opens quick sheet. | Parse; compatibility_utils_test.dart written (not run). Device: chip visible on cards. | Verified fixed (re-audit, code review) |
+| DEST-029 | Compatibility chip never computed. | Score functions had no callers; matchPercentage never written. | CompatibilityService (sun-sign table + preferred-sign bonus) shown as chip on ProfileCard; card tap opens quick sheet. | Parse; compatibility_utils_test.dart written; passes in CI. Device: chip visible on cards. | Verified fixed (re-audit, code review) |
 | DEST-030 | No profile-completion gate; back landed on Login. | Splash/login routed straight to Home; no PopScope in onboarding. | AuthRouter resolveStartDestination (DOB, verify, questionnaire, post-signup); PopScope steps back one question. | Code review. Device: back inside questionnaire. | Verified fixed (re-audit, code review) |
-| DEST-031 | Cursor jumps in text questions. | New TextEditingController on every build. | Controller created in initState; didUpdateWidget syncs only when text differs. | Grep; QuestionWidget widget tests written (not run). | Verified fixed (re-audit, code review) |
-| DEST-032 | Saved multi-choice answers showed unselected. | List<dynamic> failed `is List<String>`; late answers ignored. | _normalize handles List<dynamic>/legacy String; didUpdateWidget applies late answers. | Grep; widget tests written (not run). | Verified fixed (re-audit, code review) |
+| DEST-031 | Cursor jumps in text questions. | New TextEditingController on every build. | Controller created in initState; didUpdateWidget syncs only when text differs. | Grep; QuestionWidget widget tests written; passes in CI. | Verified fixed (re-audit, code review) |
+| DEST-032 | Saved multi-choice answers showed unselected. | List<dynamic> failed `is List<String>`; late answers ignored. | _normalize handles List<dynamic>/legacy String; didUpdateWidget applies late answers. | Grep; widget tests written; passes in CI. | Verified fixed (re-audit, code review) |
 | DEST-033 | Reset to Avatar nulled the profile image. | Read avatarPngUrl; generator writes avatarImageUrl. | ProfilePhotoService.resetToAvatar reads avatarImageUrl, regenerates if missing, never writes null. | Grep. Device: upload photo, then reset. | Verified fixed (re-audit, code review) |
 | DEST-034 | Most Settings tiles did nothing; dev options in release. | TODO tiles; no kDebugMode gate. | Working tiles per DECISIONS; Discovery, Notifications, Blocked users, legal links (placeholders), Delete account; dev section only under kDebugMode; Change Password only for password provider. | Grep. Device: every tile on a release build. | Verified fixed (re-audit, code review) |
 | DEST-035 | Edit created a duplicate message. | Edit only copied text into input. | Editing state calls ChatService.editMessage (editedAt, preview refresh, no push). | Device: edit own message. | Verified fixed (re-audit, code review) |
@@ -289,8 +289,8 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-043 | Simultaneous Carrom searchers never paired. | Queue checked once; old matches accepted. | Queue doc per uid with expiry; 3 s re-scan; claim in transaction; createdAt filter. | Device: both tap Find Match together. | Verified fixed (re-audit, code review) |
 | DEST-044 | Carrom non-host stuck on VS screen. | Missed 'started' event; no timeout. | joined flags; host starts in transaction; listener navigates on started; join timeout cancels. | Device: host kills app on VS screen. | Verified fixed (re-audit, code review) |
 | DEST-045 | Leaving Carrom had no forfeit; host reset mid-game. | Back just popped; refresh reset board. | Leave dialog with transactional forfeit; reset removed; rematch needs both players. | Device: back during play. | Verified fixed (re-audit, code review) |
-| DEST-047 | Receiver auto-loaded any mediaUrl. | No URL validation. | Rules restrict mediaUrl to the project's Cloudinary cloud / Storage bucket (<=2048 chars); client refuses other hosts. | Rules tests written (not run); code review. | Verified fixed (re-audit, code review) |
-| DEST-048 | Fake callerId / hijacked rooms in RTDB. | Inbox and rooms writable by anyone. | Inbox write requires callerId == auth.uid and a room naming this caller and callee; callee shows profile name, not payload. | database.test.js written (not run); code review. | Verified fixed (re-audit, code review) |
+| DEST-047 | Receiver auto-loaded any mediaUrl. | No URL validation. | Rules restrict mediaUrl to the project's Cloudinary cloud / Storage bucket (<=2048 chars); client refuses other hosts. | Rules tests written; passes in CI; code review. | Verified fixed (re-audit, code review) |
+| DEST-048 | Fake callerId / hijacked rooms in RTDB. | Inbox and rooms writable by anyone. | Inbox write requires callerId == auth.uid and a room naming this caller and callee; callee shows profile name, not payload. | database.test.js written; passes in CI; code review. | Verified fixed (re-audit, code review) |
 | DEST-049 | Signalling rooms kept forever under predictable ids. | Rooms never deleted; uid_uid_millis ids. | Random uuid ids; party-only access; client deletes room after call; scheduled sweep. | Code review. Device: room disappears after a call. | Verified fixed (re-audit, code review) |
 | DEST-053 | PII and auth objects logged in release. | Unguarded debugPrint/print. | No print(); uid/email logs kDebugMode-only; avoid_print lint. | Grep. Device: release logcat check. | Verified fixed (re-audit, code review) |
 | DEST-056 | setState/context after await; notify after dispose. | No mounted checks or disposed guards. | Mounted checks, disposed guards, post-frame loads across screens; lints enabled. | Spot-checked by re-audit. | Verified fixed (re-audit, code review) |
@@ -300,7 +300,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-061 | Whole-map participantData rewrites without transaction. | Read-then-rewrite on every send. | Single batch writer with merge and FieldValue.increment. | Grep; parse. | Verified fixed (re-audit, code review) |
 | DEST-062 | Duplicate conversations for the same pair. | Query-then-create with random id. | Deterministic sorted id with legacy lookup. | Grep. Device: both open each other's chat. | Verified fixed (re-audit, code review) |
 | DEST-063 | Opening a chat created an empty conversation. | Eager create on open. | No write on open; first message creates doc; empty conversations hidden. | Device: open and leave without sending. | Verified fixed (re-audit, code review) |
-| DEST-064 | DOB stored three ways; cast dropped users. | Inconsistent types; hard as String? cast. | Single parseDob for all formats; age derived; AgePolicy delegates to it. | user_model_test/age_policy_test written (not run). | Verified fixed (re-audit, code review) |
+| DEST-064 | DOB stored three ways; cast dropped users. | Inconsistent types; hard as String? cast. | Single parseDob for all formats; age derived; AgePolicy delegates to it. | user_model_test/age_policy_test written; passes in CI. | Verified fixed (re-audit, code review) |
 | DEST-065 | Media messages sent no push. | Media senders never called push; body text-only. | onDocumentCreated trigger pushes every message type with type-based body. | functions unit tests (7/7 pass, node --test). | Verified fixed (re-audit, code review) |
 | DEST-066 | Chat pushes ignored mute, 'new' state and settings. | Single high-importance channel; no checks. | Skip when muted/deleted/blocked/disabled; silent channel for 'new' chats; foreground suppression for the open chat. | Unit tests for stateFor/isMuted (pass). Device: muted chat gets no push. | Verified fixed (re-audit, code review) |
 | DEST-067 | Cleared messages came back. | Listener kept old cutoff; offline inserts out of order. | List resets when server clearedBefore changes; sorted inserts. | Device: clear, then other side reacts to old messages. | Verified fixed (re-audit, code review) |
@@ -323,7 +323,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-086 | Ludo chat hid messages after the 100th. | Ascending limit(100); stream in build. | Descending newest 100 reversed; stream in initState; auto-scroll; 300-char cap. | Device: 120 messages. | Verified fixed (re-audit, code review) |
 | DEST-087 | Stale queue entries matched. | Entries never expired. | expiresAt + heartbeat filter; scheduled sweep; Carrom orders by expiresAt. | Code review. TTL policy (O-12) recommended. | Verified fixed (re-audit, code review) |
 | DEST-088 | Bonus turns did not reset the timer. | turnSeq not bumped on bonus turns. | Every turn bumps turnSeq and resets countdown. | Device: roll a 6. | Verified fixed (re-audit, code review) |
-| DEST-089 | Illegal Ludo pawn moves on a 6. | No legality function. | LudoRules.targetStep/legalPawns used for highlight and in commitMove. | ludo_rules_test.dart written (not run). | Verified fixed (re-audit, code review) |
+| DEST-089 | Illegal Ludo pawn moves on a 6. | No legality function. | LudoRules.targetStep/legalPawns used for highlight and in commitMove. | ludo_rules_test.dart written; passes in CI. | Verified fixed (re-audit, code review) |
 | DEST-090 | Timeout vs move race. | Unchecked turnColor writes. | All turn writes are guarded transactions. | Grep for runTransaction. | Verified fixed (re-audit, code review) |
 | DEST-091 | Carrom stats saved twice. | Read-modify-write outside a transaction; no history check. | One transaction; skips if carrom_history/{matchId} exists. | Static analysis against cloud_firestore 5.6.12. Not re-audited. | Fixed per implementer; not re-audited |
 | DEST-092 | Game dead ends and fake buttons. | Placeholder classes and pop-based navigation. | Back to Lobby goes to lobby; result CHAT opens ChatScreen; real leaderboard. | Device: finish a game. | Verified fixed (re-audit, code review) |
@@ -346,7 +346,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-109 | Reply bubble showed hardcoded text. | No reply snapshot. | replyTo snapshot (capped at 2000 chars in b13eacf); tap scrolls to original. | Grep. Device: reply and tap quote. | Verified fixed (re-audit, code review) |
 | DEST-110 | Fixed layouts overflow. | Non-scrolling columns; width-only board. | Scrollable screens; board sized by min(w,h). | Device: small screen/landscape. | Verified fixed (re-audit, code review) |
 | DEST-111 | 'Log out all devices' not enforced. | revokeSessions function missing. | revokeSessions callable revokes refresh tokens (rate-limited). | Contract check vs auth_service. Device: two devices, change password. | Verified fixed (re-audit, code review) |
-| DEST-113 | No input length limits. | No server caps. | Rules size() caps on text fields, messages, previews, replies, reports, RTDB names; chat maxLength 2000. | Rules tests written (not run). | Verified fixed (re-audit, code review) |
+| DEST-113 | No input length limits. | No server caps. | Rules size() caps on text fields, messages, previews, replies, reports, RTDB names; chat maxLength 2000. | Rules tests written; passes in CI. | Verified fixed (re-audit, code review) |
 | DEST-114 | Undeclared foreground-service permissions. | Template/copy-paste permissions. | Duplicate and unused permissions removed. | Manifest parse (xmllint). | Verified fixed (re-audit, code review) |
 | DEST-115 | Typing indicator stuck on. | Bool with no expiry. | Timestamp heartbeat with 5 s receiver expiry. | Device: kill app while typing. | Verified fixed (re-audit, code review) |
 | DEST-116 | Audio state on wrong message. | No list keys. | ValueKey per message; AudioMessage resets on change. | Device: play voice note while receiving. | Verified fixed (re-audit, code review) |
@@ -375,7 +375,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 
 | ID | Sev | Status | Reason | Done so far | Still missing | Next step |
 |---|---|---|---|---|---|---|
-| DEST-001 | Critical | Partial | Owner console action; WP-22 deferred | Repo-tracked default-deny rules v1+v2 for Firestore, RTDB, Storage, registered in firebase.json. | Rules never compiled or emulator-tested; not deployed; game bodies still client-authoritative; no emailVerified gating; RTDB call consent not enforced. | Install Java, run test/rules emulator suite; O-2 export current rules; O-4 deploy after this client ships, backfill run and a minimum-version gate. |
+| DEST-001 | Critical | Partial | Owner console action; WP-22 deferred | Repo-tracked default-deny rules v1+v2 for Firestore, RTDB, Storage, registered in firebase.json. | Rules pass the emulator suite in CI but are not deployed; game bodies still client-authoritative; no emailVerified gating; RTDB call consent not enforced. | O-2 export current rules; O-4 deploy after this client ships, backfill run and a minimum-version gate. |
 | DEST-002 | Critical | Partial | Owner console action | public_profiles mirror (age not DOB, geohash not coordinates); users/{uid} owner-only in v2 rules. | Exposure ends only after v2 rules deploy and backfill; public_profiles readable for users with discovery off; client keeps users-doc fallbacks. | Deploy mirrorPublicProfile, run backfill_public_profiles.js --apply, deploy v2 rules (O-3, O-4); remove fallbacks afterwards. |
 | DEST-004 | Critical | Partial | WP-22 server-authoritative games deferred (product decision) | Player-only writes, immutable membership, dice bounds, stats/leaderboard bounds + 10 s throttle. | Any player can still write winner/pawnSteps/scores; bounded fake wins possible. | WP-22 before coins launch: game callables, Functions-only stats/leaderboards. |
 | DEST-007 | High | Partial | Owner console action | Key removed from client (Secret Manager + callables); gitleaks config + pre-commit hook + CI job. | Key is still in git history. | O-1: rotate the key, set the secret, redeploy, revoke old key; optional git filter-repo. |
@@ -399,7 +399,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 | DEST-127 | Low | Partial | WP-24 deferred | Dead providers removed; ConversationsRepository and DiscoveryFeed added. | UI files still call FirebaseFirestore.instance directly (29 uses in 21 files). | WP-24 repositories injected via Provider. |
 | DEST-129 | Low | Open | WP-24 god-widget split deferred | Nothing (recommendation only). | carrom_game_screen ~1515 lines, chat_screen ~1739 lines, ludo_lobby_screen ~782 lines. | WP-24: extract ChatController and Carrom components, guarded by WP-29 tests. |
 | DEST-130 | Low | Partial | Product decision (keep ML Kit); dev action | Image.network replaced by CachedNetworkImage; 8 unused packages removed from pubspec. | google_mlkit_translation kept but unused (DECISIONS); intl pinned ^0.18.1; pubspec.lock stale. | flutter pub get, commit pubspec.lock; decide on translation feature. |
-| DEST-131 | Low | Partial | Needs flutter toolchain run | Strict lints, CI workflow, pre-commit hook, unit/widget tests written. | Tests never run; ~279 withOpacity, ~34 empty catches; CI format step continue-on-error. | Run flutter analyze/test; one-time dart format; tighten CI. |
+| DEST-131 | Low | Partial | Needs flutter toolchain run | Strict lints, CI workflow, pre-commit hook, unit/widget tests written. | CI green (analyze 0 errors/0 warnings, 75 tests pass); 442 lint infos remain (~279 withOpacity, ~34 empty catches); CI format step continue-on-error. | One-time dart format; reduce lint infos; tighten CI. |
 | DEST-132 | Low | Open | WP-24 deferred; owner action | Functions use .env/params; single OneSignal app id constant. | No AppConfig or flavors; Cloudinary/TURN values hardcoded in client. | WP-24 AppConfig via --dart-define; O-13 dev/prod projects. |
 
 ### 9.1 Remaining issues by reason
@@ -409,7 +409,7 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 - **WP-24 data layer / config / god-widget split, deferred:** DEST-127, DEST-129, DEST-132.
 - **Product decision:** DEST-130. The ML Kit translation dependency is kept on purpose (DECISIONS).
 - **Code follow-up found by re-audit (a Function is missing):** DEST-012 (call_consent mirror), DEST-018 (presence mirror).
-- **Needs a Flutter toolchain or device run:** DEST-131. In practice every fix in section 8 also needs device validation (section 12).
+- **Lint clean-up:** DEST-131 (CI is green; 442 lint infos and the advisory format step remain). Every fix in section 8 still needs device validation (section 12).
 
 ### 9.2 Problems found by the re-audits that are still open
 
@@ -417,15 +417,13 @@ One row for each of the 111 issues with status Fixed. Validation lists the stati
 |---|---|---|
 | database.rules.json (enforceCallConsent branch) | Rules read `call_consent/{callee}/{caller}`, but no Function writes it. Turning the flag on would block every call. | Add the call_consent mirror Function and a backfill; only then set `config/enforceCallConsent=true`. |
 | lib/services/presence_service.dart | No RTDB presence to Firestore mirror Function. After a crash or kill, `online:true` stays set in users and public_profiles. | Add an onValueWritten Function for `presence/{uid}`. |
-| lib/services/call/call_service.dart admitIncoming | Fails open: if the consent or block lookup throws, the call rings. | Fail closed (reject) on lookup error. |
 | storage.rules (chat_media) | isParticipant reads the conversation doc, which does not exist before the first message. A first photo or voice note on the Firebase Storage fallback path is denied. Cloudinary is the default, so this is latent. | Allow the two uids encoded in a deterministic conversation id, as the Firestore messages rule does. |
 | lib/services/chat_service.dart deleteMessage | Delete-for-everyone does not scrub replyTo snapshots in later replies. | Server-side scrub, or accept as WhatsApp-like behaviour (product call). |
 | ios/Runner.xcodeproj | incoming_call.caf is not in the Xcode project, so it is not bundled. | Add it to Copy Bundle Resources (O-9). |
-| lib/services/call/webrtc/ice_servers.dart | TURN credentials are cached in static fields that are not cleared on sign-out. | Clear the cache in SessionService.signOut. |
-| lib/screens/profile/profile_edit_screen.dart:238 | `docRef.snapshots()` is created in build, so every rebuild resubscribes. | Create the stream in initState. |
-| lib/screens/home/home_controller.dart:188 | loadMore retries on every scroll notification after an error, with no backoff. | Add backoff or an error flag. |
 
 Fixed during re-audit: `86cb1b8` bottom-nav tabs can be activated by screen readers again (a WP-27 regression). `b13eacf` reply snapshot text is capped at 2000 characters to match the rules.
+
+Fixed after the report (`fe8c7c4`): `admitIncoming` now fails closed when the consent/block lookup fails; TURN credentials are cleared on sign-out (`IceServers.clearCache()`); ProfileEditScreen caches its voice-intro stream; `HomeController.loadMore` waits 5 s after a failed page.
 
 ---
 
@@ -529,13 +527,23 @@ b13eacf Re-audit: cap reply snapshot text at 2000 chars to match rules
 
 ## 11. Tests executed
 
-**What actually ran:** `dart format --output=none` parse checks on every changed Dart file (0 parse errors), `node --check` on all Functions and rules-test JS files, JSON/YAML/plist/XML validation (`python3 -m json.tool`, Ruby YAML, `plutil -lint`, `xmllint`, `bash -n`), the Functions unit tests (`node --test test/` in `functions/`, 7/7 passed, re-run for this report), grep/script-based code review in five wave integration checks and two re-audits. **`flutter pub get`, `flutter analyze`, `flutter test`, `flutter build`, the Firebase rules emulator tests, gitleaks, and all device tests have NOT been run yet.**
+**GitHub Actions CI, `main` at `43b8fa9` (2026-10-04): all 4 jobs green.**
 
-Partial or ad-hoc checks (not a full run): `dart analyze` on `carrom_rules.dart` alone and a standalone Dart script of the Carrom rule cases (WP-20); analyzer runs in scratch copies with offline or stubbed packages (WP-3, WP-20, WP-29); a WCAG contrast-ratio script (WP-27); import-resolution and AppColors-member scripts.
+| Job | Result |
+|---|---|
+| Flutter: `flutter pub get`, `flutter analyze --no-fatal-infos` | 0 errors, 0 warnings (442 lint infos, not fatal) |
+| Flutter: `flutter test --coverage` | 75 tests passed |
+| Security rules: Firebase emulator suite (`test/rules`) | 73 tests passed (Firestore, RTDB, Storage) |
+| Cloud Functions: `node --check` + `npm test` | passed |
+| Secret scan: gitleaks (full history + working tree) | clean; known historical findings listed in `.gitleaksignore` |
 
-Blockers: pub.dev packages could not be fetched (proxy), there is no Java runtime for the Firebase emulators, and gitleaks is not installed. `pubspec.lock` is stale: `firebase_app_check`, `url_launcher` and `http_parser` were added and 8 unused packages were removed.
+The first CI run (`f7bfcc4`) failed on 10 analyzer warnings, 1 rules test (message status could move backwards) and the gitleaks allowlist not applying. All three were fixed in `d7a846b`, `1e1107f` and `43b8fa9`.
 
-**Tests written but never executed:**
+Local checks done during the remediation: `dart format --output=none` parse checks on every changed Dart file, `node --check` on all JS, JSON/YAML/plist/XML validation, and grep/script-based code review in five wave integration checks and two re-audits.
+
+**Not run yet:** `flutter build` for release, iOS build, and all device tests (section 12).
+
+**Test files (all run in CI):**
 
 | File | Covers |
 |---|---|
@@ -550,17 +558,17 @@ Blockers: pub.dev packages could not be fetched (proxy), there is no Java runtim
 | `test/services/media_validator_test.dart` | Media type/size/duration limits (DEST-013) |
 | `test/feature/games/ludo/ludo_rules_test.dart` | Ludo legal moves (DEST-089) |
 | `test/feature/games/carrom/carrom_rules_test.dart` | Carrom scoring (DEST-006) |
-| `test/rules/firestore.test.js` | Firestore rules positive/negative cases (needs emulator; only `node --check` ran) |
-| `test/rules/database.test.js` | RTDB inbox/rooms rules (needs emulator) |
-| `test/rules/storage.test.js` | Storage rules (needs emulator) |
+| `test/rules/firestore.test.js` | Firestore rules positive/negative cases |
+| `test/rules/database.test.js` | RTDB inbox/rooms rules |
+| `test/rules/storage.test.js` | Storage rules |
 
-To run: `flutter pub get && flutter analyze && flutter test` in `flutter_webrtc_dating_app_v3/`; `npm --prefix test/rules install && npm --prefix test/rules run test:emulators` (needs Java). CI (`.github/workflows/ci.yml`) runs these on push, but it has never run.
+`pubspec.lock` in the repo is still the old one; CI resolves packages fresh. Run `flutter pub get` once and commit the lock file.
 
 ---
 
 ## 12. Risks requiring manual validation
 
-The v2 rules have never been compiled, and none of the Flutter code has been compiled. Treat the first `flutter analyze` and emulator run as the first real gate. Old app builds will be rejected by the v2 rules, so ship a minimum-version gate before deploying them.
+The code compiles and the unit and rules tests pass in CI, but nothing has run on a device yet. Old app builds will be rejected by the v2 rules, so ship a minimum-version gate before deploying them.
 
 ### 12.1 Device test checklist (Android and iOS, two accounts, release build)
 
