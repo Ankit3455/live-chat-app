@@ -3,15 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/avatar_story.dart';
 
 class ProfileInfoCard extends StatelessWidget {
   final UserModel user;
   final int completionPercentage;
 
+  /// Opens "Why you look like this". Null hides the avatar badge (uploaded
+  /// photo or an avatar without stored params).
+  final VoidCallback? onAvatarStoryTap;
+
   const ProfileInfoCard({
     Key? key,
     required this.user,
     required this.completionPercentage,
+    this.onAvatarStoryTap,
   }) : super(key: key);
 
   bool _hasProfileImage() {
@@ -55,6 +61,9 @@ class ProfileInfoCard extends StatelessWidget {
           Row(
             children: [
               // Avatar / Placeholder
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
               Container(
                 width: 80,
                 height: 80,
@@ -77,6 +86,38 @@ class ProfileInfoCard extends StatelessWidget {
                   )
                       : _placeholder(),
                 ),
+              ),
+                  if (onAvatarStoryTap != null)
+                    Positioned(
+                      right: -6,
+                      bottom: -6,
+                      child: GestureDetector(
+                        onTap: onAvatarStoryTap,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.brandPurpleMid,
+                                AppColors.brandPink,
+                              ],
+                            ),
+                            border: Border.all(
+                              color: AppColors.surfaceCard,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
 
               const SizedBox(width: 16),
@@ -136,6 +177,14 @@ class ProfileInfoCard extends StatelessWidget {
               ),
             ],
           ),
+
+          if (onAvatarStoryTap != null) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AvatarMadeBadge(onTap: onAvatarStoryTap!),
+            ),
+          ],
 
           // Bio
           if (user.bio != null && user.bio!.isNotEmpty) ...[

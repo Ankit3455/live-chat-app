@@ -8,6 +8,7 @@ import 'package:availchat/screens/questionnaire/post_signup_questions_screen.dar
 import 'package:availchat/services/avatar_traits.dart';
 import 'package:availchat/services/dicebear_avatar_service.dart';
 import 'package:availchat/services/profile_photo_service.dart';
+import 'package:availchat/widgets/avatar_story.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
 
@@ -220,11 +221,11 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                               ),
                               if (unique) ...[
                                 const SizedBox(height: 14),
-                                const _UniqueBadge(),
+                                const AvatarUniqueBadge(),
                               ],
                               if (traits.isNotEmpty) ...[
                                 const SizedBox(height: 18),
-                                _WhyCard(traits: traits),
+                                AvatarWhyCard(traits: traits),
                               ],
                             ],
                           ),
@@ -424,149 +425,6 @@ class _AvatarCircle extends StatelessWidget {
       ),
       child: ClipOval(
         child: ColoredBox(color: AppColors.surfaceCard, child: child),
-      ),
-    );
-  }
-}
-
-class _UniqueBadge extends StatelessWidget {
-  const _UniqueBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.gold.withOpacity(0.4)),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.auto_awesome, size: 14, color: AppColors.gold),
-          SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              'One of a kind · no one else has this face',
-              style: TextStyle(
-                color: AppColors.gold,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WhyCard extends StatelessWidget {
-  final List<AvatarTrait> traits;
-
-  const _WhyCard({required this.traits});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.lavender.withOpacity(0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Why you look like this',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  'from your answers',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          for (final t in traits)
-            Semantics(
-              label: '${t.answer}, ${t.source}, gives ${t.effect}',
-              excludeSemantics: true,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceCard,
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Text(t.emoji, style: const TextStyle(fontSize: 17)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.answer,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            t.source,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '→',
-                        style: TextStyle(color: AppColors.textMuted),
-                      ),
-                    ),
-                    Flexible(
-                      child: Text(
-                        t.effect,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          color: AppColors.brandPurpleLight,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

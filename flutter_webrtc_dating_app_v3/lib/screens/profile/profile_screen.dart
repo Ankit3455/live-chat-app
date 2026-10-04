@@ -13,6 +13,7 @@ import 'package:availchat/screens/profile/widgets/astrology_compatibility_card.d
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/profile_photo_service.dart';
 import 'package:availchat/widgets/user_avatar.dart';
+import 'package:availchat/widgets/avatar_story.dart';
 import '../../core/constants/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -126,6 +127,131 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
     }
+  }
+
+  /// "Why you look like this" for the generated avatar in use.
+  void _showAvatarStorySheet() {
+    final user = _currentUser;
+    if (user == null || _avatarBusy) return;
+    final traits = avatarTraitsFor(user);
+    if (traits.isEmpty) return;
+    final unique = user.avatarProperties?['avatarUnique'] == true;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        void choose(Future<Object?> Function() action, String message) {
+          Navigator.pop(sheetContext);
+          _runAvatarAction(action, successMessage: message);
+        }
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.75,
+          maxChildSize: 0.92,
+          minChildSize: 0.4,
+          builder: (_, controller) => SafeArea(
+            child: ListView(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.lavender.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(child: UserAvatar(user: user, size: 96, borderRadius: 48)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Made from your answers',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Your habits, interests and zodiac sign shaped this face.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.lavender, fontSize: 14),
+                ),
+                if (unique) ...[
+                  const SizedBox(height: 12),
+                  const Center(child: AvatarUniqueBadge()),
+                ],
+                const SizedBox(height: 16),
+                AvatarWhyCard(traits: traits),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: () => choose(
+                      ProfilePhotoService.regenerateAvatar,
+                      'New avatar created',
+                    ),
+                    icon: const Icon(Icons.autorenew, size: 20),
+                    label: const Text(
+                      'Generate a new one',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brandPurple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: () => choose(
+                      ProfilePhotoService.pickAndUploadPhoto,
+                      'Profile photo updated',
+                    ),
+                    icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                    label: const Text(
+                      'Upload a photo',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(
+                        color: AppColors.lavender.withOpacity(0.35),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'A new one still follows your answers and stays unique to you.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showChangeAvatarSheet() {
@@ -286,6 +412,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ProfileInfoCard(
                                 user: _currentUser!,
                                 completionPercentage: _completionPercentage,
+                                onAvatarStoryTap:
+                                    avatarTraitsFor(_currentUser!).isEmpty
+                                        ? null
+                                        : _showAvatarStorySheet,
                               ),
                               const SizedBox(height: 16),
 
