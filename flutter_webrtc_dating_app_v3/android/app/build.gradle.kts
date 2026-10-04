@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -26,27 +27,21 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // BEST PRACTICE: Change back to Java 1.8 for better compatibility
-        sourceCompatibility = JavaVersion.VERSION_1_8 // <-- CHANGED
-        targetCompatibility = JavaVersion.VERSION_1_8 // <-- CHANGED
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlinOptions {
-        // Match the Java version
-        jvmTarget = "1.8" // <-- CHANGED
     }
 
     defaultConfig {
         applicationId = "com.example.flutter_webrtc_dating_app_v3"
 
-        // CRITICAL FIX: Set minSdk directly to 21 or higher
-        minSdk = flutter.minSdkVersion // <-- CHANGED
+        // Firebase plugins need API 23+.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        multiDexEnabled = true // Good to have this
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -72,8 +67,14 @@ android {
     }
 }
 
+// kotlinOptions {} is an error in Kotlin 2.2 build scripts; use compilerOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
-    // This line is correct and should remain
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
