@@ -4,7 +4,7 @@ import '../../../core/constants/app_colors.dart';
 class InterestsGrid extends StatelessWidget {
   final List<String> interests;
 
-  const InterestsGrid({Key? key, required this.interests}) : super(key: key);
+  const InterestsGrid({super.key, required this.interests});
 
   IconData _getInterestIcon(String interest) {
     final icons = {
@@ -25,34 +25,34 @@ class InterestsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: interests.map((interest) {
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.brandPurple.withOpacity(0.5),
-              width: 1,
-            ),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 _getInterestIcon(interest),
-                color: AppColors.brandPurpleLight,
-                size: 20,
+                color: AppColors.lavender,
+                size: 14,
               ),
-              const SizedBox(width: 8),
-              Text(
-                interest,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  interest,
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

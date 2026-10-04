@@ -2,11 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/chat_message_model.dart';
 import '../../../services/media/media_url_policy.dart';
 
-class ImageMessage extends StatelessWidget {
+class ImageMessage extends StatefulWidget {
   final ChatMessage message;
   final bool isMe;
   final VoidCallback? onTap;
@@ -19,9 +20,28 @@ class ImageMessage extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<ImageMessage> createState() => _ImageMessageState();
+}
+
+class _ImageMessageState extends State<ImageMessage> {
+  // Bumped by Retry so the image widget rebuilds and refetches.
+  int _attempt = 0;
+
+  Future<void> _retry(String url) async {
+    await CachedNetworkImage.evictFromCache(url);
+    if (mounted) setState(() => _attempt++);
+  }
+
+  BoxDecoration get _frame => BoxDecoration(
+    color: widget.isMe ? null : AppColors.surface2,
+    gradient: widget.isMe ? AppColors.primaryGradient : null,
+    borderRadius: BorderRadius.circular(20),
+  );
+
+  @override
   Widget build(BuildContext context) {
-    final imageUrl = message.mediaUrl ?? '';
-    final caption = message.message;
+    final imageUrl = widget.message.mediaUrl ?? '';
+    final caption = widget.message.message;
     final hasCaption = caption.isNotEmpty;
 
     if (!MediaUrlPolicy.isAllowed(imageUrl)) {
@@ -33,86 +53,57 @@ class ImageMessage extends StatelessWidget {
       label: hasCaption ? 'Photo: $caption' : 'Photo',
       hint: 'Open full screen',
       child: GestureDetector(
-      onTap: onTap ?? () => _showFullScreen(context, imageUrl),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.65,
-          maxHeight: 350, // ⭐ Increased max height
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isMe
-                ? AppColors.purplePrimary.withOpacity(0.3)
-                : AppColors.inputBackground,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.purplePrimary.withOpacity(0.2),
-            ),
+        onTap: widget.onTap ?? () => _showFullScreen(context, imageUrl),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.65,
+            maxHeight: 350,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(15),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: _frame,
             child: Column(
-              mainAxisSize: MainAxisSize.min, // ⭐ Important: min size
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ⭐ Image with Flexible to prevent overflow
                 Flexible(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: hasCaption ? 280 : 320, // Leave room for caption
-                      minHeight: 100,
-                    ),
-                    child: CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (context, url) => Container(
-                        height: 180,
-                        color: AppColors.inputBackground,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.purplePrimary,
-                            strokeWidth: 2,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: hasCaption ? 280 : 320,
+                        minHeight: 100,
+                      ),
+                      child: CachedNetworkImage(
+                        key: ValueKey('$imageUrl#$_attempt'),
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor: AppColors.surfaceCard,
+                          highlightColor: AppColors.surface2,
+                          child: Container(
+                            height: 180,
+                            color: AppColors.surfaceCard,
                           ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        height: 120,
-                        color: AppColors.inputBackground,
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image_rounded,
-                              color: Colors.white38,
-                              size: 40,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Failed to load',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                        errorWidget: (context, url, error) =>
+                            _buildError(imageUrl),
                       ),
                     ),
                   ),
                 ),
-
-                // Caption (if any) - with max lines to prevent overflow
                 if (hasCaption)
                   Padding(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                     child: Text(
                       caption,
-                      maxLines: 3, // ⭐ Limit caption lines
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 15,
+                        height: 1.35,
                       ),
                     ),
                   ),
@@ -121,6 +112,37 @@ class ImageMessage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildError(String imageUrl) {
+    return Container(
+      height: 140,
+      color: AppColors.surfaceCard,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.broken_image_rounded,
+            color: AppColors.lavender,
+            size: 32,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Couldn't load photo",
+            style: TextStyle(color: AppColors.lavender, fontSize: 13),
+          ),
+          TextButton.icon(
+            onPressed: () => _retry(imageUrl),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.brandPurpleLight,
+              minimumSize: const Size(48, 48),
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
@@ -129,22 +151,18 @@ class ImageMessage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isMe
-            ? AppColors.purplePrimary.withOpacity(0.3)
-            : AppColors.inputBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.purplePrimary.withOpacity(0.2),
-        ),
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.broken_image_rounded, color: Colors.white38),
+          Icon(Icons.broken_image_rounded, color: AppColors.lavender),
           SizedBox(width: 8),
           Text(
             'Image unavailable',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: AppColors.lavender, fontSize: 13),
           ),
         ],
       ),
@@ -168,7 +186,7 @@ class FullScreenImageView extends StatelessWidget {
   final String imageUrl;
 
   const FullScreenImageView({Key? key, required this.imageUrl})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -200,11 +218,8 @@ class FullScreenImageView extends StatelessWidget {
             placeholder: (context, url) => const Center(
               child: CircularProgressIndicator(color: Colors.white),
             ),
-            errorWidget: (context, url, error) => const Icon(
-              Icons.error,
-              color: Colors.white,
-              size: 50,
-            ),
+            errorWidget: (context, url, error) =>
+                const Icon(Icons.error, color: Colors.white, size: 50),
           ),
         ),
       ),

@@ -5,11 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../services/auth_service.dart';
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
 import 'signup_screen.dart';
+import 'widgets/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,7 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _googleBusy = false;
   bool _obscurePassword = true;
+  String? _error;
 
   @override
   void dispose() {
@@ -38,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------------
   Future<void> _handleEmailLogin() async {
     if (_isLoading) return;
+    setState(() => _error = null);
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final email = _emailController.text.trim();
@@ -67,7 +73,11 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------------
   Future<void> _handleGoogleSignIn() async {
     if (_isLoading) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _error = null;
+      _isLoading = true;
+      _googleBusy = true;
+    });
 
     try {
       final auth = context.read<AuthService>();
@@ -85,7 +95,12 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       _showError('Google Sign-In failed');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _googleBusy = false;
+        });
+      }
     }
   }
 
@@ -120,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Forgot password
   // ----------------------------------------------------------
   Future<void> _handleForgotPassword() async {
+    setState(() => _error = null);
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
@@ -145,37 +161,24 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------------
   // UI Helpers
   // ----------------------------------------------------------
+
+  // Errors show inline above the fields.
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    setState(() => _error = message);
   }
 
   void _showSuccess(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  InputDecoration _inputDecoration({
-    required String hint,
-    required IconData icon,
-    Widget? suffix,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: AppColors.lavender),
-      filled: true,
-      fillColor: AppColors.surfaceCard,
-      prefixIcon: Icon(icon, color: Colors.white),
-      suffixIcon: suffix,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-    );
+  void _openSignup() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SignupScreen()));
   }
 
   // ----------------------------------------------------------
@@ -183,172 +186,200 @@ class _LoginScreenState extends State<LoginScreen> {
   // ----------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final error = _error;
+
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-
-              const Text(
-                'Destined',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'Find your cosmic connection.',
-                style: TextStyle(
-                  color: AppColors.lavender,
-                  fontSize: 16,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              Form(
-                key: _formKey,
-                child: AutofillGroup(
+      backgroundColor: AppColors.backgroundDeep,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: Starfield()),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Email
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.email],
-                        autocorrect: false,
-                        validator: AuthValidators.email,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _inputDecoration(
-                          hint: 'Email',
-                          icon: Icons.mail,
+                      const BrandHeader(),
+                      const SizedBox(height: 36),
+                      if (error != null) ...[
+                        AppBanner(message: error, tone: AppBannerTone.error),
+                        const SizedBox(height: 16),
+                      ],
+                      _buildForm(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _isLoading ? null : _handleForgotPassword,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.brandPurpleLight,
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                          child: const Text(AppStrings.forgotPassword),
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Password
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.password],
-                        onFieldSubmitted: (_) => _handleEmailLogin(),
-                        validator: AuthValidators.loginPassword,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _inputDecoration(
-                          hint: 'Password',
-                          icon: Icons.lock,
-                          suffix: IconButton(
-                            tooltip: _obscurePassword
-                                ? 'Show password'
-                                : 'Hide password',
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
-                              color: AppColors.lavender,
-                            ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 8),
+                      CustomButton(
+                        text: 'Log in',
+                        isLoading: _isLoading && !_googleBusy,
+                        onPressed: _isLoading ? null : _handleEmailLogin,
+                      ),
+                      const SizedBox(height: 20),
+                      const AuthOrDivider(),
+                      const SizedBox(height: 20),
+                      _buildGoogleButton(),
+                      const SizedBox(height: 20),
+                      _buildSignupLink(),
+                      const SizedBox(height: 24),
+                      const LegalText(
+                        prefix: 'By continuing you agree to our ',
+                        termsLabel: 'Terms',
+                        suffix: '. Destined is for adults 18+.',
                       ),
                     ],
                   ),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 8),
-
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _handleForgotPassword,
-                  child: Text(AppStrings.forgotPassword),
+  Widget _buildForm() {
+    return Form(
+      key: _formKey,
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AuthLabel('Email'),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              autocorrect: false,
+              validator: AuthValidators.email,
+              style: const TextStyle(color: AppColors.white, fontSize: 15),
+              decoration: const InputDecoration(
+                hintText: 'you@example.com',
+                prefixIcon: Icon(Icons.mail_outline, size: 20),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const AuthLabel('Password'),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              onFieldSubmitted: (_) => _handleEmailLogin(),
+              validator: AuthValidators.loginPassword,
+              style: const TextStyle(color: AppColors.white, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Your password',
+                prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                suffixIcon: IconButton(
+                  tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 20,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              const SizedBox(height: 20),
-
-              if (_isLoading)
-                const CircularProgressIndicator(color: AppColors.brandPurple)
-              else ...[
-                CustomButton(
-                  text: 'Login',
-                  gradientColors: const [
-                    AppColors.purplePrimary,
-                    AppColors.purpleSecondary,
-                  ],
-                  onPressed: _handleEmailLogin,
-                ),
-
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: _handleGoogleSignIn,
-                    icon: Image.asset(
-                      'assets/images/google_icon.png',
-                      height: 24,
-                      width: 24,
-                    ),
-                    label: const Text(
-                      'Continue with Google',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.googleBlue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+  // White Google button so it sits well with the purple brand.
+  Widget _buildGoogleButton() {
+    final disabled = _isLoading;
+    return Opacity(
+      opacity: disabled && !_googleBusy ? 0.5 : 1,
+      child: Semantics(
+        button: true,
+        enabled: !disabled,
+        label: 'Continue with Google',
+        excludeSemantics: true,
+        child: Material(
+          color: AppColors.white,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: disabled ? null : _handleGoogleSignIn,
+            child: SizedBox(
+              height: 52,
+              child: Center(
+                child: _googleBusy
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: AppColors.brandPurple,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            AppAssets.googleIcon,
+                            width: 20,
+                            height: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Continue with Google',
+                            style: TextStyle(
+                              color: AppColors.backgroundDeep,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Don't have an account? ",
-                      style: TextStyle(color: AppColors.lavender)),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const SignupScreen()),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(48, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSignupLink() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'New to Destined? ',
+          style: TextStyle(color: AppColors.lavender, fontSize: 14),
+        ),
+        TextButton(
+          onPressed: _isLoading ? null : _openSignup,
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.brandPurpleLight,
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          child: const Text(
+            'Create an account',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 }

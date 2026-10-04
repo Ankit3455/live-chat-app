@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../services/safety_service.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/app_states.dart';
 
 /// Settings > Blocked users: list with unblock (DEST-003).
 class BlockedUsersScreen extends StatefulWidget {
@@ -76,14 +77,30 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       messenger.showSnackBar(SnackBar(content: Text('Unblocked $name')));
     } catch (e) {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not unblock. Try again.'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Could not unblock. Try again.')),
       );
     } finally {
       if (mounted) setState(() => _busy.remove(user.uid));
     }
+  }
+
+  static String _plural(int n, String unit) =>
+      '$n $unit${n == 1 ? '' : 's'} ago';
+
+  static String _blockedAgo(DateTime at) {
+    final days = DateTime.now().difference(at).inDays;
+    if (days >= 365) return 'Blocked ${_plural(days ~/ 365, 'year')}';
+    if (days >= 30) return 'Blocked ${_plural(days ~/ 30, 'month')}';
+    if (days >= 7) return 'Blocked ${_plural(days ~/ 7, 'week')}';
+    if (days >= 1) return 'Blocked ${_plural(days, 'day')}';
+    return 'Blocked today';
+  }
+
+  void _retry() {
+    SafetyService.instance.retry();
+    setState(() {
+      _stream = SafetyService.instance.watchBlockedUsers();
+    });
   }
 
   @override
@@ -92,42 +109,57 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
         title: const Text('Blocked users'),
-        backgroundColor: AppColors.surfaceCard,
+        centerTitle: true,
+        backgroundColor: AppColors.backgroundDeep,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
       body: StreamBuilder<List<BlockedUser>?>(
         stream: _stream,
         builder: (context, snap) {
           if (snap.hasError) {
-            return _message(
-              icon: Icons.cloud_off,
-              text: 'Could not load blocked users.',
-              action: TextButton(
-                onPressed: () {
-                  SafetyService.instance.retry();
-                  setState(() {
-                    _stream = SafetyService.instance.watchBlockedUsers();
-                  });
-                },
-                child: const Text('Retry'),
-              ),
+            return AppEmptyState(
+              icon: Icons.cloud_off_outlined,
+              title: 'Could not load blocked users',
+              message: 'Check your connection and try again.',
+              actionLabel: 'Retry',
+              onAction: _retry,
             );
           }
           final users = snap.data;
           if (users == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.brandPurple),
+            );
           }
           if (users.isEmpty) {
-            return _message(
-              icon: Icons.block,
-              text: 'You have not blocked anyone.',
+            return const AppEmptyState(
+              icon: Icons.shield_outlined,
+              title: 'No blocked users',
+              message:
+                  "If you block someone from their profile or a chat, they'll show up here.",
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: users.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) => _tile(users[i]),
+            padding: const EdgeInsets.only(bottom: 24),
+            itemCount: users.length + 1,
+            separatorBuilder: (_, i) => i == 0
+                ? const SizedBox.shrink()
+                : const Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 80,
+                    color: AppColors.border,
+                  ),
+            itemBuilder: (context, i) => i == 0
+                ? const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Text(
+                      "People you block can't see your profile or message you.",
+                      style: TextStyle(color: AppColors.lavender, fontSize: 14),
+                    ),
+                  )
+                : _tile(users[i - 1]),
           );
         },
       ),
@@ -144,66 +176,97 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
             ? CachedNetworkImageProvider(avatar, maxWidth: 150)
             : null;
         final busy = _busy.contains(user.uid);
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: AppColors.brandPurple.withValues(alpha: 0.3),
-              foregroundImage: image,
-              onForegroundImageError: image != null ? (_, __) {} : null,
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            title: Text(
-              name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            trailing: busy
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : TextButton(
-                    onPressed: () => _unblock(user, name),
-                    child: const Text('Unblock'),
+        final blockedAt = user.blockedAt;
+        return ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 72),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppColors.surface2,
+                  foregroundImage: image,
+                  onForegroundImageError: image != null ? (_, __) {} : null,
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (blockedAt != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _blockedAgo(blockedAt),
+                          style: const TextStyle(
+                            color: AppColors.textSubtle,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (busy)
+                  const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.brandPurpleLight,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Tooltip(
+                    message: 'Unblock $name',
+                    child: OutlinedButton(
+                      onPressed: () => _unblock(user, name),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.white,
+                        backgroundColor: AppColors.surfaceCard,
+                        side: const BorderSide(color: AppColors.borderStrong),
+                        shape: const StadiumBorder(),
+                        minimumSize: const Size(48, 40),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      child: const Text('Unblock'),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
-    );
-  }
-
-  Widget _message({
-    required IconData icon,
-    required String text,
-    Widget? action,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: AppColors.lavender),
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.lavender),
-            ),
-            if (action != null) ...[const SizedBox(height: 8), action],
-          ],
-        ),
-      ),
     );
   }
 }

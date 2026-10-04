@@ -3,13 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:availchat/models/public_profile.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/core/utils/astrology_utils.dart';
 import '../../../core/constants/app_colors.dart';
 
 class AstrologyCompatibilityCard extends StatelessWidget {
   final UserModel user;
 
-  const AstrologyCompatibilityCard({Key? key, required this.user})
-      : super(key: key);
+  /// Optional: opens the astrology questionnaire.
+  final VoidCallback? onTap;
+
+  const AstrologyCompatibilityCard({super.key, required this.user, this.onTap});
 
   Future<Map<String, dynamic>?> _getAstrologyData() async {
     try {
@@ -44,158 +47,140 @@ class AstrologyCompatibilityCard extends StatelessWidget {
     return emojis[sign?.toLowerCase()] ?? '✨';
   }
 
+  static String _signName(String sign) =>
+      AstrologyUtils.normalizeSign(sign) ?? sign;
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
       future: _getAstrologyData(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.brandPurple),
-          );
-        }
-
+        final waiting = snapshot.connectionState == ConnectionState.waiting;
         final data = snapshot.data;
         final zodiacSign = user.zodiacSign;
-        final preferredSigns = (data?['preferredSigns'] as List?)?.toList();
+        final preferredSigns =
+            (data?['preferredSigns'] as List?)?.toList() ?? const [];
         final dynamic beliefRaw = data?['believesInAstrology'];
         final String? believesInAstrology = beliefRaw == null
-        ? null
-          : (beliefRaw is bool ? (beliefRaw ? 'yes' : 'no') : beliefRaw.toString());
+            ? null
+            : (beliefRaw is bool
+                  ? (beliefRaw ? 'yes' : 'no')
+                  : beliefRaw.toString());
+        final hasCompat = preferredSigns.isNotEmpty;
+        final empty =
+            zodiacSign == null && !hasCompat && believesInAstrology == null;
 
-        return Container(
-          padding: const EdgeInsets.all(20),
+        final card = Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.brandPurple.withOpacity(0.2),
-                AppColors.surfaceCard,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.gold.withOpacity(0.5),
-              width: 1,
-            ),
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.auto_awesome,
-                    color: AppColors.gold,
-                    size: 28,
+              Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.35),
                   ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Cosmic Profile',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                ),
+                child: Text(
+                  _getZodiacEmoji(zodiacSign),
+                  style: const TextStyle(fontSize: 28, color: AppColors.gold),
+                ),
               ),
-              const SizedBox(height: 16),
-
-              // Zodiac Sign
-              if (zodiacSign != null) ...[
-                _buildInfoRow(
-                  label: 'Zodiac Sign',
-                  value: '${_getZodiacEmoji(zodiacSign)} ${zodiacSign.toUpperCase()}',
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Preferred Signs
-              if (preferredSigns != null && preferredSigns.isNotEmpty) ...[
-                const Text(
-                  'Compatible with',
-                  style: TextStyle(
-                    color: AppColors.lavender,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: preferredSigns.map((sign) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandPurple.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_getZodiacEmoji(sign.toString())} ${sign.toString().toUpperCase()}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+              const SizedBox(width: 16),
+              Expanded(
+                child: waiting
+                    ? const Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.gold,
+                          ),
                         ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            zodiacSign != null
+                                ? '${_signName(zodiacSign)} sun'
+                                : 'Cosmic profile',
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (hasCompat) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Most compatible with ${preferredSigns.map((s) => '${_getZodiacEmoji(s.toString())} ${_signName(s.toString())}').join(', ')}',
+                              style: const TextStyle(
+                                color: AppColors.lavender,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                          if (believesInAstrology != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Believes in astrology: $believesInAstrology',
+                              style: const TextStyle(
+                                color: AppColors.textSubtle,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                          if (empty) ...[
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Complete the astrology questionnaire to show cosmic compatibility.',
+                              style: TextStyle(
+                                color: AppColors.lavender,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Belief Level
-              if (believesInAstrology != null) ...[
-                _buildInfoRow(
-                  label: 'Believes in Astrology',
-                  value: believesInAstrology,
-                ),
-              ],
-
-              // No Data Message
-              if (zodiacSign == null &&
-                  (preferredSigns == null || preferredSigns.isEmpty) &&
-                  believesInAstrology == null)
-                const Text(
-                  'Complete astrology questionnaire to show cosmic compatibility!',
-                  style: TextStyle(
-                    color: AppColors.lavender,
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                  ),
+              ),
+              if (onTap != null)
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: AppColors.textSubtle,
                 ),
             ],
           ),
         );
-      },
-    );
-  }
 
-  Widget _buildInfoRow({required String label, required String value}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.lavender,
-            fontSize: 14,
+        final tap = onTap;
+        if (tap == null) return card;
+        return Semantics(
+          button: true,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: tap,
+              borderRadius: BorderRadius.circular(20),
+              child: card,
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

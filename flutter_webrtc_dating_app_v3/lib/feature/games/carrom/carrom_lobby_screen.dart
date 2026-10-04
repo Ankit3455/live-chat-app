@@ -6,7 +6,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_match_screen.dart';
+import '../../../widgets/custom_button.dart';
 import '../../../core/constants/app_colors.dart';
 
 class CarromLobbyScreen extends StatefulWidget {
@@ -389,7 +391,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   String _formatTime(int seconds) {
     final mins = seconds ~/ 60;
     final secs = seconds % 60;
-    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    return '$mins:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -416,17 +418,25 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
               // ===== HEADER =====
               _buildHeader(),
 
-              const Spacer(flex: 2),
-
               // ===== MAIN CONTENT =====
-              _searching ? _buildSearchingState() : _buildIdleState(),
-
-              const Spacer(flex: 1),
-
-              // ===== TIPS SECTION =====
-              if (_searching) _buildTipsSection(),
-
-              const Spacer(flex: 2),
+              if (_searching)
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: Column(
+                      children: [
+                        _buildSearchingState(),
+                        const SizedBox(height: 24),
+                        _buildRulesCard(),
+                      ],
+                    ),
+                  ),
+                )
+              else ...[
+                const Spacer(flex: 2),
+                _buildIdleState(),
+                const Spacer(flex: 3),
+              ],
 
               // ===== BOTTOM BUTTON =====
               _buildBottomButton(),
@@ -561,147 +571,139 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   }
 
   Widget _buildSearchingState() {
+    final user = _auth.currentUser;
+    final photo = user?.photoURL;
+    final name = user?.displayName?.trim() ?? '';
+    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final fallback = Center(
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppColors.white,
+          fontSize: 34,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
     return Column(
       children: [
-        // Animated Search Icon with Rings
-        SizedBox(
-          width: 200,
-          height: 200,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Ripple Waves
-              ...List.generate(3, (index) {
-                return AnimatedBuilder(
-                  animation: _waveAnimation,
-                  builder: (context, child) {
-                    final delay = index * 0.3;
-                    final value = (_waveAnimation.value + delay) % 1.0;
-                    return Container(
-                      width: 120 + (value * 100),
-                      height: 120 + (value * 100),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.orange.withOpacity(0.5 * (1 - value)),
-                          width: 2,
+        // Pulsing rings around your avatar
+        Semantics(
+          label: 'Searching for an opponent',
+          image: true,
+          child: SizedBox(
+            width: 220,
+            height: 220,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ...List.generate(3, (index) {
+                  return AnimatedBuilder(
+                    animation: _waveAnimation,
+                    builder: (context, child) {
+                      final value = (_waveAnimation.value + index / 3) % 1.0;
+                      final size = 220 * (0.35 + 0.65 * value);
+                      return Container(
+                        width: size,
+                        height: size,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.pinkLight
+                                .withOpacity(0.5 * (1 - value)),
+                            width: 1.5,
+                          ),
                         ),
-                      ),
+                      );
+                    },
+                  );
+                }),
+                AnimatedBuilder(
+                  animation: _rotateAnimation,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _rotateAnimation.value,
+                      child: child,
                     );
                   },
-                );
-              }),
-
-              // Rotating Outer Ring
-              AnimatedBuilder(
-                animation: _rotateAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: _rotateAnimation.value,
-                    child: Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.transparent,
-                          width: 3,
-                        ),
-                      ),
-                      child: CustomPaint(
-                        painter: _DashedCirclePainter(
-                          color: Colors.orange.withOpacity(0.6),
-                          dashCount: 12,
-                        ),
+                  child: SizedBox(
+                    width: 150,
+                    height: 150,
+                    child: CustomPaint(
+                      painter: _DashedCirclePainter(
+                        color: AppColors.borderStrong,
+                        dashCount: 24,
                       ),
                     ),
-                  );
-                },
-              ),
-
-              // Pulsing Inner Circle
-              AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _pulseAnimation.value,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.orange.shade400,
-                            Colors.orange.shade700,
-                          ],
+                  ),
+                ),
+                AnimatedBuilder(
+                  animation: _pulseAnimation,
+                  builder: (context, child) => Transform.scale(
+                    // Subtle breathing: 1.0 to ~1.05.
+                    scale: 1 + (_pulseAnimation.value - 1) * 0.3,
+                    child: child,
+                  ),
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surface2,
+                      border: Border.all(color: AppColors.pinkLight, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.pinkLight.withOpacity(0.35),
+                          blurRadius: 40,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.5),
-                            blurRadius: 25,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.person_search,
-                        size: 55,
-                        color: Colors.white,
-                      ),
+                      ],
                     ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-
-        // Searching Text with Animated Dots
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Finding Opponent',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+                    child: ClipOval(
+                      child: photo != null && photo.startsWith('http')
+                          ? CachedNetworkImage(
+                              imageUrl: photo,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => fallback,
+                              errorWidget: (_, __, ___) => fallback,
+                            )
+                          : fallback,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 4),
-            _buildAnimatedDots(),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
-
-        // Timer
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+        Semantics(
+          liveRegion: true,
+          child: Column(
             children: [
-              Icon(
-                Icons.timer_outlined,
-                color: Colors.white.withOpacity(0.7),
-                size: 18,
+              const Text(
+                'Looking for an opponent…',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 4),
               Text(
                 _formatTime(_waitingSeconds),
+                semanticsLabel: '$_waitingSeconds seconds',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  color: AppColors.pinkLight,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   fontFeatures: [FontFeature.tabularFigures()],
                 ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Keep this screen open',
+                style: TextStyle(color: AppColors.lavender, fontSize: 13),
               ),
             ],
           ),
@@ -710,88 +712,123 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     );
   }
 
-  Widget _buildAnimatedDots() {
-    return AnimatedBuilder(
-      animation: _dotsController,
-      builder: (context, child) {
-        final value = _dotsController.value;
-        return Row(
-          children: List.generate(3, (index) {
-            final delay = index * 0.2;
-            final opacity = (math.sin((value + delay) * math.pi * 2) + 1) / 2;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1),
-              child: Opacity(
-                opacity: opacity.clamp(0.3, 1.0),
-                child: const Text(
-                  '.',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+  Widget _buildRulesCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: AppColors.pinkLight),
+              SizedBox(width: 8),
+              Text(
+                'Quick rules',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            );
-          }),
-        );
-      },
+            ],
+          ),
+          const SizedBox(height: 8),
+          _ruleRow(
+            coin: AppColors.lavenderLight,
+            bold: 'your own coin',
+            before: 'Pocket ',
+            after: '',
+            points: '+1',
+            pointsColor: AppColors.success,
+          ),
+          const Divider(height: 1),
+          _ruleRow(
+            coin: AppColors.brandPink,
+            before: 'Pocket the ',
+            bold: 'Queen',
+            after: ' and cover it',
+            points: '+3',
+            pointsColor: AppColors.success,
+          ),
+          const Divider(height: 1),
+          _ruleRow(
+            coin: AppColors.textSubtle,
+            before: 'Pocket the ',
+            bold: 'striker',
+            after: ' (foul)',
+            points: '−1',
+            pointsColor: AppColors.error,
+          ),
+          const Divider(height: 1),
+          _ruleRow(
+            coin: AppColors.surface2,
+            before: '',
+            bold: 'First to clear',
+            after: ' all their coins',
+            points: 'Wins',
+            pointsColor: AppColors.pinkLight,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTipsSection() {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 500),
-      transitionBuilder: (child, animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.2),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        key: ValueKey<int>(_currentTipIndex),
-        margin: const EdgeInsets.symmetric(horizontal: 32),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.lightbulb_outline,
-                color: Colors.orange,
-                size: 22,
-              ),
+  Widget _ruleRow({
+    required Color coin,
+    required String before,
+    required String bold,
+    required String after,
+    required String points,
+    required Color pointsColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: coin,
+              border: Border.all(color: AppColors.borderStrong),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _tips[_currentTipIndex],
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 14,
-                  height: 1.4,
-                ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: before),
+                  TextSpan(
+                    text: bold,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(text: after),
+                ],
               ),
+              style: const TextStyle(color: AppColors.lavender, fontSize: 14),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            points,
+            style: TextStyle(
+              color: pointsColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -803,31 +840,11 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
         width: double.infinity,
         height: 60,
         child: _searching
-            ? OutlinedButton(
-          onPressed: _cancelSearch,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red, width: 2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.close, size: 22),
-              SizedBox(width: 8),
-              Text(
-                'CANCEL',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        )
+            ? CustomButton(
+                text: 'Cancel',
+                type: ButtonType.outline,
+                onPressed: _cancelSearch,
+              )
             : ElevatedButton(
           onPressed: _findMatch,
           style: ElevatedButton.styleFrom(

@@ -5,6 +5,7 @@ import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/models/question_model.dart';
 import 'package:availchat/services/session_service.dart';
+import 'package:availchat/widgets/custom_button.dart';
 import '../auth/auth_router.dart';
 import '../profile/voice_intro_screen.dart';
 import 'helpers/questionnaire_helper.dart';
@@ -166,10 +167,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🎉 Mandatory profile complete!'),
-        backgroundColor: AppColors.connectColor,
-      ),
+      const SnackBar(content: Text('🎉 Mandatory profile complete!')),
     );
 
     // The user can record or skip; either way continue to Home.
@@ -183,7 +181,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.dangerRed),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
@@ -197,18 +195,15 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
         if (!didPop && !busy) _previousPage();
       },
       child: Scaffold(
-        backgroundColor: AppColors.appBackground,
+        backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
           child: Column(
             children: [
-              // Progress bar and title
               ProgressHeader(
                 currentStep: _currentPage + 1,
                 totalSteps: _questions.length,
-                title: 'Complete Your Profile',
+                onBack: _currentPage > 0 && !busy ? _previousPage : null,
               ),
-
-              const SizedBox(height: 24),
 
               // Questions
               Expanded(
@@ -237,57 +232,14 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
                 ),
               ),
 
-              // Navigation
               Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    // Back button (except on first page)
-                    if (_currentPage > 0)
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: busy ? null : _previousPage,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(
-                              color: AppColors.brandPurpleLight,
-                            ),
-                          ),
-                          child: const Text(
-                            'Back',
-                            style: TextStyle(color: AppColors.brandPurpleLight),
-                          ),
-                        ),
-                      ),
-
-                    if (_currentPage > 0) const SizedBox(width: 16),
-
-                    // Next and Save
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: busy ? null : _nextPage,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: AppColors.purplePrimary,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _currentPage == _questions.length - 1
-                                    ? 'Finish'
-                                    : 'Next',
-                                style: const TextStyle(color: AppColors.white),
-                              ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: CustomButton(
+                  text: _currentPage == _questions.length - 1
+                      ? 'Finish'
+                      : 'Continue',
+                  onPressed: busy ? null : _nextPage,
+                  isLoading: _isLoading,
                 ),
               ),
             ],

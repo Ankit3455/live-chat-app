@@ -1,23 +1,33 @@
-import 'package:availchat/screens/questionnaire/profile_completion_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/screens/profile/profile_details_screen.dart';
 import 'package:availchat/screens/profile/profile_edit_screen.dart';
+import 'package:availchat/screens/profile/voice_intro_screen.dart';
 import 'package:availchat/screens/astrology/astrology_questionnaire_screen.dart';
+import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dart';
+import 'package:availchat/screens/questionnaire/profile_completion_screen.dart';
+import 'package:availchat/screens/settings/blocked_users_screen.dart';
+import 'package:availchat/screens/settings/discovery_settings_screen.dart';
 import 'package:availchat/screens/settings/settings_screen.dart';
-import 'package:availchat/screens/profile/widgets/profile_info_card.dart';
-import 'package:availchat/screens/profile/widgets/profile_stats_row.dart';
-import 'package:availchat/screens/profile/widgets/interests_grid.dart';
 import 'package:availchat/screens/profile/widgets/astrology_compatibility_card.dart';
+import 'package:availchat/screens/profile/widgets/interests_grid.dart';
+import 'package:availchat/screens/profile/widgets/profile_completion_card.dart';
+import 'package:availchat/screens/profile/widgets/profile_header.dart';
+import 'package:availchat/screens/profile/widgets/profile_section.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
+import 'package:availchat/models/question_model.dart';
 import 'package:availchat/services/profile_photo_service.dart';
+import 'package:availchat/widgets/app_states.dart';
+import 'package:availchat/widgets/custom_button.dart';
 import 'package:availchat/widgets/user_avatar.dart';
 import 'package:availchat/widgets/avatar_story.dart';
 import '../../core/constants/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -29,6 +39,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _loadError;
   bool _avatarBusy = false;
   int _completionPercentage = 0;
+  // Raw profile doc; drives the completion checklist.
+  Map<String, dynamic> _profileData = const {};
 
   @override
   void initState() {
@@ -66,11 +78,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       setState(() {
         _currentUser = UserModel.fromFirestore(doc);
+        _profileData = doc.data() ?? const {};
         _loadError = null;
       });
 
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
+      final percentage = await ProfileCompletionManager()
+          .getCompletionPercentage();
       if (!mounted) return;
       setState(() => _completionPercentage = percentage);
     } catch (e) {
@@ -109,21 +122,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (result == null) return;
       await _loadUserData();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(successMessage),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (e) {
       if (!mounted) return;
       final message = e is ProfilePhotoException
           ? e.message
           : 'Could not update your photo. Please try again.';
       debugPrint('Avatar action failed: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
     }
@@ -165,13 +175,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.lavender.withOpacity(0.35),
+                      color: AppColors.lavender.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Center(child: UserAvatar(user: user, size: 96, borderRadius: 48)),
+                Center(
+                  child: UserAvatar(user: user, size: 96, borderRadius: 48),
+                ),
                 const SizedBox(height: 12),
                 const Text(
                   'Made from your answers',
@@ -205,7 +217,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.autorenew, size: 20),
                     label: const Text(
                       'Generate a new one',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brandPurple,
@@ -227,12 +242,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.photo_camera_outlined, size: 20),
                     label: const Text(
                       'Upload a photo',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: BorderSide(
-                        color: AppColors.lavender.withOpacity(0.35),
+                        color: AppColors.lavender.withValues(alpha: 0.35),
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
@@ -278,46 +296,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 UserAvatar(user: user, size: 88, borderRadius: 44),
                 const SizedBox(height: 12),
-                const Text(
-                  'Change Avatar',
-                  style: TextStyle(
-                    color: Colors.white,
+                Text(
+                  'Change photo or avatar',
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.photo_library,
-                      color: AppColors.cyan),
-                  title: const Text('Upload a photo',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Choose from your gallery',
-                      style: TextStyle(color: AppColors.lavender)),
+                  leading: const Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.brandPurpleLight,
+                  ),
+                  title: const Text(
+                    'Upload a photo',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    'Choose from your gallery',
+                    style: TextStyle(color: AppColors.lavender),
+                  ),
                   onTap: () => choose(
                     ProfilePhotoService.pickAndUploadPhoto,
                     'Profile photo updated',
                   ),
                 ),
                 ListTile(
-                  leading:
-                      const Icon(Icons.face, color: AppColors.brandPurpleMid),
-                  title: const Text('Use my avatar',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Switch back to your generated avatar',
-                      style: TextStyle(color: AppColors.lavender)),
+                  leading: const Icon(
+                    Icons.face_outlined,
+                    color: AppColors.brandPurpleLight,
+                  ),
+                  title: const Text(
+                    'Use my avatar',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    'Switch back to your generated avatar',
+                    style: TextStyle(color: AppColors.lavender),
+                  ),
                   onTap: () => choose(
                     ProfilePhotoService.resetToAvatar,
                     'Avatar restored',
                   ),
                 ),
                 ListTile(
-                  leading:
-                      const Icon(Icons.autorenew, color: AppColors.gold),
-                  title: const Text('Generate a new avatar',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Based on your profile answers',
-                      style: TextStyle(color: AppColors.lavender)),
+                  leading: const Icon(
+                    Icons.autorenew,
+                    color: AppColors.pinkLight,
+                  ),
+                  title: const Text(
+                    'Generate a new avatar',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    'Based on your profile answers',
+                    style: TextStyle(color: AppColors.lavender),
+                  ),
                   onTap: () => choose(
                     ProfilePhotoService.regenerateAvatar,
                     'New avatar created',
@@ -331,208 +367,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDeep,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.brandPurple))
-          : _currentUser == null
-              ? _buildErrorState(_loadError ?? 'Please try again')
-              : RefreshIndicator(
-                  onRefresh: _refreshProfile,
-                  color: AppColors.brandPurple,
-                  backgroundColor: AppColors.surfaceCard,
-                  child: CustomScrollView(
-                    slivers: [
-                      // App Bar with Edit & Settings
-                      SliverAppBar(
-                        expandedHeight: 120,
-                        floating: false,
-                        pinned: true,
-                        backgroundColor: AppColors.surfaceCard,
-                        flexibleSpace: FlexibleSpaceBar(
-                          title: const Text(
-                            'My Profile',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          background: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.brandPurple.withOpacity(0.3),
-                                  AppColors.surfaceCard,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        actions: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white),
-                            tooltip: 'Edit profile',
-                            onPressed: () async {
-                              if (_currentUser == null) return;
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProfileEditScreen(user: _currentUser!),
-                                ),
-                              );
-                              if (result == true && mounted) {
-                                _refreshProfile();
-                              }
-                            },
-                          ),
-                          IconButton(
-                            icon:
-                                const Icon(Icons.settings, color: Colors.white),
-                            tooltip: 'Settings',
-                            onPressed: _openSettings,
-                          ),
-                        ],
-                      ),
+  // ---------- Navigation ----------
 
-                      // Content
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Profile Info Card
-                              ProfileInfoCard(
-                                user: _currentUser!,
-                                completionPercentage: _completionPercentage,
-                                onAvatarStoryTap:
-                                    avatarTraitsFor(_currentUser!).isEmpty
-                                        ? null
-                                        : _showAvatarStorySheet,
-                              ),
-                              const SizedBox(height: 16),
+  Future<void> _openEdit() async {
+    final user = _currentUser;
+    if (user == null) return;
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProfileEditScreen(user: user)),
+    );
+    if (result == true && mounted) await _refreshProfile();
+  }
 
-                              // Profile Completion CTA
-                              if (_completionPercentage < 100)
-                                _buildCompletionCTA(),
-
-                              const SizedBox(height: 16),
-
-                              // Profile Stats
-                              ProfileStatsRow(user: _currentUser!),
-
-                              const SizedBox(height: 24),
-
-                              // Interests Section
-                              if (_currentUser!.interests.isNotEmpty) ...[
-                                const Text(
-                                  'Interests',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                InterestsGrid(
-                                    interests: _currentUser!.interests),
-                                const SizedBox(height: 24),
-                              ],
-
-                              // Astrology Section
-                              const Text(
-                                'Astrology Profile',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              AstrologyCompatibilityCard(user: _currentUser!),
-                              const SizedBox(height: 24),
-
-                              // Quick Actions
-                              _buildQuickActions(),
-                              const SizedBox(height: 24),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+  void _openPreview() {
+    final user = _currentUser;
+    if (user == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProfileDetailsScreen(user: user)),
     );
   }
 
-  Widget _buildCompletionCTA() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Complete Your Profile',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$_completionPercentage% complete',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ProfileCompletionScreen(),
-                ),
-              );
-              if (mounted) _refreshProfile();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: const Text(
-              'Complete',
-              style: TextStyle(
-                color: AppColors.brandPurple,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _openVoiceIntro() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const VoiceIntroScreen()),
     );
+    if (saved == true && mounted) await _refreshProfile();
+  }
+
+  Future<void> _openAstrology() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AstrologyQuestionnaireScreen()),
+    );
+    if (mounted) await _refreshProfile();
+  }
+
+  Future<void> _openCompletion() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileCompletionScreen()),
+    );
+    if (mounted) await _refreshProfile();
   }
 
   void _openSettings() {
@@ -542,194 +419,260 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildActionTile(
-          icon: Icons.auto_awesome,
-          title: 'Astrology Questionnaire',
-          subtitle: 'Update your cosmic profile',
-          color: AppColors.gold,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AstrologyQuestionnaireScreen(),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        _buildActionTile(
-          icon: Icons.assignment,
-          title: 'Profile Completion',
-          subtitle: 'Complete optional sections',
-          color: AppColors.brandPurple,
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ProfileCompletionScreen(),
-              ),
-            );
-            if (mounted) _refreshProfile();
-          },
-        ),
-        const SizedBox(height: 12),
-        _buildActionTile(
-          icon: Icons.photo_camera,
-          title: 'Change Avatar',
-          subtitle: _avatarBusy
-              ? 'Updating your photo...'
-              : 'Upload a photo or use your avatar',
-          color: AppColors.cyan,
-          onTap: _showChangeAvatarSheet,
-          trailing: _avatarBusy
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.cyan,
-                  ),
-                )
-              : null,
-        ),
-        const SizedBox(height: 12),
-        _buildActionTile(
-          icon: Icons.settings,
-          title: 'Settings',
-          subtitle: 'Account, help & support, sign out',
-          color: AppColors.lavender,
-          onTap: _openSettings,
-        ),
-      ],
+  void _openDiscoverySettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DiscoverySettingsScreen()),
     );
   }
 
-  Widget _buildActionTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-    Widget? trailing,
-  }) {
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 28),
+  void _openBlockedUsers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+    );
+  }
+
+  // ---------- Completion checklist ----------
+
+  static bool _answered(dynamic v) {
+    if (v == null) return false;
+    if (v is String) return v.trim().isNotEmpty;
+    if (v is List) return v.isNotEmpty;
+    if (v is Map) return v.isNotEmpty;
+    return true;
+  }
+
+  bool _allAnswered(Iterable<String> fields) =>
+      fields.every((f) => _answered(_profileData[f]));
+
+  // Mirrors ProfileCompletionManager: flag set or half the questions answered.
+  bool _sectionDone(String flag, List<Question> questions) {
+    if (_profileData[flag] == true) return true;
+    final fields = questions.map((q) => q.fieldName).where((f) => f.isNotEmpty);
+    final answered = fields.where((f) => _answered(_profileData[f])).length;
+    return answered >= (fields.length * 0.5).ceil();
+  }
+
+  List<ProfileTodo> _todos(UserModel user) {
+    final basics = QuestionnaireHelper.getMandatoryQuestions()
+        .map((q) => q.fieldName)
+        .where((f) => f.isNotEmpty);
+    final astrologyDone =
+        _answered(_profileData['preferredSigns']) ||
+        _profileData['believesInAstrology'] != null;
+    return [
+      ProfileTodo(
+        label: 'Basic profile',
+        done: _allAnswered(const [
+          'bio',
+          'profession',
+          'location',
+          'interests',
+        ]),
+        actionLabel: 'Edit',
+        onTap: _openEdit,
+      ),
+      ProfileTodo(
+        label: 'Record a voice intro',
+        done: (user.voiceIntroUrl ?? '').trim().isNotEmpty,
+        actionLabel: 'Add',
+        onTap: _openVoiceIntro,
+      ),
+      ProfileTodo(
+        label: 'Complete astrology profile',
+        done: astrologyDone,
+        actionLabel: 'Start',
+        onTap: _openAstrology,
+      ),
+      ProfileTodo(
+        label: 'Height, education & body type',
+        done: _allAnswered(basics),
+        actionLabel: 'Add',
+        onTap: _openEdit,
+      ),
+      ProfileTodo(
+        label: 'Lifestyle & personality',
+        done:
+            _sectionDone(
+              'lifestyleCompleted',
+              QuestionnaireHelper.getLifestyleQuestions(),
+            ) &&
+            _sectionDone(
+              'personalityCompleted',
+              QuestionnaireHelper.getPersonalityQuestions(),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+        actionLabel: 'Add',
+        onTap: _openCompletion,
+      ),
+    ];
+  }
+
+  // ---------- Build ----------
+
+  @override
+  Widget build(BuildContext context) {
+    final user = _currentUser;
+    return Scaffold(
+      backgroundColor: AppColors.backgroundDeep,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.brandPurple),
+            )
+          : user == null
+          ? SafeArea(
+              child: AppEmptyState(
+                icon: Icons.cloud_off_outlined,
+                title: 'Could not load your profile',
+                message: _loadError ?? 'Please try again.',
+                actionLabel: 'Retry',
+                onAction: _refreshProfile,
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _refreshProfile,
+              color: AppColors.brandPurple,
+              backgroundColor: AppColors.surfaceCard,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverAppBar(
+                    pinned: true,
+                    automaticallyImplyLeading: false,
+                    backgroundColor: AppColors.backgroundDeep,
+                    surfaceTintColor: Colors.transparent,
+                    centerTitle: false,
+                    titleSpacing: 20,
+                    title: Semantics(
+                      header: true,
+                      child: Text(
+                        'Profile',
+                        style: GoogleFonts.montserrat(
+                          color: AppColors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          color: AppColors.white,
+                        ),
+                        tooltip: 'Settings',
+                        onPressed: _openSettings,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppColors.lavender,
-                      fontSize: 14,
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate(_content(user)),
                     ),
                   ),
                 ],
               ),
             ),
-            trailing ??
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.lavender,
-                ),
-          ],
-        ),
-      ),
-      ),
     );
   }
 
-  Widget _buildErrorState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  List<Widget> _content(UserModel user) {
+    final todos = _todos(user);
+    final showCompletion =
+        _completionPercentage < 100 || todos.any((t) => !t.done);
+    final bio = (user.bio ?? '').trim();
+
+    return [
+      ProfileHeader(
+        user: user,
+        busy: _avatarBusy,
+        onChangePhoto: _showChangeAvatarSheet,
+        onAvatarStoryTap: avatarTraitsFor(user).isEmpty
+            ? null
+            : _showAvatarStorySheet,
+      ),
+      const SizedBox(height: 20),
+      Row(
         children: [
-          const Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Failed to load profile',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: CustomButton(
+              text: 'Edit profile',
+              type: ButtonType.outline,
+              leftIcon: Icons.edit_outlined,
+              onPressed: _openEdit,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.lavender,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _refreshProfile,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandPurple,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: const Text(
-              'Retry',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: CustomButton(
+              text: 'Preview',
+              type: ButtonType.outline,
+              leftIcon: Icons.visibility_outlined,
+              onPressed: _openPreview,
             ),
           ),
         ],
       ),
-    );
+      if (showCompletion) ...[
+        const SizedBox(height: 20),
+        ProfileCompletionCard(percentage: _completionPercentage, items: todos),
+      ],
+      ProfileSectionTitle(
+        title: 'About me',
+        actionLabel: 'Edit',
+        actionTooltip: 'Edit about me',
+        onAction: _openEdit,
+      ),
+      Text(
+        bio.isEmpty ? 'Add a few lines so people get to know you.' : bio,
+        style: TextStyle(
+          color: bio.isEmpty ? AppColors.textSubtle : AppColors.lavender,
+          fontSize: 15,
+          height: 1.45,
+        ),
+      ),
+      ProfileSectionTitle(
+        title: 'Cosmic profile',
+        actionLabel: 'Edit',
+        actionTooltip: 'Edit astrology profile',
+        onAction: _openAstrology,
+      ),
+      AstrologyCompatibilityCard(user: user, onTap: _openAstrology),
+      ProfileSectionTitle(
+        title: 'Interests',
+        actionLabel: 'Edit',
+        actionTooltip: 'Edit interests',
+        onAction: _openEdit,
+      ),
+      if (user.interests.isNotEmpty)
+        InterestsGrid(interests: user.interests)
+      else
+        const Text(
+          'Add interests to find people who share them.',
+          style: TextStyle(color: AppColors.textSubtle, fontSize: 15),
+        ),
+      const ProfileSectionTitle(title: 'More'),
+      ProfileMenuCard(
+        items: [
+          ProfileMenuItem(
+            icon: Icons.explore_outlined,
+            title: 'Discovery settings',
+            onTap: _openDiscoverySettings,
+          ),
+          ProfileMenuItem(
+            icon: Icons.shield_outlined,
+            title: 'Privacy & safety',
+            onTap: _openBlockedUsers,
+          ),
+          ProfileMenuItem(
+            icon: Icons.help_outline,
+            title: 'Help & app tour',
+            onTap: _openSettings,
+          ),
+        ],
+      ),
+    ];
   }
 }

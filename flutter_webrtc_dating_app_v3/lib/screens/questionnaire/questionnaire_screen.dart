@@ -13,6 +13,7 @@ import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/services/location_service.dart';
 import '../../features/onboarding/tour_prefs.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/custom_button.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   const QuestionnaireScreen({Key? key}) : super(key: key);
@@ -47,8 +48,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final uid = _uid;
     if (uid == null) return;
     try {
-      final doc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final dob = doc.data()?['dateOfBirth'];
       if (dob != null && mounted) {
         setState(() {
@@ -208,9 +211,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+    );
   }
 
   @override
@@ -228,11 +231,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: 16),
               ProgressHeader(
                 currentStep: _currentPage + 1,
                 totalSteps: _questions.length,
-                title: 'Basic Profile',
+                // First question is the root of onboarding: no back exit.
+                onBack: _currentPage > 0 && !_isSaving ? _previousPage : null,
               ),
               if (uid != null) ...[
                 const SizedBox(height: 12),
@@ -240,13 +243,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   uid: uid,
                   revision: _avatarRevision,
                   answerLabel: _lastAvatarAnswer,
-                  answers: {
-                    ..._answers,
-                    if (_dob != null) 'dateOfBirth': _dob,
-                  },
+                  answers: {..._answers, if (_dob != null) 'dateOfBirth': _dob},
                 ),
               ],
-              const SizedBox(height: 16),
 
               Expanded(
                 child: PageView.builder(
@@ -272,66 +271,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               ),
 
               Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Row(
-                  children: [
-                    if (_currentPage > 0)
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isSaving ? null : _previousPage,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.brandPurple),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: const Text(
-                            'Back',
-                            style: TextStyle(
-                              color: AppColors.brandPurpleLight,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (_currentPage > 0) const SizedBox(width: 16),
-
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _nextPage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandPurple,
-                          disabledBackgroundColor: AppColors.surfaceCard,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _currentPage == _questions.length - 1
-                                    ? 'Finish & Create Avatar'
-                                    : 'Continue',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: CustomButton(
+                  text: _currentPage == _questions.length - 1
+                      ? 'Finish & Create Avatar'
+                      : 'Continue',
+                  onPressed: _isSaving ? null : _nextPage,
+                  isLoading: _isSaving,
                 ),
               ),
             ],

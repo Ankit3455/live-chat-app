@@ -14,11 +14,11 @@ class ProfileInfoCard extends StatelessWidget {
   final VoidCallback? onAvatarStoryTap;
 
   const ProfileInfoCard({
-    Key? key,
+    super.key,
     required this.user,
     required this.completionPercentage,
     this.onAvatarStoryTap,
-  }) : super(key: key);
+  });
 
   bool _hasProfileImage() {
     return user.profileImage.isNotEmpty &&
@@ -36,8 +36,9 @@ class ProfileInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = _hasProfileImage();
-    final avatarUrl =
-    hasImage ? _cacheBustedUrl(user.profileImage, user.avatarVersion) : null;
+    final avatarUrl = hasImage
+        ? _cacheBustedUrl(user.profileImage, user.avatarVersion)
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -47,14 +48,11 @@ class ProfileInfoCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppColors.surfaceCard,
-            AppColors.surfaceCard.withOpacity(0.8),
+            AppColors.surfaceCard.withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.brandPurple.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.border, width: 1),
       ),
       child: Column(
         children: [
@@ -64,29 +62,29 @@ class ProfileInfoCard extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.brandPurple.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.brandPurple,
-                    width: 3,
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.brandPurple.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.brandPurple,
+                        width: 3,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(17),
+                      child: hasImage
+                          ? CachedNetworkImage(
+                              imageUrl: avatarUrl!,
+                              memCacheWidth: 300,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => _placeholder(),
+                            )
+                          : _placeholder(),
+                    ),
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(17),
-                  child: hasImage
-                      ? CachedNetworkImage(
-                    imageUrl: avatarUrl!,
-                    memCacheWidth: 300,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _placeholder(),
-                  )
-                      : _placeholder(),
-                ),
-              ),
                   if (onAvatarStoryTap != null)
                     Positioned(
                       right: -6,
@@ -136,8 +134,7 @@ class ProfileInfoCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (user.profession != null &&
-                        user.profession!.isNotEmpty)
+                    if (user.profession != null && user.profession!.isNotEmpty)
                       Text(
                         user.profession!,
                         style: const TextStyle(
@@ -145,33 +142,18 @@ class ProfileInfoCard extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          completionPercentage == 100
-                              ? Icons.verified
-                              : Icons.pending,
-                          color: completionPercentage == 100
-                              ? Colors.green
-                              : Colors.orange,
-                          size: 16,
+                    // No badge at 100%: it read as ID verification.
+                    if (completionPercentage < 100) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '$completionPercentage% complete',
+                        style: const TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          completionPercentage == 100
-                              ? 'Complete Profile'
-                              : '$completionPercentage% Complete',
-                          style: TextStyle(
-                            color: completionPercentage == 100
-                                ? Colors.green
-                                : Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -189,7 +171,7 @@ class ProfileInfoCard extends StatelessWidget {
           // Bio
           if (user.bio != null && user.bio!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(color: AppColors.brandPurple, thickness: 0.5),
+            const Divider(color: AppColors.border, thickness: 1),
             const SizedBox(height: 16),
             Text(
               user.bio!,
@@ -211,7 +193,7 @@ class ProfileInfoCard extends StatelessWidget {
       child: const Center(
         child: Icon(
           Icons.person_outline_rounded,
-          color: Colors.white38,
+          color: AppColors.textSubtle,
           size: 42,
         ),
       ),

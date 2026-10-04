@@ -3,145 +3,140 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 
-enum AttachmentType {
-  camera,
-  gallery,
-  audio,
-}
+enum AttachmentType { camera, gallery, audio }
 
 class AttachmentSheet extends StatelessWidget {
   final Function(AttachmentType) onSelected;
 
-  const AttachmentSheet({
-    Key? key,
-    required this.onSelected,
-  }) : super(key: key);
+  const AttachmentSheet({Key? key, required this.onSelected}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    void pick(AttachmentType type) {
+      Navigator.pop(context);
+      onSelected(type);
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      decoration: BoxDecoration(
-        color: AppColors.inputBackground,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border.all(
-          color: AppColors.purplePrimary.withOpacity(0.3),
-          width: 1,
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag handle
             Container(
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.borderStrong,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // Title
-            const Text(
-              'Share',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            const SizedBox(height: 16),
+            Semantics(
+              header: true,
+              child: Text(
+                'Share',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Options Row
+            const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildOption(
-                  context,
                   icon: Icons.camera_alt_rounded,
                   label: 'Camera',
-                  color: const Color(0xFFE91E63),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelected(AttachmentType.camera);
-                  },
+                  semanticLabel: 'Take a photo',
+                  accent: AppColors.brandPink,
+                  iconColor: AppColors.pinkLight,
+                  onTap: () => pick(AttachmentType.camera),
                 ),
+                const SizedBox(width: 12),
                 _buildOption(
-                  context,
                   icon: Icons.photo_library_rounded,
                   label: 'Gallery',
-                  color: AppColors.brandMagenta,
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelected(AttachmentType.gallery);
-                  },
+                  semanticLabel: 'Choose a photo from gallery',
+                  accent: AppColors.brandPurpleMid,
+                  iconColor: AppColors.brandPurpleLight,
+                  onTap: () => pick(AttachmentType.gallery),
                 ),
+                const SizedBox(width: 12),
                 _buildOption(
-                  context,
                   icon: Icons.mic_rounded,
-                  label: 'Audio',
-                  color: AppColors.cyan,
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelected(AttachmentType.audio);
-                  },
+                  label: 'Voice note',
+                  semanticLabel: 'Record a voice note',
+                  accent: AppColors.gold,
+                  iconColor: AppColors.gold,
+                  onTap: () => pick(AttachmentType.audio),
                 ),
               ],
             ),
-
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOption(
-      BuildContext context, {
-        required IconData icon,
-        required String label,
-        required Color color,
-        required VoidCallback onTap,
-      }) {
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: color.withOpacity(0.3),
-                width: 2,
+  Widget _buildOption({
+    required IconData icon,
+    required String label,
+    required String semanticLabel,
+    required Color accent,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        excludeSemantics: true,
+        child: Material(
+          color: AppColors.surfaceCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.16),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: accent.withOpacity(0.35)),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 26),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+        ),
       ),
     );
   }

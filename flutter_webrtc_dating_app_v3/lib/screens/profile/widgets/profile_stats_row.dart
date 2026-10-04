@@ -5,7 +5,7 @@ import '../../../core/constants/app_colors.dart';
 class ProfileStatsRow extends StatelessWidget {
   final UserModel user;
 
-  const ProfileStatsRow({Key? key, required this.user}) : super(key: key);
+  const ProfileStatsRow({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +13,8 @@ class ProfileStatsRow extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -24,11 +25,7 @@ class ProfileStatsRow extends StatelessWidget {
             value: user.location ?? 'Not set',
           ),
           _buildDivider(),
-          _buildStat(
-            icon: Icons.cake,
-            label: 'Age',
-            value: _ageLabel(),
-          ),
+          _buildStat(icon: Icons.cake, label: 'Age', value: _ageLabel()),
           _buildDivider(),
           _buildStat(
             icon: Icons.favorite,
@@ -52,7 +49,7 @@ class ProfileStatsRow extends StatelessWidget {
   }) {
     return Column(
       children: [
-        Icon(icon, color: AppColors.brandPurpleLight, size: 28),
+        Icon(icon, color: AppColors.brandPurpleLight, size: 24),
         const SizedBox(height: 8),
         Text(
           value,
@@ -65,20 +62,13 @@ class ProfileStatsRow extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.lavender,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: AppColors.lavender, fontSize: 12),
         ),
       ],
     );
   }
 
   Widget _buildDivider() {
-    return Container(
-      width: 1,
-      height: 50,
-      color: AppColors.brandPurple.withOpacity(0.3),
-    );
+    return Container(width: 1, height: 50, color: AppColors.border);
   }
 }

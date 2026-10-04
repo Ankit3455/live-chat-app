@@ -44,14 +44,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: Colors.white,
+              color: AppColors.backgroundDeep,
               size: 20,
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: AppColors.backgroundDeep),
+              ),
+            ),
           ],
         ),
-        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        backgroundColor: isError ? AppColors.error : AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -80,9 +85,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     try {
       await context.read<AuthService>().changePassword(
-        currentPassword: current,
-        newPassword: newPass,
-      );
+            currentPassword: current,
+            newPassword: newPass,
+          );
 
       if (!mounted) return;
       _showSnackBar(
@@ -106,7 +111,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final providers = user?.providerData.map((p) => p.providerId).toList() ?? const <String>[];
+    final providers = user?.providerData.map((p) => p.providerId).toList() ??
+        const <String>[];
     final usesEmailPassword = providers.contains('password');
 
     return Scaffold(
@@ -119,31 +125,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        tooltip: 'Back',
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: const Text(
-        'Change Password',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      centerTitle: true,
-    );
+    return AppBar(title: const Text('Change password'));
   }
 
   Widget _buildPasswordForm() {
@@ -163,62 +145,68 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        AppColors.brandViolet.withOpacity(0.2),
-                        AppColors.brandPink.withOpacity(0.2),
+                        AppColors.brandPurple.withOpacity(0.22),
+                        AppColors.brandPink.withOpacity(0.14),
                       ],
                     ),
                     shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.borderStrong),
                   ),
                   child: const Icon(
                     Icons.lock_outline,
-                    color: AppColors.brandViolet,
-                    size: 40,
+                    color: AppColors.brandPurpleLight,
+                    size: 36,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
               // Subtitle
-              Center(
+              const Center(
                 child: Text(
                   'Create a strong password to\nkeep your account secure',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.grey.shade400,
+                    color: AppColors.lavender,
                     fontSize: 14,
+                    height: 1.45,
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Current Password
+              const _FieldLabel('Current password'),
               CustomTextField(
                 controller: _currentCtl,
                 hintText: 'Enter current password',
-                icon: Icons.lock_outline,  // ✅ Fixed
+                icon: Icons.lock_outline,
                 obscureText: _obscureCurrent,
                 suffixIcon: IconButton(
                   tooltip: _obscureCurrent ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureCurrent ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey,
+                    color: AppColors.textSubtle,
                   ),
-                  onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                  onPressed: () =>
+                      setState(() => _obscureCurrent = !_obscureCurrent),
                 ),
-                validator: (v) => (v == null || v.isEmpty) ? AppStrings.passwordRequired : null,
+                validator: (v) => (v == null || v.isEmpty)
+                    ? AppStrings.passwordRequired
+                    : null,
               ),
+              const SizedBox(height: 20),
 
-// New Password
+              const _FieldLabel('New password'),
               CustomTextField(
                 controller: _newCtl,
                 hintText: 'Enter new password',
-                icon: Icons.lock_reset,  // ✅ Fixed
+                icon: Icons.lock_reset,
                 obscureText: _obscureNew,
                 suffixIcon: IconButton(
                   tooltip: _obscureNew ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureNew ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey,
+                    color: AppColors.textSubtle,
                   ),
                   onPressed: () => setState(() => _obscureNew = !_obscureNew),
                 ),
@@ -229,37 +217,40 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 valueListenable: _newCtl,
                 builder: (_, __, ___) => _buildPasswordHints(),
               ),
+              const SizedBox(height: 20),
 
-// Confirm Password
+              const _FieldLabel('Confirm new password'),
               CustomTextField(
                 controller: _confirmCtl,
                 hintText: 'Confirm new password',
-                icon: Icons.lock_outline,  // ✅ Fixed
+                icon: Icons.lock_outline,
                 obscureText: _obscureConfirm,
                 suffixIcon: IconButton(
                   tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
                   icon: Icon(
                     _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey,
+                    color: AppColors.textSubtle,
                   ),
-                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
-                validator: (v) => (v == null || v.isEmpty) ? AppStrings.passwordRequired : null,
+                validator: (v) => (v == null || v.isEmpty)
+                    ? AppStrings.passwordRequired
+                    : null,
               ),
+              const SizedBox(height: 32),
 
-              // Submit Button
               CustomButton(
-                text: 'Update Password',
+                text: 'Update password',
                 leftIcon: Icons.security,
                 isLoading: _isLoading,
                 onPressed: _submit,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-              // Cancel Button
               CustomButton(
                 text: 'Cancel',
-                type: ButtonType.outline,
+                type: ButtonType.text,
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -275,8 +266,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -285,7 +277,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             password.length >= AuthValidators.minPasswordLength,
           ),
           const SizedBox(height: 6),
-          _buildHintRow('Contains a letter', RegExp(r'[A-Za-z]').hasMatch(password)),
+          _buildHintRow(
+              'Contains a letter', RegExp(r'[A-Za-z]').hasMatch(password)),
           const SizedBox(height: 6),
           _buildHintRow('Contains a number', RegExp(r'\d').hasMatch(password)),
         ],
@@ -299,14 +292,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         Icon(
           isValid ? Icons.check_circle : Icons.circle_outlined,
           size: 16,
-          color: isValid ? Colors.green : Colors.grey,
+          color: isValid ? AppColors.success : AppColors.textSubtle,
         ),
         const SizedBox(width: 8),
         Text(
           text,
           style: TextStyle(
-            fontSize: 12,
-            color: isValid ? Colors.green : Colors.grey,
+            fontSize: 13,
+            color: isValid ? AppColors.success : AppColors.lavender,
           ),
         ),
       ],
@@ -347,7 +340,8 @@ class _ProviderBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final providerId = providers.isNotEmpty ? providers.first : '';
-    final providerName = providers.isEmpty ? 'your provider' : _name(providerId);
+    final providerName =
+        providers.isEmpty ? 'your provider' : _name(providerId);
 
     return Center(
       child: Padding(
@@ -357,17 +351,14 @@ class _ProviderBanner extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.brandViolet.withOpacity(0.1),
-                AppColors.brandPink.withOpacity(0.1),
+                AppColors.brandPurple.withOpacity(0.14),
+                AppColors.brandPink.withOpacity(0.08),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.brandViolet.withOpacity(0.3),
-              width: 1,
-            ),
+            border: Border.all(color: AppColors.borderStrong),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -375,12 +366,12 @@ class _ProviderBanner extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.brandViolet.withOpacity(0.2),
+                  color: AppColors.brandPurpleMid.withOpacity(0.16),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   _icon(providerId),
-                  color: AppColors.brandViolet,
+                  color: AppColors.brandPurpleLight,
                   size: 40,
                 ),
               ),
@@ -388,7 +379,7 @@ class _ProviderBanner extends StatelessWidget {
               Text(
                 'Password Managed by $providerName',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -397,9 +388,10 @@ class _ProviderBanner extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Your account uses $providerName for authentication. To change your password, please visit $providerName account settings.',
-                style: TextStyle(
-                  color: Colors.grey.shade400,
+                style: const TextStyle(
+                  color: AppColors.lavender,
                   fontSize: 14,
+                  height: 1.45,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -412,6 +404,27 @@ class _ProviderBanner extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.lavender,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );

@@ -1,6 +1,8 @@
 // lib/screens/chat/widgets/audio_message.dart
 
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/app_colors.dart';
@@ -11,11 +13,8 @@ class AudioMessage extends StatefulWidget {
   final ChatMessage message;
   final bool isMe;
 
-  const AudioMessage({
-    Key? key,
-    required this.message,
-    required this.isMe,
-  }) : super(key: key);
+  const AudioMessage({Key? key, required this.message, required this.isMe})
+    : super(key: key);
 
   @override
   State<AudioMessage> createState() => _AudioMessageState();
@@ -77,11 +76,12 @@ class _AudioMessageState extends State<AudioMessage> {
   @override
   void didUpdateWidget(covariant AudioMessage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final changed = oldWidget.message.id != widget.message.id ||
+    final changed =
+        oldWidget.message.id != widget.message.id ||
         oldWidget.message.mediaUrl != widget.message.mediaUrl;
     if (!changed) return;
     // A different (or deleted) recording: drop the old playback state.
-    _player.stop();
+    unawaited(_player.stop());
     setState(() {
       _isPlaying = false;
       _isLoading = false;
@@ -128,120 +128,135 @@ class _AudioMessageState extends State<AudioMessage> {
     return '$minutes:$seconds';
   }
 
+  static const int _barCount = 26;
+
+  /// Stable pseudo-waveform per message (no amplitude data is stored).
+  List<double> get _barHeights {
+    final rng = math.Random(widget.message.id.hashCode);
+    return List.generate(_barCount, (_) => 6 + rng.nextDouble() * 18);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMe = widget.isMe;
     final playable = MediaUrlPolicy.isAllowed(widget.message.mediaUrl);
     final progress = _duration.inMilliseconds > 0
-        ? _position.inMilliseconds / _duration.inMilliseconds
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
+    final played = (progress * _barCount).round();
+
+    final Color barOn = isMe ? AppColors.white : AppColors.brandPurpleLight;
+    final Color barOff = isMe
+        ? AppColors.white.withOpacity(0.4)
+        : AppColors.lavender.withOpacity(0.35);
+    final Color meta = isMe
+        ? AppColors.white.withOpacity(0.85)
+        : AppColors.lavender;
+    final shown = _isPlaying || _position > Duration.zero
+        ? _position
+        : _duration;
+    final heights = _barHeights;
 
     return Container(
-      width: 220,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      width: 240,
+      padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
       decoration: BoxDecoration(
-        color: widget.isMe
-            ? AppColors.purplePrimary.withOpacity(0.3)
-            : AppColors.inputBackground,
+        color: isMe ? null : AppColors.surface2,
+        gradient: isMe ? AppColors.primaryGradient : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.purplePrimary.withOpacity(0.2),
-        ),
       ),
       child: Row(
         children: [
-          // Play/Pause Button
           Semantics(
             button: true,
             enabled: playable,
             label: !playable
                 ? 'Voice message unavailable'
                 : (_isPlaying ? 'Pause voice message' : 'Play voice message'),
-            child: GestureDetector(
-            onTap: playable ? _togglePlay : null,
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: playable
-                    ? AppColors.purplePrimary
-                    : AppColors.purplePrimary.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: _isLoading
-                  ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-                  : Icon(
-                !playable
-                    ? Icons.block
-                    : _isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
-            ),
-          ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // Progress & Duration
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: Colors.white24,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.purplePrimary,
+            excludeSemantics: true,
+            child: Tooltip(
+              message: !playable
+                  ? 'Voice message unavailable'
+                  : (_isPlaying ? 'Pause' : 'Play'),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: playable ? _togglePlay : null,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isMe ? AppColors.white : AppColors.brandPurple,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Opacity(
+                        opacity: playable ? 1 : 0.5,
+                        child: _isLoading
+                            ? Padding(
+                                padding: const EdgeInsets.all(11),
+                                child: CircularProgressIndicator(
+                                  color: isMe
+                                      ? AppColors.brandPurple
+                                      : AppColors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                !playable
+                                    ? Icons.block
+                                    : _isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: isMe
+                                    ? AppColors.brandPurple
+                                    : AppColors.white,
+                                size: 26,
+                              ),
+                      ),
                     ),
-                    minHeight: 4,
                   ),
                 ),
-
-                const SizedBox(height: 6),
-
-                // Duration text
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(_position),
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                    ),
-                    Text(
-                      _formatDuration(_duration),
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
-
-          const SizedBox(width: 6),
-
-          // Mic icon
-          Icon(
-            Icons.mic_rounded,
-            color: AppColors.brandPurpleLight.withOpacity(0.6),
-            size: 18,
+          const SizedBox(width: 8),
+          Expanded(
+            child: ExcludeSemantics(
+              child: SizedBox(
+                height: 28,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (var i = 0; i < _barCount; i++)
+                      Container(
+                        width: 3,
+                        height: heights[i],
+                        decoration: BoxDecoration(
+                          color: i < played ? barOn : barOff,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Semantics(
+            label: 'Duration ${_formatDuration(shown)}',
+            excludeSemantics: true,
+            child: Text(
+              _formatDuration(shown),
+              style: TextStyle(
+                color: meta,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
           ),
         ],
       ),

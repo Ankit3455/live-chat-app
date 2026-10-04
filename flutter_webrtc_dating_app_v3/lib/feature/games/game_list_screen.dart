@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'carrom/carrom_lobby_screen.dart';
 import 'carrom/common/game_leaderboard_screen.dart';
@@ -50,441 +51,443 @@ class _GameListScreenState extends State<GameListScreen> {
 
   // Stats can change while a game screen is open, so reload on return.
   Future<void> _open(Widget screen) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     if (mounted) _loadStats();
   }
 
   @override
   Widget build(BuildContext context) {
+    final stats = _myStats;
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.backgroundDeep, AppColors.surfaceCard],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ===== HEADER =====
-              _buildHeader(),
-
-              // ===== CONTENT =====
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ===== MY STATS CARD =====
-                      if (!_loadingStats && _myStats != null)
-                        _buildMyStatsCard(),
-
-                      const SizedBox(height: 24),
-
-                      // ===== GAMES SECTION =====
-                      _buildSectionTitle('Games'),
-                      const SizedBox(height: 12),
-
-                      // Carrom
-                      _GameCard(
-                        title: 'Carrom',
-                        subtitle: 'Classic Board Game • 2 Players',
-                        icon: Icons.radio_button_checked,
-                        iconColor: Colors.orange,
-                        stats: _myStats != null
-                            ? '${_myStats!.wins}W - ${_myStats!.losses}L'
-                            : null,
-                        gradientColors: [
-                          Colors.orange.withOpacity(0.3),
-                          AppColors.surfaceCard,
-                        ],
-                        borderColor: Colors.orange.withOpacity(0.5),
-                        isAvailable: true,
-                        onTap: () => _open(const CarromLobbyScreen()),
-                      ),
-                      const SizedBox(height: 12),
-
-                      _GameCard(
-                        title: 'Ludo',
-                        subtitle: 'Classic Ludo • 2-4 Players',
-                        icon: Icons.casino,
-                        iconColor: Colors.blue,
-                        gradientColors: [
-                          Colors.blue.withOpacity(0.25),
-                          AppColors.surfaceCard,
-                        ],
-                        borderColor: Colors.blue.withOpacity(0.4),
-                        isAvailable: true,
-                        onTap: () => _open(const LudoLobbyScreen()),
-                      ),
-                      const SizedBox(height: 12),
-
-                      _GameCard(
-                        title: 'Love Physics',
-                        subtitle: 'Draw bridges to bring two hearts together • Solo',
-                        icon: Icons.favorite,
-                        iconColor: Colors.pinkAccent,
-                        gradientColors: [
-                          Colors.pinkAccent.withOpacity(0.25),
-                          AppColors.surfaceCard,
-                        ],
-                        borderColor: Colors.pinkAccent.withOpacity(0.4),
-                        isAvailable: true,
-                        onTap: () => _open(const LovePhysicsScreen()),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Not implemented yet: shown disabled, no tap action.
-                      _GameCard(
-                        title: 'Chess',
-                        subtitle: 'Coming Soon',
-                        icon: Icons.grid_3x3,
-                        iconColor: Colors.brown,
-                        gradientColors: [
-                          Colors.brown.withOpacity(0.2),
-                          AppColors.surfaceCard,
-                        ],
-                        borderColor: Colors.brown.withOpacity(0.3),
-                        isAvailable: false,
-                      ),
-                    ],
-                  ),
+      backgroundColor: AppColors.backgroundDeep,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            _buildHeader(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: _buildStatsCard(stats),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+              child: Text(
+                'Choose a game',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  _GameCard(
+                    title: 'Ludo',
+                    players: '2–4 players',
+                    description: 'Race your tokens home first.',
+                    icon: Icons.casino_outlined,
+                    accent: AppColors.brandPurpleLight,
+                    onTap: () => _open(const LudoLobbyScreen()),
+                  ),
+                  const SizedBox(height: 12),
+                  _GameCard(
+                    title: 'Carrom',
+                    players: '2 players',
+                    record: stats != null && stats.totalGames > 0
+                        ? 'W–L ${stats.wins}–${stats.losses}'
+                        : null,
+                    description: 'Flick the striker, pocket your coins.',
+                    icon: Icons.adjust,
+                    accent: AppColors.pinkLight,
+                    onTap: () => _open(const CarromLobbyScreen()),
+                  ),
+                  const SizedBox(height: 12),
+                  _GameCard(
+                    title: 'Love Physics',
+                    players: 'Solo',
+                    description: 'Draw bridges to bring two hearts together.',
+                    icon: Icons.favorite_border,
+                    accent: AppColors.brandPink.withOpacity(0.8),
+                    onTap: () => _open(const LovePhysicsScreen()),
+                  ),
+                  const SizedBox(height: 12),
+                  // Not implemented yet: shown disabled, no tap action.
+                  const _GameCard(
+                    title: 'Chess',
+                    players: '2 players',
+                    icon: Icons.grid_3x3,
+                    accent: AppColors.textSubtle,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
+    // Back is hidden when shown as a tab of the main shell (nothing to pop).
+    final canPop = Navigator.canPop(context);
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(canPop ? 4 : 20, 4, 8, 0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hidden when shown as a tab of the main shell (nothing to pop).
-          if (Navigator.canPop(context)) ...[
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                tooltip: 'Back',
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+          if (canPop)
+            IconButton(
+              tooltip: 'Back',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(width: 16),
-          ],
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '🎮 Game Zone',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                SizedBox(
+                  height: 48,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        'Games',
+                        style: GoogleFonts.montserrat(
+                          color: AppColors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                Text(
-                  'Play with your matches!',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13,
-                  ),
+                const Text(
+                  'Play with your matches',
+                  style: TextStyle(color: AppColors.lavender, fontSize: 14),
                 ),
               ],
             ),
           ),
-          // Leaderboard Button
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+          IconButton(
+            icon: const Icon(
+              Icons.leaderboard_outlined,
+              color: AppColors.brandPurpleLight,
             ),
-            child: IconButton(
-              icon: const Icon(Icons.leaderboard, color: Colors.orange),
-              tooltip: 'Carrom leaderboard',
-              onPressed: () => _open(const CarromLeaderboardScreen()),
-            ),
+            tooltip: 'Carrom leaderboard',
+            onPressed: () => _open(const CarromLeaderboardScreen()),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMyStatsCard() {
+  Widget _buildStatsCard(CarromStats? stats) {
+    final Widget body;
+    if (_loadingStats) {
+      body = Row(
+        children: List.generate(
+          4,
+          (_) => Expanded(
+            child: Column(
+              children: [
+                _skeleton(width: 36, height: 24),
+                const SizedBox(height: 6),
+                _skeleton(width: 48, height: 12),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (stats == null || stats.totalGames == 0) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        child: Text(
+          'No games yet. Play a round of Carrom to see your stats here.',
+          style: TextStyle(color: AppColors.lavender, fontSize: 14),
+        ),
+      );
+    } else {
+      body = IntrinsicHeight(
+        child: Row(
+          children: [
+            _stat('Games', '${stats.totalGames}'),
+            const VerticalDivider(width: 1, thickness: 1),
+            _stat('Wins', '${stats.wins}'),
+            const VerticalDivider(width: 1, thickness: 1),
+            _stat('Win rate', '${stats.winRate.toStringAsFixed(0)}%'),
+            const VerticalDivider(width: 1, thickness: 1),
+            _stat('Streak', '${stats.winStreak}', highlight: true),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Colors.purple.withOpacity(0.3),
-            Colors.blue.withOpacity(0.2),
+            AppColors.brandPurple.withOpacity(0.22),
+            AppColors.brandPink.withOpacity(0.12),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.purple.withOpacity(0.4),
-        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.brandPurpleMid.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.bar_chart, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Your Stats',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  'Your stats',
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const Spacer(),
-              _buildRankBadge(_myStats!.rank),
+              Text(
+                stats != null && stats.totalGames > 0
+                    ? 'Carrom · ${stats.rank}'
+                    : 'Carrom',
+                style: const TextStyle(
+                  color: AppColors.textSubtle,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildQuickStat('Games', '${_myStats!.totalGames}'),
-              _buildQuickStat('Wins', '${_myStats!.wins}'),
-              _buildQuickStat('Win Rate', '${_myStats!.winRate.toStringAsFixed(0)}%'),
-              _buildQuickStat('Streak', '${_myStats!.winStreak}🔥'),
-            ],
-          ),
+          const SizedBox(height: 12),
+          body,
         ],
       ),
     );
   }
 
-  Widget _buildQuickStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRankBadge(String rank) {
-    Color badgeColor;
-    switch (rank.toLowerCase()) {
-      case 'legend':
-        badgeColor = Colors.purple;
-        break;
-      case 'diamond':
-        badgeColor = Colors.cyan;
-        break;
-      case 'platinum':
-        badgeColor = Colors.blueGrey;
-        break;
-      case 'gold':
-        badgeColor = Colors.amber;
-        break;
-      default:
-        badgeColor = Colors.grey;
-    }
-
+  Widget _skeleton({required double width, required double height}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      width: width,
+      height: height,
       decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: badgeColor),
-      ),
-      child: Text(
-        rank,
-        style: TextStyle(
-          color: badgeColor,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(6),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: Colors.white70,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 1,
+  Widget _stat(String label, String value, {bool highlight = false}) {
+    return Expanded(
+      child: Semantics(
+        label: '$label $value',
+        excludeSemantics: true,
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.montserrat(
+                color: highlight ? AppColors.pinkLight : AppColors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.lavender, fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 // ===== GAME CARD WIDGET =====
+/// A null [onTap] renders the card disabled with a "Coming soon" badge.
 class _GameCard extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final String players;
+  final String? record;
+  final String? description;
   final IconData icon;
-  final Color iconColor;
-  final String? stats;
-  final List<Color> gradientColors;
-  final Color borderColor;
-  final bool isAvailable;
+  final Color accent;
   final VoidCallback? onTap;
 
   const _GameCard({
     required this.title,
-    required this.subtitle,
+    required this.players,
+    this.record,
+    this.description,
     required this.icon,
-    required this.iconColor,
-    this.stats,
-    required this.gradientColors,
-    required this.borderColor,
-    required this.isAvailable,
+    required this.accent,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isAvailable ? 1.0 : 0.5,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isAvailable ? onTap : null,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: gradientColors,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor, width: 1),
-            ),
-            child: Row(
-              children: [
-                // Icon
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 28),
-                ),
-                const SizedBox(width: 16),
+    final available = onTap != null;
+    final desc = description;
+    final rec = record;
+    final tileBg = available ? accent.withOpacity(0.14) : AppColors.surface2;
+    final tileBorder = available ? accent.withOpacity(0.4) : AppColors.border;
 
-                // Title, Subtitle & Stats
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+    return Semantics(
+      button: available,
+      enabled: available,
+      label: available ? 'Play $title' : '$title, coming soon',
+      excludeSemantics: true,
+      child: Material(
+        color: available ? AppColors.surfaceCard : AppColors.surfaceRaised,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(color: accent),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: tileBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: tileBorder),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (stats != null) ...[
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                      child: Icon(icon, color: accent, size: 34),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                title,
+                                style: GoogleFonts.montserrat(
+                                  color: available
+                                      ? AppColors.white
+                                      : AppColors.textSubtle,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (!available) const _SoonBadge(),
+                            ],
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            stats!,
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(height: 2),
+                          Text.rich(
+                            TextSpan(
+                              text: players,
+                              children: [
+                                if (rec != null) ...[
+                                  const TextSpan(text: '  ·  '),
+                                  TextSpan(
+                                    text: rec,
+                                    style: TextStyle(
+                                      color: accent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            style: TextStyle(
+                              color: available
+                                  ? AppColors.lavender
+                                  : AppColors.textSubtle,
+                              fontSize: 13,
                             ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Arrow or Badge
-                if (isAvailable)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_ios,
-                      color: iconColor,
-                      size: 16,
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'SOON',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                          if (desc != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              desc,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.lavender,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ),
-              ],
-            ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: tileBg,
+                        border: Border.all(color: tileBorder),
+                      ),
+                      child: Icon(
+                        available
+                            ? Icons.play_arrow_rounded
+                            : Icons.lock_outline,
+                        color: available
+                            ? accent
+                            : AppColors.textSubtle.withOpacity(0.6),
+                        size: available ? 24 : 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SoonBadge extends StatelessWidget {
+  const _SoonBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.borderStrong),
+      ),
+      child: const Text(
+        'Coming soon',
+        style: TextStyle(
+          color: AppColors.lavender,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

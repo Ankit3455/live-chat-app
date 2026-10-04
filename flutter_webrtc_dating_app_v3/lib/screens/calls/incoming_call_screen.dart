@@ -11,6 +11,7 @@ import '../../services/call/webrtc/call_constants.dart';
 import '../../services/call/webrtc/signaling_service.dart';
 import 'audio_call_screen.dart';
 import 'video_call_screen.dart';
+import 'widgets/call_controls.dart';
 import 'widgets/call_ui.dart';
 
 class IncomingCallScreen extends StatefulWidget {
@@ -26,7 +27,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     with TickerProviderStateMixin {
   final CallService _callService = CallService();
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
   Timer? _timeoutTimer;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -57,13 +57,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   void _setupAnimations() {
     _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2400),
       vsync: this,
     )..repeat();
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
   }
 
   Future<void> _playRingtone() async {
@@ -187,7 +183,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
           ? 'This call is no longer available'
           : 'Failed to answer call';
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppColors.dangerRed),
+        SnackBar(content: Text(message), backgroundColor: AppColors.error),
       );
       _close();
     }
@@ -212,6 +208,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     final call = _call;
     final callerName = call.otherNameFor(call.receiverId);
     final isVideo = call.type == CallType.video;
+    final kind = isVideo ? 'video' : 'voice';
 
     return PopScope(
       canPop: false,
@@ -219,145 +216,134 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
         if (!didPop) _rejectCall();
       },
       child: Scaffold(
-        backgroundColor: AppColors.appBackground,
-        body: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Incoming ${isVideo ? "Video" : "Voice"} Call',
-                      style: TextStyle(
-                        color: AppColors.hintPurple,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    AnimatedBuilder(
-                      animation: _pulseAnimation,
-                      builder: (context, _) {
-                        return Transform.scale(
-                          scale: _pulseAnimation.value,
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.purplePrimary,
-                                width: 3,
+        backgroundColor: AppColors.backgroundDeep,
+        body: CallBackdrop(
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      child: Column(
+                        children: [
+                          const SizedBox(
+                            height: 56,
+                            child: Center(
+                              child: Text(
+                                'DESTINED',
+                                style: TextStyle(
+                                  color: AppColors.textSubtle,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 2.2,
+                                ),
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.purplePrimary.withOpacity(
-                                    0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Semantics(
+                            liveRegion: true,
+                            label: 'Incoming $kind call from $callerName',
+                            excludeSemantics: true,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isVideo
+                                      ? Icons.videocam_rounded
+                                      : Icons.call_rounded,
+                                  size: 16,
+                                  color: AppColors.lavender,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Incoming $kind call',
+                                  style: const TextStyle(
+                                    color: AppColors.lavender,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
                                   ),
-                                  blurRadius: 20,
-                                  spreadRadius: 5,
                                 ),
                               ],
                             ),
-                            child: CallAvatar(
+                          ),
+                          const SizedBox(height: 24),
+                          CallHalo(
+                            pulse: _pulseController,
+                            avatar: CallAvatar(
                               name: callerName,
                               imageUrl: call.otherAvatarFor(call.receiverId),
-                              radius: 60,
+                              radius: 70,
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 30),
-                    Text(
-                      callerName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'is calling you...',
-                      style: TextStyle(
-                        color: AppColors.hintPurple,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 50),
-                child: _answering
-                    ? CircularProgressIndicator(color: AppColors.purplePrimary)
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildActionButton(
-                            onTap: _handled ? null : _rejectCall,
-                            backgroundColor: AppColors.dangerRed,
-                            icon: Icons.call_end,
-                            label: 'Decline',
+                          const SizedBox(height: 16),
+                          Text(
+                            callerName,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: callNameStyle(),
                           ),
-                          _buildActionButton(
-                            onTap: _handled ? null : _answerCall,
-                            backgroundColor: AppColors.green500,
-                            icon: isVideo ? Icons.videocam : Icons.call,
-                            label: 'Accept',
+                          const SizedBox(height: 6),
+                          const Text(
+                            'is calling you on Destined',
+                            style: TextStyle(
+                              color: AppColors.lavender,
+                              fontSize: 15,
+                            ),
                           ),
+                          const Spacer(),
+                          if (_answering)
+                            const SizedBox(
+                              height: 104,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.brandPurpleLight,
+                                ),
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  CallAnswerButton(
+                                    icon: Icons.call_end_rounded,
+                                    label: 'Decline',
+                                    semanticLabel: 'Decline call',
+                                    color: AppColors.error,
+                                    iconColor: AppColors.white,
+                                    onPressed: _handled ? null : _rejectCall,
+                                  ),
+                                  CallAnswerButton(
+                                    icon: isVideo
+                                        ? Icons.videocam_rounded
+                                        : Icons.call_rounded,
+                                    label: 'Accept',
+                                    semanticLabel: 'Accept call',
+                                    color: AppColors.success,
+                                    iconColor: AppColors.backgroundDeep,
+                                    onPressed: _handled ? null : _answerCall,
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required VoidCallback? onTap,
-    required Color backgroundColor,
-    required IconData icon,
-    required String label,
-  }) {
-    return Semantics(
-      button: true,
-      enabled: onTap != null,
-      label: '$label call',
-      onTap: onTap,
-      excludeSemantics: true,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: backgroundColor.withOpacity(0.3),
-                    blurRadius: 15,
-                    spreadRadius: 5,
+                    ),
                   ),
-                ],
+                ),
               ),
-              child: Icon(icon, color: Colors.white, size: 35),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            style: TextStyle(color: AppColors.hintPurple, fontSize: 14),
-          ),
-        ],
+        ),
       ),
     );
   }

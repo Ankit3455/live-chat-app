@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 
 import '../../../core/utils/astrology_utils.dart';
 import '../../../core/constants/app_colors.dart';
@@ -17,77 +16,115 @@ class ZodiacSignSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Lottie Animation
-        Lottie.asset(
-          'assets/animations/zodiac.json',
-          width: 150,
-          height: 150,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return const Icon(
-              Icons.stars,
-              size: 80,
-              color: AppColors.brandPurpleLight,
-            );
-          },
-        ),
-        const SizedBox(height: 24),
+    return GridView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 60,
+      ),
+      itemCount: AstrologyUtils.zodiacSigns.length,
+      itemBuilder: (context, index) {
+        final sign = AstrologyUtils.zodiacSigns[index];
+        return _SignTile(
+          sign: sign,
+          selected: selectedSigns.contains(sign),
+          onTap: () => onToggle(sign),
+        );
+      },
+    );
+  }
+}
 
-        // Grid of Signs
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.1,
+class _SignTile extends StatelessWidget {
+  const _SignTile({
+    required this.sign,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String sign;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(14);
+    // Gold is reserved for zodiac.
+    final fg = selected ? AppColors.gold : AppColors.white;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: sign,
+      excludeSemantics: true,
+      child: Material(
+        color: selected
+            ? AppColors.gold.withOpacity(0.12)
+            : AppColors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(
+            color: selected
+                ? AppColors.gold.withOpacity(0.5)
+                : AppColors.border,
           ),
-          itemCount: AstrologyUtils.zodiacSigns.length,
-          itemBuilder: (context, index) {
-            final sign = AstrologyUtils.zodiacSigns[index];
-            final isSelected = selectedSigns.contains(sign);
-
-            return GestureDetector(
-              onTap: () => onToggle(sign),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.brandPurple : AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.brandPurple
-                        : AppColors.surfaceCard.withOpacity(0.3),
-                    width: 2,
+        ),
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          // Stacked glyph + name so long names (Sagittarius) fit at 13px.
+          child: Stack(
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        AstrologyUtils.zodiacEmoji[sign] ?? '',
+                        style: TextStyle(
+                          fontSize: 18,
+                          height: 1.1,
+                          color: selected
+                              ? AppColors.gold
+                              : AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        sign,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 13,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      AstrologyUtils.zodiacEmoji[sign] ?? '',
-                      style: const TextStyle(fontSize: 32),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      sign,
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.lavender,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            );
-          },
+              if (selected)
+                const Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Icon(
+                    Icons.check_rounded,
+                    size: 14,
+                    color: AppColors.gold,
+                  ),
+                ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }

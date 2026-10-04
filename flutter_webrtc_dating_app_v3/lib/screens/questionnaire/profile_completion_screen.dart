@@ -5,6 +5,7 @@ import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dar
 import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/custom_button.dart';
 
 class ProfileCompletionScreen extends StatefulWidget {
   const ProfileCompletionScreen({Key? key}) : super(key: key);
@@ -45,7 +46,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       if (doc.exists && mounted) {
         // Don't overwrite answers the user changed while this was loading.
         setState(() {
-          (doc.data() ?? {}).forEach((k, v) => _answers.putIfAbsent(k, () => v));
+          (doc.data() ?? {}).forEach(
+            (k, v) => _answers.putIfAbsent(k, () => v),
+          );
         });
       }
     } catch (e) {
@@ -56,8 +59,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   /// Load current completion percentage
   Future<void> _loadCompletionPercentage() async {
     try {
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
+      final percentage = await ProfileCompletionManager()
+          .getCompletionPercentage();
       if (mounted) setState(() => _completionPercentage = percentage);
     } catch (e) {
       debugPrint('Error loading completion: $e');
@@ -91,9 +94,12 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   }
 
   /// ✅ FIXED: Validate and save section with proper checks
-  Future<void> _saveSection(String sectionTitle, List<dynamic> questions) async {
+  Future<void> _saveSection(
+    String sectionTitle,
+    List<dynamic> questions,
+  ) async {
     if (_isSaving) return;
-    
+
     setState(() => _isSaving = true);
 
     try {
@@ -104,11 +110,11 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
 
       // ✅ Step 1: Collect ONLY answered questions for this section
       final sectionData = <String, dynamic>{};
-      
+
       for (var question in questions) {
         final fieldName = question.fieldName;
         final answer = _answers[fieldName];
-        
+
         // ✅ Validate answer exists and is not empty
         if (answer != null) {
           if (answer is String) {
@@ -131,11 +137,12 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       // ✅ Step 2: Check if minimum answers provided
       if (sectionData.isEmpty) {
         throw const _SectionError(
-            'Please answer at least one question in this section');
+          'Please answer at least one question in this section',
+        );
       }
 
       final minimumRequired = (questions.length * 0.5).ceil(); // 50% threshold
-      
+
       if (sectionData.length < minimumRequired) {
         throw _SectionError(
           'Please answer at least $minimumRequired questions (currently answered: ${sectionData.length})',
@@ -156,8 +163,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       }
 
       // ✅ Step 5: Update completion percentage (also written back)
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
+      final percentage = await ProfileCompletionManager()
+          .getCompletionPercentage();
       if (!mounted) return;
       setState(() {
         _completedSections.add(sectionTitle);
@@ -171,9 +178,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
             content: Text(
               '✅ $sectionTitle saved!\n'
               'Answered: ${sectionData.length}/${questions.length} questions\n'
-              'Profile: $_completionPercentage% complete'
+              'Profile: $_completionPercentage% complete',
             ),
-            backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -183,10 +189,12 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e is _SectionError
-                ? e.message
-                : 'Could not save. Check your connection and try again.'),
-            backgroundColor: Colors.red,
+            content: Text(
+              e is _SectionError
+                  ? e.message
+                  : 'Could not save. Check your connection and try again.',
+            ),
+            backgroundColor: AppColors.error,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -203,8 +211,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
-        title: const Text('Complete Your Profile'),
-        backgroundColor: AppColors.surfaceCard,
+        title: const Text('Complete your profile'),
+        backgroundColor: AppColors.backgroundDeep,
         actions: [
           Center(
             child: Padding(
@@ -236,7 +244,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     AppColors.brandPurple.withOpacity(0.05),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 children: [
@@ -244,9 +253,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Profile Strength',
+                        'Profile strength',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -266,9 +275,10 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
                       value: _completionPercentage / 100,
-                      backgroundColor: AppColors.surfaceCard,
+                      backgroundColor: AppColors.surface2,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.brandPurple),
+                        AppColors.brandPurpleMid,
+                      ),
                       minHeight: 10,
                     ),
                   ),
@@ -290,8 +300,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
             // Sections
             ..._sections.map((section) {
               final questions = section.questions.isNotEmpty
-              ? section.questions
-              : _getQuestionsForSection(section.title);
+                  ? section.questions
+                  : _getQuestionsForSection(section.title);
               final isCompleted = _completedSections.contains(section.title);
 
               // ✅ Count how many questions are currently answered
@@ -307,20 +317,22 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isCompleted
-                        ? AppColors.brandPurple
-                        : Colors.transparent,
-                    width: 2,
+                        ? AppColors.brandPurpleMid
+                        : AppColors.border,
                   ),
                 ),
                 child: Theme(
-                  data: Theme.of(context)
-                      .copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     tilePadding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 8),
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
                     leading: Text(
                       section.icon ?? '🌟',
                       style: const TextStyle(fontSize: 28),
@@ -331,8 +343,8 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                           child: Text(
                             section.title,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
+                              color: AppColors.white,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -351,7 +363,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                             child: Text(
                               '$answeredCount/${questions.length}',
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -367,9 +379,14 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                       ),
                     ),
                     trailing: isCompleted
-                        ? const Icon(Icons.check_circle,
-                            color: AppColors.brandPurpleLight)
-                        : const Icon(Icons.expand_more, color: Colors.white),
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: AppColors.brandPurpleLight,
+                          )
+                        : const Icon(
+                            Icons.expand_more,
+                            color: AppColors.lavender,
+                          ),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(20.0),
@@ -380,6 +397,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 24.0),
                                 child: QuestionWidget(
+                                  dense: true,
                                   question: question,
                                   answer: _answers[question.fieldName],
                                   onAnswerChanged: (answer) {
@@ -392,43 +410,15 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
                             }).toList(),
                             const SizedBox(height: 16),
 
-                            // Save Button
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _isSaving
-                                    ? null
-                                    : () => _saveSection(section.title, questions),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.brandPurple,
-                                  disabledBackgroundColor:
-                                      AppColors.surfaceCard,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(28),
-                                  ),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
-                                ),
-                                child: _isSaving
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Text(
-                                        isCompleted
-                                            ? 'Update ${section.title}'
-                                            : 'Save ${section.title}',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                              ),
+                            CustomButton(
+                              text: isCompleted
+                                  ? 'Update ${section.title}'
+                                  : 'Save ${section.title}',
+                              onPressed: _isSaving
+                                  ? null
+                                  : () =>
+                                        _saveSection(section.title, questions),
+                              isLoading: _isSaving,
                             ),
                           ],
                         ),

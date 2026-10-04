@@ -1,12 +1,14 @@
 // lib/feature/games/ludo/ludo_lobby_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'services/ludo_game_service.dart';
 import 'ludo_wrapper_screen.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/custom_button.dart';
 
 class LudoLobbyScreen extends StatefulWidget {
   const LudoLobbyScreen({Key? key}) : super(key: key);
@@ -641,142 +643,211 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   }
 
   Widget _buildSearchingView() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Animated search indicator
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 150,
-                height: 150,
-                child: CircularProgressIndicator(
-                  strokeWidth: 4,
-                  valueColor: AlwaysStoppedAnimation(
-                    (_selectedPlayerCount == 2 ? Colors.blue : Colors.purple)
-                        .withOpacity(0.3),
+    final user = _auth.currentUser;
+    final multi = _selectedPlayerCount > 2;
+    final mins = _waitSeconds ~/ 60;
+    final secs = (_waitSeconds % 60).toString().padLeft(2, '0');
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          children: [
+            _SearchPulse(
+              photoUrl: user?.photoURL,
+              name: user?.displayName,
+              accent: AppColors.brandPurpleLight,
+            ),
+            const SizedBox(height: 16),
+            Semantics(
+              liveRegion: true,
+              child: Column(
+                children: [
+                  Text(
+                    multi
+                        ? 'Looking for players…'
+                        : 'Looking for an opponent…',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$mins:$secs',
+                    semanticsLabel: '$_waitSeconds seconds',
+                    style: const TextStyle(
+                      color: AppColors.brandPurpleLight,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Keep this screen open',
+                    style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                  ),
+                ],
               ),
+            ),
+            if (multi) ...[
+              const SizedBox(height: 20),
               Container(
-                padding: const EdgeInsets.all(24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: (_selectedPlayerCount == 2 ? Colors.blue : Colors.purple)
-                      .withOpacity(0.2),
-                  shape: BoxShape.circle,
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.border),
                 ),
-                child: Icon(
-                  _selectedPlayerCount == 2 ? Icons.people : Icons.groups,
-                  size: 60,
-                  color: _selectedPlayerCount == 2 ? Colors.blue : Colors.purple,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...List.generate(_selectedPlayerCount, (index) {
+                      final isFound = index < _playersFound;
+                      return Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isFound
+                              ? AppColors.success
+                              : AppColors.surface2,
+                          border: Border.all(color: AppColors.borderStrong),
+                        ),
+                      );
+                    }),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$_playersFound / $_selectedPlayerCount players',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-
-          const SizedBox(height: 32),
-
-          Text(
-            'Finding ${_selectedPlayerCount}P Match...',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 32),
+            CustomButton(
+              text: 'Cancel',
+              type: ButtonType.outline,
+              onPressed: () => _cancelSearch(),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-          const SizedBox(height: 16),
+/// Searching visual: rings pulse outward from the player's avatar.
+class _SearchPulse extends StatefulWidget {
+  const _SearchPulse({
+    required this.photoUrl,
+    required this.name,
+    required this.accent,
+  });
 
-          // Players found indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.green.withOpacity(0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.people, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(
-                  '$_playersFound / $_selectedPlayerCount Players',
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+  final String? photoUrl;
+  final String? name;
+  final Color accent;
 
-          const SizedBox(height: 16),
+  @override
+  State<_SearchPulse> createState() => _SearchPulseState();
+}
 
-          // Progress dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_selectedPlayerCount, (index) {
-              final isFound = index < _playersFound;
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isFound ? Colors.green : Colors.white24,
-                ),
+class _SearchPulseState extends State<_SearchPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photoUrl;
+    final name = widget.name?.trim() ?? '';
+    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final fallback = Center(
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppColors.white,
+          fontSize: 34,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
+    return Semantics(
+      label: 'Searching for players',
+      image: true,
+      child: SizedBox(
+        width: 220,
+        height: 220,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ...List.generate(3, (index) {
+              return AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  final value = (_controller.value + index / 3) % 1.0;
+                  final size = 220 * (0.35 + 0.65 * value);
+                  return Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: widget.accent.withOpacity(0.5 * (1 - value)),
+                        width: 1.5,
+                      ),
+                    ),
+                  );
+                },
               );
             }),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Timer
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.timer, color: Colors.white54),
-                const SizedBox(width: 8),
-                Text(
-                  '${_waitSeconds}s',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface2,
+                border: Border.all(color: widget.accent, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.accent.withOpacity(0.35),
+                    blurRadius: 40,
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Cancel button
-          OutlinedButton.icon(
-            onPressed: () => _cancelSearch(),
-            icon: const Icon(Icons.close),
-            label: const Text('CANCEL'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white70,
-              side: BorderSide(color: Colors.white.withOpacity(0.3)),
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                ],
+              ),
+              child: ClipOval(
+                child: photo != null && photo.startsWith('http')
+                    ? CachedNetworkImage(
+                        imageUrl: photo,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => fallback,
+                        errorWidget: (_, __, ___) => fallback,
+                      )
+                    : fallback,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

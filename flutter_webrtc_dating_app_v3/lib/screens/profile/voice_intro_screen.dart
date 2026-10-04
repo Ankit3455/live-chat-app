@@ -1,134 +1,385 @@
-import 'package:flutter/material.dart';
-import '../../widgets/voice/voice_record_sheet.dart';
-import '../../core/constants/app_colors.dart';
+import 'dart:async';
 
-/// A lightweight, focused screen that explains
-/// why voice intros matter and lets the user record one.
-/// Returns `true` to the caller if the user saves a voice intro,
-/// `false` (or null) if they skip/back out.
-class VoiceIntroScreen extends StatelessWidget {
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
+
+import '../../core/constants/app_colors.dart';
+import '../../services/voice_intro_service.dart';
+import '../../widgets/custom_button.dart';
+import '../questionnaire/widgets/progress_header.dart';
+
+/// Last onboarding step: record, preview and save a short voice intro.
+/// Pops `true` when a voice intro is saved, `false` on skip/back.
+class VoiceIntroScreen extends StatefulWidget {
   const VoiceIntroScreen({super.key});
 
-  Future<void> _openRecorder(BuildContext context) async {
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => const VoiceRecordSheet(),
-    );
+  @override
+  State<VoiceIntroScreen> createState() => _VoiceIntroScreenState();
+}
 
-    if (saved == true) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('✅ Voice intro saved')));
-        Navigator.of(
-          context,
-        ).pop(true); // notify caller (e.g., post-signup flow)
+class _VoiceIntroScreenState extends State<VoiceIntroScreen>
+    with SingleTickerProviderStateMixin {
+  static const _prompts = [
+    '😂 What makes you laugh?',
+    '☀️ Your perfect Sunday',
+    '🔮 Why astrology?',
+  ];
+
+  final AudioPlayer _player = AudioPlayer();
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  );
+
+  String? _tempPath;
+  String? _prompt;
+  int _elapsed = 0;
+  Timer? _timer;
+  bool _recording = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    final path = _tempPath;
+    if (_recording && path != null) {
+      unawaited(VoiceIntroService.stopRecording(tempPath: path));
+    }
+    _pulse.dispose();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    final ok = await VoiceIntroService.hasMicPermission();
+    if (!ok) {
+      _snack('Microphone permission required');
+      return;
+    }
+    final p = await VoiceIntroService.startRecording();
+    if (p == null || !mounted) return;
+
+    setState(() {
+      _tempPath = p;
+      _elapsed = 0;
+      _recording = true;
+    });
+    if (!MediaQuery.of(context).disableAnimations) {
+      unawaited(_pulse.repeat());
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) async {
+      if (!mounted) return;
+      if (_elapsed >= VoiceIntroService.kMaxSeconds) {
+        await _stop();
+        return;
       }
+      setState(() => _elapsed++);
+    });
+  }
+
+  Future<void> _stop() async {
+    _timer?.cancel();
+    _pulse.stop();
+    final path = _tempPath;
+    if (path != null) await VoiceIntroService.stopRecording(tempPath: path);
+    if (mounted) setState(() => _recording = false);
+  }
+
+  Future<void> _playPreview() async {
+    final path = _tempPath;
+    if (path == null) return;
+    await _player.stop();
+    await _player.play(DeviceFileSource(path));
+  }
+
+  Future<void> _save() async {
+    final path = _tempPath;
+    if (path == null || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final res = await VoiceIntroService.uploadAndSave(
+        localPath: path,
+        durationSeconds: _elapsed,
+      );
+      if (!mounted) return;
+      if (res == null) {
+        _snack('Could not save. Check your connection and try again.');
+        return;
+      }
+      _snack('Voice intro saved');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      _snack('Failed to save: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
+  Future<void> _discard() async {
+    _timer?.cancel();
+    await _player.stop();
+    if (!mounted) return;
+    setState(() {
+      _tempPath = null;
+      _elapsed = 0;
+      _recording = false;
+    });
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  static String _fmt(int seconds) =>
+      '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
-    // Solid fallback colors to avoid depending on external theme constants.
-    const bg = AppColors.surfaceRaised;
-    const headline = Colors.white;
-    const sub = Colors.white70;
+    final hasClip = _tempPath != null && !_recording;
 
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: bg,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Your Voice Intro',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundDeep,
+        body: SafeArea(
+          child: Column(
+            children: [
+              ProgressHeader(
+                currentStep: 1,
+                totalSteps: 1,
+                stepLabel: 'Last step',
+                onBack: _saving ? null : () => Navigator.of(context).pop(false),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'LAST STEP',
+                        style: TextStyle(
+                          color: AppColors.pinkLight,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Add a voice intro',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Say hi in up to ${VoiceIntroService.kMaxSeconds} '
+                        'seconds. People hear it on your profile.',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 14,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Need an idea? Pick a prompt',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [for (final p in _prompts) _promptChip(p)],
+                      ),
+                      const SizedBox(height: 32),
+                      if (hasClip) _previewCard() else _recorder(),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasClip) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CustomButton(
+                              text: 'Re-record',
+                              type: ButtonType.outline,
+                              leftIcon: Icons.mic_rounded,
+                              onPressed: _saving ? null : _discard,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CustomButton(
+                              text: 'Save',
+                              onPressed: _save,
+                              isLoading: _saving,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    CustomButton(
+                      text: 'Skip for now',
+                      type: ButtonType.text,
+                      onPressed: _saving || _recording
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      // Scrolls on small screens / large text; Spacer still pins the buttons
-      // to the bottom when there is room.
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: (constraints.maxHeight - 20)
-                    .clamp(0.0, double.infinity)
-                    .toDouble(),
+    );
+  }
+
+  // Visual suggestion only; selecting one just highlights it.
+  Widget _promptChip(String text) {
+    final selected = _prompt == text;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: text,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _prompt = selected ? null : text),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.brandPurpleMid.withOpacity(0.18)
+                  : AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? AppColors.brandPurpleMid : AppColors.border,
               ),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Why add a voice intro?",
-                      style: TextStyle(
-                        color: headline,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      // Keep the copy simple, human, and benefits-first.
-                      "• Voice shows your vibe — tone, energy, warmth.\n"
-                      "• Others get to know you faster than text alone.\n"
-                      "• In a blind-dating experience, it builds trust.\n\n"
-                      "Say 1–2 things you love or what you’re looking for.",
-                      style: TextStyle(
-                        color: sub,
-                        fontSize: 14.5,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const _LimitPill(),
-                    const SizedBox(height: 24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.brandPurpleLight
+                        : AppColors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                    // Spacer pushes buttons to bottom bar if content is short
-                    const Spacer(),
-
-                    // Primary actions
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white24),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text(
-                              'Skip for now',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _openRecorder(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brandPurple,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            icon: const Icon(
-                              Icons.mic_rounded,
-                              color: Colors.white,
-                            ),
-                            label: const Text(
-                              'Add voice intro',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
+  Widget _recorder() {
+    return Center(
+      child: Column(
+        children: [
+          Semantics(
+            liveRegion: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_recording) ...[
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 20),
-                  ],
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Text(
+                  _fmt(_elapsed),
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Up to ${_fmt(VoiceIntroService.kMaxSeconds)}',
+            style: const TextStyle(color: AppColors.textSubtle, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+          _recordButton(),
+          const SizedBox(height: 20),
+          Text(
+            _recording ? 'Recording… tap to stop' : 'Tap to record',
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recordButton() {
+    final recording = _recording;
+    final button = Tooltip(
+      message: recording ? 'Stop recording' : 'Start recording',
+      child: Semantics(
+        button: true,
+        label: recording ? 'Recording. Tap to stop' : 'Start recording',
+        excludeSemantics: true,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.brandPink.withOpacity(0.35),
+                blurRadius: 28,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              width: 104,
+              height: 104,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.primaryGradient,
+              ),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: recording ? _stop : _start,
+                child: Icon(
+                  recording ? Icons.stop_rounded : Icons.mic_rounded,
+                  size: 40,
+                  color: AppColors.white,
                 ),
               ),
             ),
@@ -136,32 +387,94 @@ class VoiceIntroScreen extends StatelessWidget {
         ),
       ),
     );
+
+    // Pulse ring only while recording.
+    return SizedBox(
+      width: 140,
+      height: 140,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (recording)
+            AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, _) {
+                final t = _pulse.value;
+                return Transform.scale(
+                  scale: 1 + 0.3 * t,
+                  child: Container(
+                    width: 112,
+                    height: 112,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.brandPink.withOpacity(0.45 * (1 - t)),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          button,
+        ],
+      ),
+    );
   }
-}
 
-class _LimitPill extends StatelessWidget {
-  const _LimitPill();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _previewCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.timer_rounded, color: Colors.white70, size: 18),
-          SizedBox(width: 8),
-          Text(
-            'Limit: up to 20 seconds',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
+        children: [
+          Tooltip(
+            message: 'Play preview',
+            child: Material(
+              type: MaterialType.transparency,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: Ink(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: AppColors.primaryGradient,
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _playPreview,
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    size: 28,
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your voice intro',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_fmt(_elapsed)} · Have a listen before you save',
+                  style: const TextStyle(
+                    color: AppColors.textSubtle,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

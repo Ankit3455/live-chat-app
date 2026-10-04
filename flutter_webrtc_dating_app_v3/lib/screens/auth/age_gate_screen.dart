@@ -1,12 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
+import 'widgets/auth_widgets.dart';
 
 /// DOB + 18+ confirmation for accounts that have no DOB yet (Google first
 /// login, older accounts) or no profile doc. With [blocked] it only explains
@@ -21,12 +24,10 @@ class AgeGateScreen extends StatefulWidget {
 }
 
 class _AgeGateScreenState extends State<AgeGateScreen> {
-  static const _fieldFill = AppColors.surfaceCard;
-  static const _hint = AppColors.lavender;
-
   DateTime? _dob;
   bool _confirmedAdult = false;
   bool _saving = false;
+  String? _error;
   late bool _blocked = widget.blocked;
 
   Future<void> _pickDob() async {
@@ -40,16 +41,22 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
             primary: AppColors.brandPurple,
-            surface: _fieldFill,
+            surface: AppColors.surfaceCard,
           ),
         ),
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _dob = picked);
+    if (picked != null && mounted) {
+      setState(() {
+        _dob = picked;
+        _error = null;
+      });
+    }
   }
 
   Future<void> _submit() async {
+    setState(() => _error = null);
     final dob = _dob;
     if (dob == null) {
       _showError('Please select your date of birth');
@@ -102,147 +109,244 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
     }
   }
 
+  // Errors show inline above Continue.
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    setState(() => _error = message);
   }
 
   String _formatDob(DateTime d) => AgePolicy.legacyDobFormat.format(d);
 
+  TextStyle get _titleStyle => GoogleFonts.montserrat(
+    color: AppColors.white,
+    fontSize: 26,
+    fontWeight: FontWeight.w700,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
+      backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: _blocked ? _buildBlocked() : _buildForm(),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: _blocked ? _buildBlocked() : _buildForm(),
+              ),
+            ),
+            _buildFooter(),
+          ],
         ),
       ),
     );
   }
 
+  // Calm blocked state: moon art, one sentence, one way out.
   Widget _buildBlocked() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 80),
-        const Icon(Icons.block, color: Colors.white, size: 64),
+        const SizedBox(height: 56),
+        Center(
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppColors.brandPurple.withOpacity(0.35),
+                  AppColors.brandPurple.withOpacity(0.0),
+                ],
+              ),
+            ),
+            child: const Icon(
+              Icons.nightlight_round,
+              size: 56,
+              color: AppColors.lavenderLight,
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'Destined is only for adults',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+          style: _titleStyle,
         ),
         const SizedBox(height: 12),
         const Text(
           'You must be 18 or older to use Destined.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: _hint, fontSize: 15),
-        ),
-        const SizedBox(height: 40),
-        CustomButton(
-          text: 'Sign out',
-          gradientColors: const [
-            AppColors.purplePrimary,
-            AppColors.purpleSecondary,
-          ],
-          onPressed: () => AuthRouter.signOutToLogin(context),
+          style: TextStyle(color: AppColors.lavender, fontSize: 15),
         ),
       ],
     );
   }
 
   Widget _buildForm() {
+    final dob = _dob;
+    final summary = dob == null ? null : ZodiacHelper.summary(dob);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 40),
-        const Text(
-          'Confirm your age',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
+        Container(
+          width: 64,
+          height: 64,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surfaceCard,
+            border: Border.all(color: AppColors.borderStrong),
+          ),
+          child: Text(
+            '18+',
+            style: GoogleFonts.montserrat(
+              color: AppColors.pinkLight,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
+        const SizedBox(height: 20),
+        Text('Confirm your age', style: _titleStyle),
         const SizedBox(height: 8),
         const Text(
           'Destined is for adults 18 and over. Your date of birth is private; '
           'others only see your age and zodiac sign.',
-          style: TextStyle(color: _hint, fontSize: 14, height: 1.4),
-        ),
-        const SizedBox(height: 32),
-        const Text('Date of birth', style: TextStyle(color: _hint)),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: _saving ? null : _pickDob,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            decoration: BoxDecoration(
-              color: _fieldFill,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today, color: Colors.white),
-                const SizedBox(width: 12),
-                Text(
-                  _dob == null ? 'DD / MM / YYYY' : _formatDob(_dob!),
-                  style: TextStyle(
-                    color: _dob == null ? _hint : Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
+          style: TextStyle(
+            color: AppColors.lavender,
+            fontSize: 14,
+            height: 1.45,
           ),
         ),
+        const SizedBox(height: 32),
+        const AuthLabel('Date of birth'),
+        AuthPickerField(
+          value: dob == null ? null : _formatDob(dob),
+          placeholder: 'DD/MM/YYYY',
+          icon: Icons.calendar_today_outlined,
+          semanticLabel: 'Date of birth',
+          onTap: _saving ? null : _pickDob,
+        ),
+        if (dob != null) ZodiacHelper(dob: dob),
         const SizedBox(height: 16),
-        CheckboxListTile(
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 18,
+                color: AppColors.lavender,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: summary == null
+                        ? const [
+                            TextSpan(
+                              text:
+                                  'Others only see your age and sign. '
+                                  'Never the full date.',
+                            ),
+                          ]
+                        : [
+                            const TextSpan(text: 'On your profile: '),
+                            TextSpan(
+                              text: summary,
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(text: '. Never the full date.'),
+                          ],
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.lavender,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AuthCheckRow(
           value: _confirmedAdult,
           onChanged: _saving
               ? null
-              : (v) => setState(() => _confirmedAdult = v ?? false),
-          controlAffinity: ListTileControlAffinity.leading,
-          contentPadding: EdgeInsets.zero,
-          activeColor: AppColors.purplePrimary,
-          title: const Text(
-            'I confirm I am 18 or older',
-            style: TextStyle(color: Colors.white),
-          ),
-          subtitle: const Text(
-            'and agree to the Terms of Service and Privacy Policy.',
-            style: TextStyle(color: _hint, fontSize: 12),
-          ),
-        ),
-        const SizedBox(height: 24),
-        CustomButton(
-          text: 'Continue',
-          isLoading: _saving,
-          gradientColors: const [
-            AppColors.purplePrimary,
-            AppColors.purpleSecondary,
-          ],
-          onPressed: _saving ? null : _submit,
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: TextButton(
-            onPressed: _saving
-                ? null
-                : () => AuthRouter.signOutToLogin(context),
-            child: const Text('Sign out', style: TextStyle(color: _hint)),
+              : (v) => setState(() => _confirmedAdult = v),
+          label: const LegalText(
+            prefix: 'I confirm I am 18 or older and agree to the ',
+            suffix: '',
+            textAlign: TextAlign.start,
+            style: TextStyle(color: AppColors.white, fontSize: 14, height: 1.5),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFooter() {
+    final error = _error;
+    final email = FirebaseAuth.instance.currentUser?.email;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _blocked
+            ? [
+                CustomButton(
+                  text: 'Sign out',
+                  type: ButtonType.outline,
+                  onPressed: () => AuthRouter.signOutToLogin(context),
+                ),
+                if (email != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Signed in as $email',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textSubtle,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ]
+            : [
+                if (error != null) ...[
+                  AppBanner(message: error, tone: AppBannerTone.error),
+                  const SizedBox(height: 12),
+                ],
+                CustomButton(
+                  text: 'Continue',
+                  isLoading: _saving,
+                  onPressed: _saving ? null : _submit,
+                ),
+                const SizedBox(height: 4),
+                CustomButton(
+                  text: 'Sign out',
+                  type: ButtonType.text,
+                  onPressed: _saving
+                      ? null
+                      : () => AuthRouter.signOutToLogin(context),
+                ),
+              ],
+      ),
     );
   }
 }

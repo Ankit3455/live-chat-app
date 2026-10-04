@@ -1,20 +1,29 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:availchat/screens/auth/login_screen.dart';
 import '../../core/config/app_links.dart';
 import '../../services/account_deletion_service.dart';
+import '../../services/safety_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/app_states.dart';
+import '../../widgets/custom_button.dart';
 import '../settings/change_password_screen.dart';
 import '../../features/onboarding/home_onboarding.dart';
 import '../../features/onboarding/tour_prefs.dart';
 import 'blocked_users_screen.dart';
 import 'discovery_settings_screen.dart';
 import '../../core/constants/app_colors.dart';
+
+/// Shown in the footer; keep in step with pubspec `version`.
+const String _appVersion = '1.0.0';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -23,8 +32,7 @@ class SettingsScreen extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('Sign Out', style: TextStyle(color: Colors.white)),
+        title: const Text('Sign out?'),
         content: const Text(
           'Are you sure you want to sign out?',
           style: TextStyle(color: AppColors.lavender),
@@ -36,7 +44,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Sign out',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -51,193 +62,158 @@ class SettingsScreen extends StatelessWidget {
   void _goToLogin(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
+      (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
-    final hasPassword = currentUser?.providerData
-            .any((p) => p.providerId == 'password') ??
-        false;
+    final hasPassword =
+        currentUser?.providerData.any((p) => p.providerId == 'password') ??
+            false;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: AppColors.surfaceCard,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
         children: [
-          // ====================================================================
-          // Account Section
-          // ====================================================================
-          _buildSectionHeader('Account'),
-          const SizedBox(height: 12),
-          _buildSettingsTile(
-            icon: Icons.email,
-            title: 'Email',
-            subtitle: currentUser?.email ?? 'Not available',
-            showChevron: false,
-          ),
-          if (hasPassword)
-            _buildSettingsTile(
-              icon: Icons.lock,
-              title: 'Change Password',
-              subtitle: 'Update your password',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
-                );
-              },
-            ),
-          _buildSettingsTile(
-            icon: Icons.tune,
-            title: 'Discovery',
-            subtitle: 'Who you see and who can see you',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const DiscoverySettingsScreen(),
+          const _GroupLabel('Account', first: true),
+          _SettingsGroup(
+            children: [
+              _SettingsRow(
+                icon: Icons.mail_outline,
+                title: 'Email',
+                subtitle: currentUser?.email ?? 'Not available',
+              ),
+              if (hasPassword)
+                _SettingsRow(
+                  icon: Icons.lock_outline,
+                  title: 'Change password',
+                  subtitle: 'Update the password you sign in with',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePasswordScreen(),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              _SettingsRow(
+                icon: Icons.explore_outlined,
+                title: 'Discovery',
+                subtitle: 'Who you see and who can see you',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DiscoverySettingsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-
-          const SizedBox(height: 24),
-
-          // ====================================================================
-          // Preferences Section
-          // ====================================================================
-          _buildSectionHeader('Preferences'),
-          const SizedBox(height: 12),
+          const _GroupLabel('Notifications'),
           const _NotificationSettingsTiles(),
-          _buildSettingsTile(
-            icon: Icons.language,
-            title: 'Language',
-            subtitle: 'English',
-            comingSoon: true,
+          const _GroupLabel('Help & Support'),
+          _SettingsGroup(
+            children: [
+              _SettingsRow(
+                icon: Icons.auto_awesome_outlined,
+                title: 'App tour',
+                subtitle: 'Replay the quick intro to Destined',
+                onTap: () => _showTutorial(context),
+              ),
+              _SettingsRow(
+                icon: Icons.support_agent,
+                title: 'Contact support',
+                subtitle: 'Get help from the Destined team',
+                onTap: () => _openUrl(context, AppLinks.support),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 24),
-
-          // ====================================================================
-          // Help & Support Section
-          // ====================================================================
-          _buildSectionHeader('Help & Support'),
-          const SizedBox(height: 12),
-
-          _buildSettingsTile(
-            icon: Icons.play_circle_outline,
-            title: 'View App Tutorial',
-            subtitle: 'Learn how to use the app',
-            iconColor: AppColors.brandPurpleLight,
-            showBadge: true,
-            badgeText: 'GUIDE',
-            onTap: () => _showTutorial(context),
+          const _GroupLabel('Privacy & Safety'),
+          _SettingsGroup(
+            children: [
+              const _BlockedUsersRow(),
+              _SettingsRow(
+                icon: Icons.shield_outlined,
+                title: 'Privacy Policy',
+                onTap: () => _openUrl(context, AppLinks.privacyPolicy),
+              ),
+              _SettingsRow(
+                icon: Icons.description_outlined,
+                title: 'Terms of Service',
+                onTap: () => _openUrl(context, AppLinks.terms),
+              ),
+            ],
           ),
-          _buildSettingsTile(
-            icon: Icons.quiz_outlined,
-            title: 'FAQs',
-            subtitle: 'Frequently asked questions',
-            comingSoon: true,
-          ),
-          _buildSettingsTile(
-            icon: Icons.support_agent,
-            title: 'Contact Support',
-            subtitle: 'Get help from our team',
-            onTap: () => _openUrl(context, AppLinks.support),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ====================================================================
-          // Privacy Section
-          // ====================================================================
-          _buildSectionHeader('Privacy & Safety'),
-          const SizedBox(height: 12),
-          _buildSettingsTile(
-            icon: Icons.block,
-            title: 'Blocked Users',
-            subtitle: 'Manage blocked users',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
-              );
-            },
-          ),
-          _buildSettingsTile(
-            icon: Icons.privacy_tip,
-            title: 'Privacy Policy',
-            subtitle: 'View privacy policy',
-            onTap: () => _openUrl(context, AppLinks.privacyPolicy),
-          ),
-          _buildSettingsTile(
-            icon: Icons.description_outlined,
-            title: 'Terms of Service',
-            subtitle: 'View terms and conditions',
-            onTap: () => _openUrl(context, AppLinks.terms),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ====================================================================
-          // Danger Zone
-          // ====================================================================
-          _buildSectionHeader('Danger Zone', isWarning: true),
-          const SizedBox(height: 12),
-          _buildSettingsTile(
-            icon: Icons.logout,
-            title: 'Sign Out',
-            subtitle: 'Sign out of your account',
-            titleColor: Colors.red,
-            onTap: () => _handleSignOut(context),
-          ),
-          _buildSettingsTile(
-            icon: Icons.delete_forever,
-            title: 'Delete Account',
-            subtitle: 'Permanently delete your account',
-            titleColor: Colors.red,
-            onTap: () => _deleteAccount(context),
+          const SizedBox(height: 32),
+          _SettingsGroup(
+            children: [
+              _SettingsRow(
+                icon: Icons.logout,
+                title: 'Sign out',
+                tone: _RowTone.neutral,
+                showChevron: false,
+                onTap: () => _handleSignOut(context),
+              ),
+              _SettingsRow(
+                icon: Icons.delete_outline,
+                title: 'Delete account',
+                subtitle: 'Permanently remove your profile',
+                tone: _RowTone.danger,
+                showChevron: false,
+                onTap: () => _deleteAccount(context),
+              ),
+            ],
           ),
 
           // Developer tools: debug builds only.
           if (kDebugMode) ...[
-            const SizedBox(height: 24),
-            _buildSectionHeader('Developer Options', isDev: true),
-            const SizedBox(height: 12),
-            _buildSettingsTile(
-              icon: Icons.refresh,
-              title: 'Reset Tutorial',
-              subtitle: 'Show tutorial again on next visit',
-              iconColor: Colors.grey,
-              onTap: () => _resetTutorial(context),
-            ),
-            _buildSettingsTile(
-              icon: Icons.bug_report,
-              title: 'Debug Info',
-              subtitle: 'View tour debug information',
-              iconColor: Colors.grey,
-              onTap: () => _showDebugInfo(context),
+            const _GroupLabel('Developer options'),
+            _SettingsGroup(
+              children: [
+                _SettingsRow(
+                  icon: Icons.refresh,
+                  title: 'Reset tutorial',
+                  subtitle: 'Show tutorial again on next visit',
+                  tone: _RowTone.neutral,
+                  onTap: () => _resetTutorial(context),
+                ),
+                _SettingsRow(
+                  icon: Icons.bug_report_outlined,
+                  title: 'Debug info',
+                  subtitle: 'View tour debug information',
+                  tone: _RowTone.neutral,
+                  onTap: () => _showDebugInfo(context),
+                ),
+              ],
             ),
           ],
 
-          const SizedBox(height: 40),
-
-          // Version Info
-          Center(
-            child: Text(
-              'AvailChat v1.0.0',
-              style: TextStyle(
-                color: AppColors.lavender.withOpacity(0.5),
-                fontSize: 12,
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 24, 0, 40),
+            child: Column(
+              children: [
+                Text(
+                  'Destined',
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.lavender,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'v$_appVersion',
+                  style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
@@ -291,9 +267,9 @@ class SettingsScreen extends StatelessWidget {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white),
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: AppColors.white),
               SizedBox(width: 12),
               Expanded(
                 child: Text('Tutorial has been reset and will show again!'),
@@ -307,7 +283,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           action: SnackBarAction(
             label: 'VIEW NOW',
-            textColor: Colors.white,
+            textColor: AppColors.white,
             onPressed: () {
               if (context.mounted) _showTutorial(context);
             },
@@ -324,21 +300,14 @@ class SettingsScreen extends StatelessWidget {
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
 
-    showDialog(
+    await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.bug_report, color: AppColors.brandPurpleLight),
             SizedBox(width: 12),
-            Text(
-              'Tour Debug Info',
-              style: TextStyle(color: Colors.white),
-            ),
+            Text('Tour Debug Info'),
           ],
         ),
         content: Container(
@@ -371,7 +340,7 @@ class SettingsScreen extends StatelessWidget {
                       child: Text(
                         '${e.value}',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -393,7 +362,7 @@ class SettingsScreen extends StatelessWidget {
             },
             child: const Text(
               'Clear All',
-              style: TextStyle(color: Colors.orange),
+              style: TextStyle(color: AppColors.warning),
             ),
           ),
           TextButton(
@@ -410,265 +379,520 @@ class SettingsScreen extends StatelessWidget {
   // ===========================================================================
 
   Future<void> _deleteAccount(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: const [
-            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'Delete Account',
-              style: TextStyle(color: Colors.white),
-            ),
-          ],
-        ),
-        content: const Text(
-          'This permanently deletes your profile, photos, voice intro, game '
-          'stats and sign-in. Messages you already sent stay in the other '
-          'person\'s chat and show as "Deleted user". This cannot be undone.',
-          style: TextStyle(color: AppColors.lavender, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text(
-              'Continue',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    final reauthed = await _reauthenticate(context);
-    if (!reauthed || !context.mounted) return;
-
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    showDialog<void>(
+    final deleted = await showModalBottomSheet<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (_) => const PopScope(
-        canPop: false,
-        child: AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 20),
-              Expanded(
-                child: Text(
-                  'Deleting your account...',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
+      isScrollControlled: true,
+      enableDrag: false,
+      useSafeArea: true,
+      builder: (_) => _DeleteAccountSheet(
+        email: FirebaseAuth.instance.currentUser?.email,
       ),
     );
-
-    try {
-      await AccountDeletionService.deleteAccount();
+    if (deleted != true) return;
+    unawaited(
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-      );
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Your account was deleted.')),
-      );
-    } on AccountDeletionException catch (e) {
-      navigator.pop();
-      messenger.showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
-      );
-    }
+        (route) => false,
+      ),
+    );
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Your account was deleted.')),
+    );
+  }
+}
+
+/// Confirms deletion: re-authenticates (server needs a fresh sign-in), then
+/// calls the deletion service. Pops `true` once the account is gone.
+class _DeleteAccountSheet extends StatefulWidget {
+  const _DeleteAccountSheet({required this.email});
+
+  final String? email;
+
+  @override
+  State<_DeleteAccountSheet> createState() => _DeleteAccountSheetState();
+}
+
+class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
+  final _password = TextEditingController();
+  late final ReauthMethod _method = AccountDeletionService.reauthMethod;
+  bool _obscure = true;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
   }
 
-  /// Fresh sign-in required by the server. Returns false if cancelled.
-  Future<bool> _reauthenticate(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _submit() async {
+    if (_busy) return;
+    if (_method == ReauthMethod.password && _password.text.isEmpty) {
+      setState(() => _error = 'Enter your password to confirm.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
-      switch (AccountDeletionService.reauthMethod) {
+      switch (_method) {
         case ReauthMethod.password:
-          final password = await _askPassword(context);
-          if (password == null || password.isEmpty) return false;
-          await AccountDeletionService.reauthenticateWithPassword(password);
-          return true;
+          await AccountDeletionService.reauthenticateWithPassword(
+            _password.text,
+          );
+          break;
         case ReauthMethod.google:
-          return await AccountDeletionService.reauthenticateWithGoogle();
+          final ok = await AccountDeletionService.reauthenticateWithGoogle();
+          if (!ok) {
+            if (mounted) setState(() => _busy = false);
+            return;
+          }
+          break;
         case ReauthMethod.none:
           // Unknown provider: the server still checks the sign-in age.
-          return true;
+          break;
       }
+      await AccountDeletionService.deleteAccount();
+      if (mounted) Navigator.of(context).pop(true);
     } on AccountDeletionException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
-      );
-      return false;
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.message;
+      });
     }
   }
 
-  Future<String?> _askPassword(BuildContext context) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text(
-          'Confirm your password',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          obscureText: true,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Password',
-            hintStyle: TextStyle(color: AppColors.lavender),
+  Widget _item(IconData icon, String bold, String rest, {bool keep = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              icon,
+              size: 16,
+              color: keep ? AppColors.textSubtle : AppColors.error,
+            ),
           ),
-          onSubmitted: (v) => Navigator.pop(dialogContext, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text(
-              'Delete my account',
-              style: TextStyle(color: Colors.red),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  if (bold.isNotEmpty)
+                    TextSpan(
+                      text: '$bold ',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  TextSpan(text: rest),
+                ],
+              ),
+              style: TextStyle(
+                color: keep ? AppColors.lavender : AppColors.lavenderLight,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
           ),
         ],
       ),
-    ).whenComplete(controller.dispose);
-  }
-
-  // ===========================================================================
-  // UI Builders
-  // ===========================================================================
-
-  Widget _buildSectionHeader(String title, {bool isWarning = false, bool isDev = false}) {
-    Color color = AppColors.lavender;
-    if (isWarning) color = Colors.red;
-    if (isDev) color = Colors.grey.withOpacity(0.5);
-
-    return Text(
-      title,
-      style: TextStyle(
-        color: color,
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 0.5,
-      ),
     );
   }
 
-  /// [comingSoon] renders a disabled tile with a "SOON" badge.
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    VoidCallback? onTap,
-    Color? titleColor,
-    Color? iconColor,
-    bool showBadge = false,
-    String? badgeText,
-    bool comingSoon = false,
-    bool showChevron = true,
-  }) {
-    final enabled = !comingSoon;
-    final badge = comingSoon ? 'SOON' : (showBadge ? badgeText : null);
-    return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.brandPurple.withOpacity(0.1),
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final email = widget.email;
+    final emailText = (email == null || email.isEmpty) ? 'this account' : email;
+    return PopScope(
+      canPop: !_busy,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: ListTile(
-          enabled: enabled,
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: (iconColor ?? AppColors.brandPurple).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor ?? titleColor ?? AppColors.brandPurpleLight,
-              size: 22,
-            ),
-          ),
-          title: Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Flexible(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: titleColor ?? Colors.white,
-                    fontWeight: FontWeight.w600,
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.borderStrong,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              if (badge != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.brandPurple, AppColors.brandMagenta],
+                    shape: BoxShape.circle,
+                    color: AppColors.error.withOpacity(0.14),
+                    border: Border.all(
+                      color: AppColors.error.withOpacity(0.35),
                     ),
-                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    badge,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.error,
+                    size: 26,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Delete your account?',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  color: AppColors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "This can't be undone.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.lavender, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    _item(
+                      Icons.block,
+                      'Your profile',
+                      'and answers are removed from Discover',
+                    ),
+                    _item(
+                      Icons.block,
+                      'Your photos',
+                      'and voice intro are deleted',
+                    ),
+                    _item(
+                      Icons.block,
+                      'Your login',
+                      'stops working for $emailText',
+                    ),
+                    const Divider(height: 12),
+                    _item(
+                      Icons.chat_bubble_outline,
+                      '',
+                      'Messages you already sent stay in other people\'s '
+                          'chats, shown from "Deleted user".',
+                      keep: true,
+                    ),
+                  ],
+                ),
+              ),
+              if (_method == ReauthMethod.password) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Enter your password to confirm',
+                  style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _password,
+                  obscureText: _obscure,
+                  enabled: !_busy,
+                  autofillHints: const [AutofillHints.password],
+                  style: const TextStyle(color: AppColors.white, fontSize: 15),
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    hintText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                    suffixIcon: IconButton(
+                      tooltip: _obscure ? 'Show password' : 'Hide password',
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
                 ),
               ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                AppBanner(message: _error!, tone: AppBannerTone.error),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _busy ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: AppColors.backgroundDeep,
+                    disabledBackgroundColor: AppColors.error.withOpacity(0.6),
+                    disabledForegroundColor: AppColors.backgroundDeep,
+                    shape: const StadiumBorder(),
+                    elevation: 0,
+                  ),
+                  child: _busy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: AppColors.backgroundDeep,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(
+                          'Delete my account',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              CustomButton(
+                text: 'Cancel',
+                type: ButtonType.text,
+                onPressed: _busy ? null : () => Navigator.of(context).pop(),
+              ),
             ],
           ),
-          subtitle: Text(
-            subtitle,
-            style: const TextStyle(
-              color: AppColors.lavender,
-              fontSize: 12,
-            ),
-          ),
-          trailing: enabled && showChevron && onTap != null
-              ? Icon(
-                  Icons.chevron_right,
-                  color: titleColor ?? AppColors.lavender,
-                )
-              : null,
-          onTap: enabled ? onTap : null,
         ),
       ),
+    );
+  }
+}
+
+// =============================================================================
+// Grouped rows
+// =============================================================================
+
+enum _RowTone { normal, neutral, danger }
+
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.text, {this.first = false});
+
+  final String text;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, first ? 12 : 24, 8, 8),
+      child: Semantics(
+        header: true,
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            color: AppColors.textSubtle,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inset card; rows are separated by hairlines that start after the icon.
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) {
+        rows.add(const Divider(height: 1, thickness: 1, indent: 64));
+      }
+      rows.add(children[i]);
+    }
+    return Material(
+      color: AppColors.surfaceCard,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Column(children: rows),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.tone = _RowTone.normal,
+    this.showChevron = true,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final _RowTone tone;
+  final bool showChevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color iconColor;
+    final Color tileColor;
+    switch (tone) {
+      case _RowTone.normal:
+        iconColor = AppColors.brandPurpleLight;
+        tileColor = AppColors.brandPurpleMid.withOpacity(0.16);
+        break;
+      case _RowTone.neutral:
+        iconColor = AppColors.lavender;
+        tileColor = AppColors.surface2;
+        break;
+      case _RowTone.danger:
+        iconColor = AppColors.error;
+        tileColor = AppColors.error.withOpacity(0.14);
+        break;
+    }
+    final sub = subtitle;
+    final extra = trailing;
+    final tappable = onTap != null;
+
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: tileColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: tone == _RowTone.danger
+                            ? AppColors.error
+                            : AppColors.white,
+                        fontSize: 15,
+                        fontWeight: tone == _RowTone.danger
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (extra != null) ...[const SizedBox(width: 8), extra],
+              if (tappable && showChevron && extra is! Switch)
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: AppColors.textSubtle,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Blocked users row with the live count from SafetyService.
+class _BlockedUsersRow extends StatefulWidget {
+  const _BlockedUsersRow();
+
+  @override
+  State<_BlockedUsersRow> createState() => _BlockedUsersRowState();
+}
+
+class _BlockedUsersRowState extends State<_BlockedUsersRow> {
+  late final Stream<List<BlockedUser>?> _stream =
+      SafetyService.instance.watchBlockedUsers();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<BlockedUser>?>(
+      stream: _stream,
+      builder: (context, snapshot) {
+        final list = snapshot.hasError ? null : snapshot.data;
+        final count = list?.length ?? 0;
+        return _SettingsRow(
+          icon: Icons.block,
+          title: 'Blocked users',
+          subtitle: "They can't see or message you",
+          trailing: count > 0
+              ? Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: AppColors.lavender,
+                    fontSize: 14,
+                  ),
+                )
+              : null,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -773,38 +997,15 @@ class _NotificationSettingsTilesState
     required bool? value,
     required ValueChanged<bool>? onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.brandPurple.withOpacity(0.1),
-        ),
-      ),
-      child: SwitchListTile(
-        value: value ?? true,
-        onChanged: value == null || _saving ? null : onChanged,
-        activeColor: AppColors.brandPurple,
-        secondary: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.brandPurple.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: AppColors.brandPurpleLight, size: 22),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: AppColors.lavender, fontSize: 12),
-        ),
+    final current = value ?? true;
+    final handler = value == null || _saving ? null : onChanged;
+    return MergeSemantics(
+      child: _SettingsRow(
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
+        onTap: handler == null ? null : () => handler(!current),
+        trailing: Switch(value: current, onChanged: handler),
       ),
     );
   }
@@ -812,10 +1013,10 @@ class _NotificationSettingsTilesState
   @override
   Widget build(BuildContext context) {
     final pushOn = _pushEnabled ?? true;
-    return Column(
+    return _SettingsGroup(
       children: [
         _switch(
-          icon: Icons.notifications,
+          icon: Icons.notifications_none,
           title: 'Push notifications',
           subtitle: 'Calls, messages and updates on this device',
           value: _pushEnabled,

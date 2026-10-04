@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
 
@@ -17,11 +19,13 @@ class VerifyEmailScreen extends StatefulWidget {
 }
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
-  static const _hint = AppColors.lavender;
   static const _resendCooldown = 30;
 
   bool _checking = false;
+  bool _sending = false;
+  bool _sent = false;
   int _cooldown = 0;
+  String? _error;
   Timer? _timer;
 
   @override
@@ -31,7 +35,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   Future<void> _checkVerified() async {
-    setState(() => _checking = true);
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
     try {
       await FirebaseAuth.instance.currentUser?.reload();
       final verified =
@@ -43,24 +50,31 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         if (!mounted) return;
         await AuthRouter.routeCurrentUser(context);
       } else {
-        _showMessage('Your email is not verified yet.', error: true);
+        _showError('Your email is not verified yet.');
       }
     } on FirebaseAuthException catch (e) {
-      _showMessage(AuthValidators.messageFor(e), error: true);
+      _showError(AuthValidators.messageFor(e));
     } catch (_) {
-      _showMessage('Could not check. Try again.', error: true);
+      _showError('Could not check. Try again.');
     } finally {
       if (mounted) setState(() => _checking = false);
     }
   }
 
   Future<void> _resend() async {
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
     try {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
-      _showMessage('Verification email sent');
+      if (!mounted) return;
+      setState(() => _sent = true);
       _startCooldown();
     } on FirebaseAuthException catch (e) {
-      _showMessage(AuthValidators.messageFor(e), error: true);
+      _showError(AuthValidators.messageFor(e));
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -77,76 +91,189 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     });
   }
 
-  void _showMessage(String message, {bool error = false}) {
+  // Errors show inline above the actions.
+  void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: error ? Colors.red : Colors.green,
-      ),
-    );
+    setState(() => _error = message);
   }
+
+  static String _clock(int seconds) =>
+      '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
     final email = FirebaseAuth.instance.currentUser?.email ?? 'your email';
+    final error = _error;
+    final coolingDown = _cooldown > 0;
 
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
+      backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 80),
-              const Icon(
-                Icons.mark_email_unread,
-                color: Colors.white,
-                size: 64,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Verify your email',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.brandPurple.withOpacity(0.16),
+                          border: Border.all(color: AppColors.borderStrong),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_unread_outlined,
+                          size: 44,
+                          color: AppColors.pinkLight,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Check your inbox',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.montserrat(
+                        color: AppColors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'We sent a verification link to',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.lavender, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    // Own line, scaled down instead of wrapping mid-address.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        email,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _tip(1, 'Open the email from Destined and tap the link.'),
+                    _tip(2, "Come back here and tap \"I've verified\"."),
+                    _tip(3, 'Nothing yet? Check Spam or Promotions.'),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'We sent a verification link to $email. '
-                'Open it, then come back and tap the button below.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: _hint, fontSize: 15, height: 1.4),
-              ),
-              const SizedBox(height: 40),
-              CustomButton(
-                text: "I've verified my email",
-                isLoading: _checking,
-                gradientColors: const [
-                  AppColors.purplePrimary,
-                  AppColors.purpleSecondary,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (error != null) ...[
+                    AppBanner(message: error, tone: AppBannerTone.error),
+                    const SizedBox(height: 12),
+                  ],
+                  CustomButton(
+                    text: "I've verified",
+                    isLoading: _checking,
+                    onPressed: _checking ? null : _checkVerified,
+                  ),
+                  const SizedBox(height: 12),
+                  Semantics(
+                    liveRegion: true,
+                    child: CustomButton(
+                      text: coolingDown
+                          ? 'Resend in ${_clock(_cooldown)}'
+                          : 'Resend email',
+                      type: ButtonType.outline,
+                      leftIcon: coolingDown ? Icons.schedule : Icons.refresh,
+                      isLoading: _sending,
+                      onPressed: coolingDown || _sending ? null : _resend,
+                    ),
+                  ),
+                  if (_sent && coolingDown)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 14,
+                            color: AppColors.success,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Email sent',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  CustomButton(
+                    text: 'Use a different email',
+                    type: ButtonType.text,
+                    onPressed: () => AuthRouter.signOutToLogin(context),
+                  ),
                 ],
-                onPressed: _checking ? null : _checkVerified,
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _cooldown > 0 ? null : _resend,
-                child: Text(
-                  _cooldown > 0 ? 'Resend in ${_cooldown}s' : 'Resend email',
-                  style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tip(int n, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surface2,
+            ),
+            child: Text(
+              '$n',
+              style: const TextStyle(
+                color: AppColors.brandPurpleLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: AppColors.lavender,
+                  fontSize: 14,
+                  height: 1.4,
                 ),
               ),
-              TextButton(
-                onPressed: () => AuthRouter.signOutToLogin(context),
-                child: const Text('Sign out', style: TextStyle(color: _hint)),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
