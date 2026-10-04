@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class ShimmerBubbleGrid extends StatelessWidget {
   final int count;
   const ShimmerBubbleGrid({Key? key, this.count = 9}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Static placeholders under reduced motion.
+    final animate = !MediaQuery.disableAnimationsOf(context);
     return GridView.builder(
       padding: const EdgeInsets.only(top: 10, bottom: 100, left: 18, right: 18),
       itemCount: count,
@@ -20,8 +24,9 @@ class ShimmerBubbleGrid extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Shimmer.fromColors(
-            baseColor: Colors.white12,
-            highlightColor: Colors.white24,
+            enabled: animate,
+            baseColor: AppColors.surfaceCard,
+            highlightColor: AppColors.surface2,
             child: Container(
               width: 84,
               height: 84,
@@ -33,8 +38,9 @@ class ShimmerBubbleGrid extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Shimmer.fromColors(
-            baseColor: Colors.white12,
-            highlightColor: Colors.white24,
+            enabled: animate,
+            baseColor: AppColors.surfaceCard,
+            highlightColor: AppColors.surface2,
             child: Container(
               width: 70,
               height: 10,
@@ -56,6 +62,8 @@ class ShimmerBubbleStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Static placeholders under reduced motion.
+    final animate = !MediaQuery.disableAnimationsOf(context);
     return SizedBox(
       height: 118,
       child: ListView.separated(
@@ -66,8 +74,9 @@ class ShimmerBubbleStrip extends StatelessWidget {
         itemBuilder: (_, __) => Column(
           children: [
             Shimmer.fromColors(
-              baseColor: Colors.white12,
-              highlightColor: Colors.white24,
+              enabled: animate,
+              baseColor: AppColors.surfaceCard,
+              highlightColor: AppColors.surface2,
               child: Container(
                 width: 84,
                 height: 84,
@@ -79,8 +88,9 @@ class ShimmerBubbleStrip extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Shimmer.fromColors(
-              baseColor: Colors.white12,
-              highlightColor: Colors.white24,
+              enabled: animate,
+              baseColor: AppColors.surfaceCard,
+              highlightColor: AppColors.surface2,
               child: Container(
                 width: 70,
                 height: 10,

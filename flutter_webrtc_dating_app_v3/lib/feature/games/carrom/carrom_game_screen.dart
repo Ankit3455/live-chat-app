@@ -9,6 +9,7 @@ import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_colors.dart';
 import 'carrom_result_screen.dart';
 import 'carrom_rules.dart';
 import 'services/carrom_audio_service.dart';
@@ -279,7 +280,6 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Time's up! Turn passed."),
-          backgroundColor: Colors.red,
           duration: Duration(seconds: 2),
         ),
       );
@@ -449,7 +449,8 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Forfeit', style: TextStyle(color: Colors.red)),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Forfeit'),
           ),
         ],
       ),
@@ -488,39 +489,44 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
         if (!didPop) _confirmLeave();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF2A1C10),
+        backgroundColor: AppColors.backgroundDeep,
         body: _loading
             ? const Center(
-                child: CircularProgressIndicator(color: Colors.amber))
+                child: CircularProgressIndicator(
+                    color: AppColors.brandPurpleLight))
             : SafeArea(
                 child: Column(
                   children: [
                     // 1. Custom Game AppBar
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black54, blurRadius: 10)
-                        ],
+                          horizontal: 4, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceRaised,
+                        border: Border(
+                          bottom: BorderSide(color: AppColors.border),
+                        ),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
                             tooltip: 'Leave game',
-                            icon: const Icon(Icons.arrow_back_ios,
-                                color: Colors.amber),
+                            icon: const Icon(Icons.arrow_back,
+                                color: AppColors.white),
                             onPressed: _confirmLeave,
                           ),
-                          const Text(
-                            "CARROM CLASH",
-                            style: TextStyle(
-                              color: Colors.amber,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2,
+                          Expanded(
+                            child: Semantics(
+                              header: true,
+                              child: const Text(
+                                'Carrom',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                           IconButton(
@@ -529,7 +535,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
                               _audioService.isMuted
                                   ? Icons.volume_off
                                   : Icons.volume_up,
-                              color: Colors.amber,
+                              color: AppColors.brandPurpleLight,
                             ),
                             onPressed: () =>
                                 setState(() => _audioService.toggleMute()),
@@ -541,59 +547,66 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
                     // 2. HUD (Score Board)
                     _buildHUD(),
 
-                    const Spacer(),
-
-                    // 3. THE BOARD (Centerpiece)
-                    Center(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 400),
-                        child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: Container(
-                            margin: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.8),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
+                    // 3. THE BOARD: square sized by the shorter side.
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final side = min(
+                            432.0,
+                            min(constraints.maxWidth, constraints.maxHeight),
+                          );
+                          return Center(
+                            child: SizedBox(
+                              width: side,
+                              height: side,
+                              child: Container(
+                                margin: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.black.withOpacity(0.6),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: GameWidget(game: _game),
+                                ),
+                              ),
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: GameWidget(game: _game),
-                            ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
-
-                    const Spacer(),
 
                     // 4. Bottom Status Bar
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20)),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceCard,
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(20)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.touch_app,
-                              color: Colors.white.withOpacity(0.7), size: 20),
+                          const Icon(Icons.touch_app,
+                              color: AppColors.lavender, size: 20),
                           const SizedBox(width: 8),
                           Flexible(
-                            child: Text(
-                              _statusText(),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                _statusText(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ),
@@ -643,52 +656,68 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.1)),
+          bottom: BorderSide(color: AppColors.border),
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildPlayerInfo(myName, myScore, isMyTurn, true, iAmWhite),
+          Flexible(
+            child: _buildPlayerInfo(myName, myScore, isMyTurn, true, iAmWhite),
+          ),
+          const SizedBox(width: 8),
 
           // Timer / Turn Indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color: isMyTurn
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.red.withOpacity(0.2),
+                  ? AppColors.success.withOpacity(0.16)
+                  : AppColors.surface2,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isMyTurn ? Colors.green : Colors.red),
+              border: Border.all(
+                  color: isMyTurn ? AppColors.success : AppColors.borderStrong),
             ),
-            child: Column(
-              children: [
-                Text(
-                  isMyTurn ? "YOUR TURN" : "OPPONENT",
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isMyTurn ? Colors.green : Colors.red,
-                  ),
-                ),
-                if (_status == 'started')
+            child: Semantics(
+              label: isMyTurn ? 'Your turn' : 'Opponent\'s turn',
+              value: _status == 'started'
+                  ? '$_turnTimeLeft seconds left'
+                  : null,
+              excludeSemantics: true,
+              child: Column(
+                children: [
                   Text(
-                    '$_turnTimeLeft s',
+                    isMyTurn ? 'Your turn' : 'Opponent',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color:
-                          _turnTimeLeft < 10 ? Colors.redAccent : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isMyTurn ? AppColors.success : AppColors.lavender,
                     ),
                   ),
-              ],
+                  if (_status == 'started')
+                    Text(
+                      '$_turnTimeLeft s',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: _turnTimeLeft < 10
+                            ? AppColors.error
+                            : AppColors.white,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
 
-          _buildPlayerInfo(opName, opScore, !isMyTurn, false, !iAmWhite),
+          const SizedBox(width: 8),
+          Flexible(
+            child: _buildPlayerInfo(
+                opName, opScore, !isMyTurn, false, !iAmWhite),
+          ),
         ],
       ),
     );
@@ -706,8 +735,9 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       height: 10,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        // Coin colour of this player (game semantics).
         color: isWhite ? Colors.white : const Color(0xFF212121),
-        border: Border.all(color: Colors.amber, width: 1),
+        border: Border.all(color: AppColors.borderStrong, width: 1),
       ),
     );
     return Column(
@@ -718,12 +748,16 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isMe) ...[colourDot, const SizedBox(width: 6)],
-            Text(
-              name.length > 10 ? '${name.substring(0, 8)}..' : name,
-              style: TextStyle(
-                color: isActive ? Colors.amber : Colors.white70,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+            Flexible(
+              child: Text(
+                name.length > 10 ? '${name.substring(0, 8)}..' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isActive ? AppColors.pinkLight : AppColors.lavender,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
             if (!isMe) ...[const SizedBox(width: 6), colourDot],
@@ -733,7 +767,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
         Text(
           '$score pts',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),

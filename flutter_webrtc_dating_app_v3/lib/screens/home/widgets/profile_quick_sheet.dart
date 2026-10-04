@@ -56,14 +56,16 @@ class ProfileQuickSheet extends StatelessWidget {
                       width: 50,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: AppColors.borderStrong,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
                   const SizedBox(height: 18),
 
-                  _profileHeader(),
+                  _profileHeader(
+                    MediaQuery.of(context).disableAnimations,
+                  ),
 
                   if (onMessage != null) ...[
                     const SizedBox(height: 16),
@@ -200,51 +202,65 @@ class ProfileQuickSheet extends StatelessWidget {
   }
 
   // ---------- HEADER with AnimatedTextKit ----------
-  Widget _profileHeader() {
+  Widget _profileHeader(bool reduceMotion) {
+    const nameStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 22,
+      fontWeight: FontWeight.w700,
+    );
     final hasPhoto = user.profileImage.isNotEmpty;
     final initial = user.username.isNotEmpty ? user.username[0].toUpperCase() : 'U';
 
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(80),
-          child: hasPhoto
-              ? CachedNetworkImage(
-            imageUrl: user.profileImage,
-            memCacheWidth: 330,
-            width: 110,
-            height: 110,
-            fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => _initialAvatar(initial),
-          )
-              : _initialAvatar(initial),
+        Semantics(
+          image: true,
+          label: '${_safe(user.username)} profile photo',
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(80),
+            child: hasPhoto
+                ? CachedNetworkImage(
+              imageUrl: user.profileImage,
+              memCacheWidth: 330,
+              width: 110,
+              height: 110,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _initialAvatar(initial),
+            )
+                : _initialAvatar(initial),
+          ),
         ),
         const SizedBox(height: 14),
 
-        // Animated name
-        AnimatedTextKit(
-          isRepeatingAnimation: false,
-          animatedTexts: [
-            TypewriterAnimatedText(
-              _safe(user.username),
-              textStyle: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+        // Animated name (static under reduced motion)
+        if (reduceMotion)
+          Text(
+            _safe(user.username),
+            textAlign: TextAlign.center,
+            style: nameStyle,
+          )
+        else
+          AnimatedTextKit(
+            isRepeatingAnimation: false,
+            animatedTexts: [
+              TypewriterAnimatedText(
+                _safe(user.username),
+                textStyle: nameStyle,
+                speed: const Duration(milliseconds: 70),
               ),
-              speed: Duration(milliseconds: 70),
-            ),
-          ],
-        ),
+            ],
+          ),
 
         const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        // Wrap so large text can flow onto a second line.
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             if (user.online)
               const Text(
                 "Online",
-                style: TextStyle(color: Colors.greenAccent, fontSize: 14),
+                style: TextStyle(color: AppColors.success, fontSize: 14),
               ),
             if (user.online && _hasScore) const SizedBox(width: 10),
             CompatibilityChip(
@@ -265,7 +281,7 @@ class ProfileQuickSheet extends StatelessWidget {
         width: 110,
         height: 110,
         alignment: Alignment.center,
-        color: Colors.white12,
+        color: AppColors.surface2,
         child: Text(
           initial,
           style: const TextStyle(fontSize: 45, fontWeight: FontWeight.w700),
@@ -273,12 +289,15 @@ class ProfileQuickSheet extends StatelessWidget {
       );
 
   // ---------- Section Title ----------
-  Widget _sectionTitle(String t) => Text(
-    t,
-    style: const TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w700,
-      color: Colors.white,
+  Widget _sectionTitle(String t) => Semantics(
+    header: true,
+    child: Text(
+      t,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+      ),
     ),
   );
 
@@ -296,7 +315,7 @@ class ProfileQuickSheet extends StatelessWidget {
               "$key:",
               style: const TextStyle(
                 fontSize: 14,
-                color: Colors.white70,
+                color: AppColors.textMuted,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -336,7 +355,7 @@ class ProfileQuickSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.10),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: AppColors.borderStrong),
       ),
       child: Text(
         text,
@@ -476,6 +495,7 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final playing = _player.state == PlayerState.playing;
     final progress = (_duration.inMilliseconds > 0)
         ? _position.inMilliseconds / _duration.inMilliseconds
         : 0.0;
@@ -485,31 +505,34 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: AppColors.borderStrong),
       ),
       child: Row(
         children: [
           // Play / Pause
-          InkWell(
-            onTap: _isLoading ? null : _toggle,
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white24,
-              ),
-              child: _isLoading
-                  ? const Padding(
-                padding: EdgeInsets.all(10),
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-                  : Icon(
-                (_player.state == PlayerState.playing)
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 28,
+          Semantics(
+            button: true,
+            label: playing ? 'Pause voice intro' : 'Play voice intro',
+            child: InkWell(
+              onTap: _isLoading ? null : _toggle,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.borderStrong,
+                ),
+                child: _isLoading
+                    ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+                    : Icon(
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
           ),
@@ -523,7 +546,7 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
               children: [
                 LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
-                  backgroundColor: Colors.white12,
+                  backgroundColor: AppColors.border,
                   color: Colors.white,
                   minHeight: 5,
                 ),
@@ -531,10 +554,10 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(_fmt(_position), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(_fmt(_position), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                     Text(
                       _fmt(_duration.inMilliseconds > 0 ? _duration : Duration(seconds: widget.totalSeconds ?? 0)),
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -543,7 +566,7 @@ class _VoiceIntroPlayerState extends State<_VoiceIntroPlayer> {
                     padding: EdgeInsets.only(top: 4),
                     child: Text(
                       "Couldn't play voice intro",
-                      style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                      style: TextStyle(color: AppColors.error, fontSize: 12),
                     ),
                   ),
               ],

@@ -281,8 +281,8 @@ class _CompatChip extends StatelessWidget {
       triggerMode: TooltipTriggerMode.tap,
       showDuration: const Duration(seconds: 3),
       child: Container(
-        height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        constraints: const BoxConstraints(minHeight: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           color: AppColors.backgroundDeep.withOpacity(0.6),
           borderRadius: BorderRadius.circular(999),

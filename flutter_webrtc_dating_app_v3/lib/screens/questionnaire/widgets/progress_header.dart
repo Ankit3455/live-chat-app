@@ -27,8 +27,8 @@ class ProgressHeader extends StatelessWidget {
     final label = stepLabel ?? '$currentStep of $totalSteps';
     final back = onBack;
 
-    return SizedBox(
-      height: 56,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Row(

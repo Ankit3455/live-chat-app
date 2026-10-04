@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_match_screen.dart';
+import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -95,6 +96,8 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   }
 
   void _startAnimations() {
+    // Reduced motion: keep the searching rings static.
+    if (MediaQuery.of(context).disableAnimations) return;
     _pulseController.repeat(reverse: true);
     _rotateController.repeat();
     _waveController.repeat();
@@ -432,16 +435,24 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
                     ),
                   ),
                 )
-              else ...[
-                const Spacer(flex: 2),
-                _buildIdleState(),
-                const Spacer(flex: 3),
-              ],
+              else
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Center(child: _buildIdleState()),
+                      ),
+                    ),
+                  ),
+                ),
 
               // ===== BOTTOM BUTTON =====
               _buildBottomButton(),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -451,31 +462,27 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
       child: Row(
         children: [
-          // Back Button
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              tooltip: 'Back',
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: _searching ? null : () => Navigator.pop(context),
-            ),
+          IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back, color: AppColors.white),
+            onPressed: _searching ? null : () => Navigator.pop(context),
           ),
-
-          const Expanded(
-            child: Text(
-              'CARROM',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 3,
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                _searching ? 'Carrom · Find a match' : 'Carrom',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -488,84 +495,52 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   }
 
   Widget _buildIdleState() {
+    final error = _error;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Carrom Icon
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.orange.shade400,
-                Colors.orange.shade700,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withOpacity(0.4),
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.radio_button_checked,
-            size: 70,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 32),
-
-        // Title
-        const Text(
-          'Ready to Play?',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Subtitle
-        Text(
-          'Find an opponent and start the match!',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 15,
-          ),
-        ),
-
-        // Error Message
-        if (_error != null) ...[
-          const SizedBox(height: 24),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        const SizedBox(height: 16),
+        ExcludeSemantics(
+          child: Container(
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.withOpacity(0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                  ),
+              shape: BoxShape.circle,
+              color: AppColors.pinkLight.withOpacity(0.12),
+              border: Border.all(color: AppColors.pinkLight.withOpacity(0.4)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.pinkLight.withOpacity(0.2),
+                  blurRadius: 40,
                 ),
               ],
             ),
+            child: const Icon(Icons.adjust, size: 60, color: AppColors.pinkLight),
           ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Ready to play?',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Find an opponent and start the match.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.lavender, fontSize: 15),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 20),
+          AppBanner(message: error, tone: AppBannerTone.error),
         ],
+        const SizedBox(height: 24),
+        _buildRulesCard(),
+        const SizedBox(height: 16),
       ],
     );
   }
@@ -836,43 +811,17 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   Widget _buildBottomButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: SizedBox(
-        width: double.infinity,
-        height: 60,
-        child: _searching
-            ? CustomButton(
-                text: 'Cancel',
-                type: ButtonType.outline,
-                onPressed: _cancelSearch,
-              )
-            : ElevatedButton(
-          onPressed: _findMatch,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.white,
-            elevation: 8,
-            shadowColor: Colors.orange.withOpacity(0.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      child: _searching
+          ? CustomButton(
+              text: 'Cancel',
+              type: ButtonType.outline,
+              onPressed: _cancelSearch,
+            )
+          : CustomButton(
+              text: 'Find match',
+              leftIcon: Icons.search,
+              onPressed: _findMatch,
             ),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.search, size: 24),
-              SizedBox(width: 12),
-              Text(
-                'FIND MATCH',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

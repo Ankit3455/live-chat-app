@@ -148,14 +148,17 @@ class _AudioCallScreenState extends State<AudioCallScreen>
                                     color: AppColors.white,
                                   ),
                                 ),
-                                const Expanded(
-                                  child: Text(
-                                    'Voice call',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.lavender,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                                Expanded(
+                                  child: Semantics(
+                                    header: true,
+                                    child: const Text(
+                                      'Voice call',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: AppColors.lavender,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ),

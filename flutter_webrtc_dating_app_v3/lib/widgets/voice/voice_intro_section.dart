@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../../core/constants/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../services/voice_intro_service.dart';
 import 'voice_record_sheet.dart';
@@ -58,11 +59,14 @@ class _VoiceIntroSectionState extends State<VoiceIntroSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Voice Intro", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        Semantics(
+          header: true,
+          child: const Text("Voice Intro", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        ),
         const SizedBox(height: 6),
         Text(
           "Let others hear your vibe. 10–20s intro helps people know you faster.",
-          style: const TextStyle(color: Colors.white70, fontSize: 13.5),
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 13.5),
         ),
         const SizedBox(height: 10),
         if (!has)
@@ -76,24 +80,25 @@ class _VoiceIntroSectionState extends State<VoiceIntroSection> {
             ],
           )
         else
-          Row(
+          // Wrap so the three actions never overflow narrow screens.
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: _play,
                 icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
                 label: const Text('Play', style: TextStyle(color: Colors.white)),
               ),
-              const SizedBox(width: 10),
               OutlinedButton.icon(
                 onPressed: _openRecorder,
                 icon: const Icon(Icons.refresh_rounded, color: Colors.white),
                 label: const Text('Re-record', style: TextStyle(color: Colors.white)),
               ),
-              const SizedBox(width: 10),
               TextButton.icon(
                 onPressed: _delete,
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                label: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+                label: const Text('Remove', style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),

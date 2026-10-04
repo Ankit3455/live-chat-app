@@ -293,6 +293,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     final changed = _hasChanges;
+    // Centre a 560dp column on tablets.
+    final width = MediaQuery.of(context).size.width;
+    final hPad = width > 600 ? (width - 560) / 2 : 20.0;
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(
@@ -310,7 +313,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           key: _formKey,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 24),
             children: [
               _photoPreview(),
               const SizedBox(height: 16),
@@ -379,6 +382,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: Semantics(
                 image: true,
                 label: 'Your current photo',
+                excludeSemantics: true,
                 child: UserAvatar(user: _user, size: 76, borderRadius: 38),
               ),
             ),
@@ -571,6 +575,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       button: editable,
       label: '$label, ${value ?? 'not added'}',
       excludeSemantics: true,
+      onTap: editable ? () => _editField(label, field) : null,
       child: InkWell(
         onTap: editable ? () => _editField(label, field) : null,
         child: ConstrainedBox(
@@ -579,12 +584,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
             child: Row(
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -719,8 +726,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           totalSeconds: user.voiceIntroDurationSeconds,
         ),
         const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        Wrap(
+          alignment: WrapAlignment.end,
           children: [
             TextButton.icon(
               onPressed: _deleteVoice,
@@ -754,25 +761,34 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!changed && !_isSaving)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'No changes yet',
-                    style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!changed && !_isSaving)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'No changes yet',
+                        style: TextStyle(
+                          color: AppColors.textSubtle,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  CustomButton(
+                    text: 'Save changes',
+                    isLoading: _isSaving,
+                    onPressed: changed && !_isSaving ? _saveChanges : null,
                   ),
-                ),
-              CustomButton(
-                text: 'Save changes',
-                isLoading: _isSaving,
-                onPressed: changed && !_isSaving ? _saveChanges : null,
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -838,12 +854,15 @@ class _OptionSheetState extends State<_OptionSheet> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                widget.title,
-                style: GoogleFonts.montserrat(
-                  color: AppColors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              child: Semantics(
+                header: true,
+                child: Text(
+                  widget.title,
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -887,6 +906,8 @@ class _OptionSheetState extends State<_OptionSheet> {
   Widget _optionTile(String option, bool selected) {
     return Semantics(
       selected: selected,
+      checked: widget.multi ? selected : null,
+      inMutuallyExclusiveGroup: !widget.multi,
       button: true,
       child: InkWell(
         onTap: () => _tap(option),

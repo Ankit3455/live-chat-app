@@ -92,7 +92,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile photo updated'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -177,127 +177,156 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                   final unique =
                       ready && !isPhoto && avatarProps['avatarUnique'] == true;
 
-                  return Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                          child: Column(
-                            children: [
-                              Text(
-                                isPhoto ? 'YOUR PHOTO' : 'YOUR AVATAR',
-                                style: const TextStyle(
-                                  color: AppColors.brandPink,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1.2,
-                                ),
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                24,
+                                20,
+                                16,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _title(hasImage: hasImage, isPhoto: isPhoto),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              _AvatarCircle(
-                                child: readyUrl != null
-                                    ? CachedNetworkImage(
-                                        imageUrl: readyUrl,
-                                        memCacheWidth: 600,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, __, ___) =>
-                                            _avatarPlaceholder(),
-                                      )
-                                    : _avatarGenerating(
-                                        generating: _generating || _uploading,
-                                        error: _error,
-                                        onRetry: _generateAvatar,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    isPhoto ? 'YOUR PHOTO' : 'YOUR AVATAR',
+                                    style: const TextStyle(
+                                      color: AppColors.brandPink,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Semantics(
+                                    header: true,
+                                    liveRegion: true,
+                                    child: Text(
+                                      _title(
+                                        hasImage: hasImage,
+                                        isPhoto: isPhoto,
                                       ),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _AvatarCircle(
+                                    child: readyUrl != null
+                                        ? Semantics(
+                                            image: true,
+                                            label: isPhoto
+                                                ? 'Your profile photo'
+                                                : 'Your avatar',
+                                            child: CachedNetworkImage(
+                                              imageUrl: readyUrl,
+                                              memCacheWidth: 600,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (_, __, ___) =>
+                                                  _avatarPlaceholder(),
+                                            ),
+                                          )
+                                        : _avatarGenerating(
+                                            generating:
+                                                _generating || _uploading,
+                                            error: _error,
+                                            onRetry: _generateAvatar,
+                                          ),
+                                  ),
+                                  if (unique) ...[
+                                    const SizedBox(height: 14),
+                                    const AvatarUniqueBadge(),
+                                  ],
+                                  if (traits.isNotEmpty) ...[
+                                    const SizedBox(height: 18),
+                                    AvatarWhyCard(traits: traits),
+                                  ],
+                                ],
                               ),
-                              if (unique) ...[
-                                const SizedBox(height: 14),
-                                const AvatarUniqueBadge(),
-                              ],
-                              if (traits.isNotEmpty) ...[
-                                const SizedBox(height: 18),
-                                AvatarWhyCard(traits: traits),
-                              ],
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        child: Column(
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton.icon(
-                                onPressed: _busy ? null : _continue,
-                                icon: _busy
-                                    ? const SizedBox.shrink()
-                                    : const Icon(Icons.check, size: 20),
-                                label: Text(
-                                  _busy
-                                      ? 'Please wait...'
-                                      : isPhoto
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _busy ? null : _continue,
+                                    icon: _busy
+                                        ? const SizedBox.shrink()
+                                        : const Icon(Icons.check, size: 20),
+                                    label: Text(
+                                      _busy
+                                          ? 'Please wait...'
+                                          : isPhoto
                                           ? 'Continue'
                                           : 'Use this avatar',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(52),
+                                      backgroundColor: AppColors.brandPurple,
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor:
+                                          AppColors.surfaceCard,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.brandPurple,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: AppColors.surfaceCard,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(28),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _busy
+                                        ? null
+                                        : _chooseProfilePhoto,
+                                    icon: const Icon(
+                                      Icons.photo_camera_outlined,
+                                      size: 20,
+                                    ),
+                                    label: Text(
+                                      isPhoto
+                                          ? 'Choose a different photo'
+                                          : 'Upload a photo instead',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(52),
+                                      foregroundColor: Colors.white,
+                                      side: BorderSide(
+                                        color: AppColors.lavender.withOpacity(
+                                          0.35,
+                                        ),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: OutlinedButton.icon(
-                                onPressed: _busy ? null : _chooseProfilePhoto,
-                                icon: const Icon(
-                                  Icons.photo_camera_outlined,
-                                  size: 20,
-                                ),
-                                label: Text(
-                                  isPhoto
-                                      ? 'Choose a different photo'
-                                      : 'Upload a photo instead',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: BorderSide(
-                                    color: AppColors.lavender.withOpacity(0.35),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(28),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   );
                 },
               ),
@@ -318,12 +347,12 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: AppColors.textMuted),
             ),
           ],
         ),
@@ -335,7 +364,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
     return const Center(
       child: Icon(
         Icons.person_outline_rounded,
-        color: Colors.white24,
+        color: AppColors.textSubtle,
         size: 48,
       ),
     );
@@ -353,12 +382,15 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent),
+              const Icon(Icons.error_outline, color: AppColors.error),
               const SizedBox(height: 8),
               Text(
                 error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -387,7 +419,7 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
             SizedBox(height: 8),
             Text(
               '🎨 Creating your unique avatar...',
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
           ],

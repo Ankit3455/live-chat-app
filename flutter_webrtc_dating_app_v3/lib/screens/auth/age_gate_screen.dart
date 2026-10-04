@@ -133,12 +133,22 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: _blocked ? _buildBlocked() : _buildForm(),
+                child: _constrained(_blocked ? _buildBlocked() : _buildForm()),
               ),
             ),
-            _buildFooter(),
+            _constrained(_buildFooter()),
           ],
         ),
+      ),
+    );
+  }
+
+  // Caps line length on tablets.
+  Widget _constrained(Widget child) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: child,
       ),
     );
   }
@@ -170,10 +180,13 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        Text(
-          'Destined is only for adults',
-          textAlign: TextAlign.center,
-          style: _titleStyle,
+        Semantics(
+          header: true,
+          child: Text(
+            'Destined is only for adults',
+            textAlign: TextAlign.center,
+            style: _titleStyle,
+          ),
         ),
         const SizedBox(height: 12),
         const Text(
@@ -201,17 +214,26 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
             color: AppColors.surfaceCard,
             border: Border.all(color: AppColors.borderStrong),
           ),
-          child: Text(
-            '18+',
-            style: GoogleFonts.montserrat(
-              color: AppColors.pinkLight,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+          // Decorative badge; the copy below says the same.
+          child: ExcludeSemantics(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '18+',
+                style: GoogleFonts.montserrat(
+                  color: AppColors.pinkLight,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 20),
-        Text('Confirm your age', style: _titleStyle),
+        Semantics(
+          header: true,
+          child: Text('Confirm your age', style: _titleStyle),
+        ),
         const SizedBox(height: 8),
         const Text(
           'Destined is for adults 18 and over. Your date of birth is private; '

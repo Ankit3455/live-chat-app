@@ -32,6 +32,7 @@ class AvatarMadeBadge extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Avatar made from your answers. See why',
+      onTap: onTap,
       excludeSemantics: true,
       child: Material(
         color: Colors.transparent,
@@ -39,7 +40,7 @@ class AvatarMadeBadge extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(999),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 40),
+            constraints: const BoxConstraints(minHeight: 48),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
@@ -140,21 +141,24 @@ class AvatarWhyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Why you look like this',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                  child: Semantics(
+                    header: true,
+                    child: const Text(
+                      'Why you look like this',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-                Text(
+                const Text(
                   'from your answers',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),

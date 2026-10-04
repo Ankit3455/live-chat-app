@@ -173,6 +173,8 @@ class _AudioMessageState extends State<AudioMessage> {
             label: !playable
                 ? 'Voice message unavailable'
                 : (_isPlaying ? 'Pause voice message' : 'Play voice message'),
+            // excludeSemantics drops the inner tap action, so re-add it.
+            onTap: playable ? _togglePlay : null,
             excludeSemantics: true,
             child: Tooltip(
               message: !playable

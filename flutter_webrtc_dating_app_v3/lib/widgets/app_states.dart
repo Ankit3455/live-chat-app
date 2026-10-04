@@ -122,21 +122,28 @@ class AppEmptyState extends StatelessWidget {
             Container(
               width: 96,
               height: 96,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  center: Alignment(-0.3, -0.4),
-                  colors: [Color(0x59EC4899), Color(0x267C3AED), Color(0x00000000)],
-                  stops: [0.0, 0.6, 1.0],
+                  center: const Alignment(-0.3, -0.4),
+                  colors: [
+                    AppColors.brandPink.withValues(alpha: 0.35),
+                    AppColors.brandPurple.withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
                 ),
               ),
               child: Icon(icon, size: 40, color: AppColors.pinkLight),
             ),
             const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
             ),
             if (message != null) ...[
               const SizedBox(height: 8),

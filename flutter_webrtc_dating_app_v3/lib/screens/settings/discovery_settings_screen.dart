@@ -408,148 +408,155 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
             ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          children: [
-            const _GroupLabel('Visibility', first: true),
-            _Group(
+        // Cap width on tablets so the form stays readable.
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
-                _SwitchRow(
-                  key: DiscoveryOnboarding.discoveryToggleKey,
-                  leading: const Icon(
-                    Icons.visibility_outlined,
-                    size: 18,
-                    color: AppColors.brandPurpleLight,
-                  ),
-                  title: 'Show me on Discover',
-                  value: _discoveryEnabled,
-                  onChanged: (v) => setState(() => _discoveryEnabled = v),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  child: Text(
-                    'Let other people see your profile in their Discover '
-                    'feed.',
-                    style: TextStyle(
-                      color: AppColors.lavender,
-                      fontSize: 13,
-                      height: 1.4,
+                const _GroupLabel('Visibility', first: true),
+                _Group(
+                  children: [
+                    _SwitchRow(
+                      key: DiscoveryOnboarding.discoveryToggleKey,
+                      leading: const Icon(
+                        Icons.visibility_outlined,
+                        size: 18,
+                        color: AppColors.brandPurpleLight,
+                      ),
+                      title: 'Show me on Discover',
+                      value: _discoveryEnabled,
+                      onChanged: (v) => setState(() => _discoveryEnabled = v),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const _GroupLabel('Filters'),
-            _Group(
-              children: [
-                _SwitchRow(
-                  key: DiscoveryOnboarding.filtersToggleKey,
-                  leading: const Icon(
-                    Icons.filter_list,
-                    size: 18,
-                    color: AppColors.brandPurpleLight,
-                  ),
-                  title: 'Apply discovery filters',
-                  subtitle: 'Use the filters below while browsing',
-                  value: _applyFilters,
-                  onChanged: (v) => setState(() => _applyFilters = v),
-                ),
-                const Divider(height: 1, thickness: 1),
-                _filterBlock(
-                  key: DiscoveryOnboarding.genderFilterKey,
-                  label: 'Show me',
-                  child: _Segmented(
-                    value: _showMeGender,
-                    options: const {
-                      'everyone': 'Everyone',
-                      'male': 'Men',
-                      'female': 'Women',
-                    },
-                    onChanged: (v) => setState(() => _showMeGender = v),
-                  ),
-                ),
-                const Divider(height: 1, thickness: 1),
-                _filterBlock(
-                  key: DiscoveryOnboarding.ageFilterKey,
-                  label: 'Age range',
-                  value:
-                      '${_ageRange.start.round()} – ${_ageRange.end.round()}',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      RangeSlider(
-                        values: _ageRange,
-                        onChanged: (v) => setState(() => _ageRange = v),
-                        min: _minAge,
-                        max: _maxAge,
-                        divisions: 42,
-                        semanticFormatterCallback: (v) => '${v.round()} years',
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      child: Text(
+                        'Let other people see your profile in their Discover '
+                        'feed.',
+                        style: TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
                       ),
-                      _scale('${_minAge.round()}', '${_maxAge.round()}'),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 1, thickness: 1),
-                _filterBlock(
-                  key: DiscoveryOnboarding.distanceFilterKey,
-                  label: 'Distance',
-                  value: 'Up to ${_distanceKm.round()} km',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Slider(
-                        value: _distanceKm,
-                        onChanged: (v) => setState(() => _distanceKm = v),
-                        min: _minDistance,
-                        max: _maxDistance,
-                        divisions: 19,
-                        semanticFormatterCallback: (v) =>
-                            'Up to ${v.round()} km',
+                const _GroupLabel('Filters'),
+                _Group(
+                  children: [
+                    _SwitchRow(
+                      key: DiscoveryOnboarding.filtersToggleKey,
+                      leading: const Icon(
+                        Icons.filter_list,
+                        size: 18,
+                        color: AppColors.brandPurpleLight,
                       ),
-                      _scale(
-                        '${_minDistance.round()} km',
-                        '${_maxDistance.round()} km',
+                      title: 'Apply discovery filters',
+                      subtitle: 'Use the filters below while browsing',
+                      value: _applyFilters,
+                      onChanged: (v) => setState(() => _applyFilters = v),
+                    ),
+                    const Divider(height: 1, thickness: 1),
+                    _filterBlock(
+                      key: DiscoveryOnboarding.genderFilterKey,
+                      label: 'Show me',
+                      child: _Segmented(
+                        value: _showMeGender,
+                        options: const {
+                          'everyone': 'Everyone',
+                          'male': 'Men',
+                          'female': 'Women',
+                        },
+                        onChanged: (v) => setState(() => _showMeGender = v),
                       ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, thickness: 1),
-                _filterControl(
-                  child: _SwitchRow(
-                    key: DiscoveryOnboarding.onlineFilterKey,
-                    leading: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.online,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.online.withOpacity(0.25),
-                            spreadRadius: 3,
+                    ),
+                    const Divider(height: 1, thickness: 1),
+                    _filterBlock(
+                      key: DiscoveryOnboarding.ageFilterKey,
+                      label: 'Age range',
+                      value:
+                          '${_ageRange.start.round()} – ${_ageRange.end.round()}',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          RangeSlider(
+                            values: _ageRange,
+                            onChanged: (v) => setState(() => _ageRange = v),
+                            min: _minAge,
+                            max: _maxAge,
+                            divisions: 42,
+                            semanticFormatterCallback: (v) =>
+                                '${v.round()} years',
+                          ),
+                          _scale('${_minAge.round()}', '${_maxAge.round()}'),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, thickness: 1),
+                    _filterBlock(
+                      key: DiscoveryOnboarding.distanceFilterKey,
+                      label: 'Distance',
+                      value: 'Up to ${_distanceKm.round()} km',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Slider(
+                            value: _distanceKm,
+                            onChanged: (v) => setState(() => _distanceKm = v),
+                            min: _minDistance,
+                            max: _maxDistance,
+                            divisions: 19,
+                            semanticFormatterCallback: (v) =>
+                                'Up to ${v.round()} km',
+                          ),
+                          _scale(
+                            '${_minDistance.round()} km',
+                            '${_maxDistance.round()} km',
                           ),
                         ],
                       ),
                     ),
-                    title: 'Online only',
-                    subtitle: 'Only people active right now',
-                    value: _onlineOnly,
-                    onChanged: (v) => setState(() => _onlineOnly = v),
-                  ),
+                    const Divider(height: 1, thickness: 1),
+                    _filterControl(
+                      child: _SwitchRow(
+                        key: DiscoveryOnboarding.onlineFilterKey,
+                        leading: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.online,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.online.withOpacity(0.25),
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                        title: 'Online only',
+                        subtitle: 'Only people active right now',
+                        value: _onlineOnly,
+                        onChanged: (v) => setState(() => _onlineOnly = v),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                CustomButton(
+                  key: DiscoveryOnboarding.locationButtonKey,
+                  text: 'Use current location',
+                  type: ButtonType.outline,
+                  size: ButtonSize.small,
+                  leftIcon: Icons.my_location,
+                  isLoading: _locating,
+                  onPressed: _locating ? null : _useCurrentLocation,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            CustomButton(
-              key: DiscoveryOnboarding.locationButtonKey,
-              text: 'Use current location',
-              type: ButtonType.outline,
-              size: ButtonSize.small,
-              leftIcon: Icons.my_location,
-              isLoading: _locating,
-              onPressed: _locating ? null : _useCurrentLocation,
-            ),
-          ],
+          ),
         ),
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
@@ -560,27 +567,33 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (dirty)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        'You have unsaved changes.',
-                        style: TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 12,
+              child: Center(
+                heightFactor: 1,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (dirty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'You have unsaved changes.',
+                            style: TextStyle(
+                              color: AppColors.lavender,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
+                      CustomButton(
+                        key: DiscoveryOnboarding.saveButtonKey,
+                        text: 'Save & apply',
+                        isLoading: _saving,
+                        onPressed: _saving ? null : _savePrefs,
                       ),
-                    ),
-                  CustomButton(
-                    key: DiscoveryOnboarding.saveButtonKey,
-                    text: 'Save & apply',
-                    isLoading: _saving,
-                    onPressed: _saving ? null : _savePrefs,
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -746,7 +759,7 @@ class _Segmented extends StatelessWidget {
                   onTap: () => onChanged(entry.key),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    height: 40,
+                    constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: entry.key == value

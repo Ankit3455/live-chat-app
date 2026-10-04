@@ -76,41 +76,62 @@ class ProfileInfoCard extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(17),
                       child: hasImage
-                          ? CachedNetworkImage(
-                              imageUrl: avatarUrl!,
-                              memCacheWidth: 300,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => _placeholder(),
+                          ? Semantics(
+                              image: true,
+                              label: 'Profile photo of ${user.username}',
+                              child: CachedNetworkImage(
+                                imageUrl: avatarUrl!,
+                                memCacheWidth: 300,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => _placeholder(),
+                              ),
                             )
                           : _placeholder(),
                     ),
                   ),
                   if (onAvatarStoryTap != null)
+                    // 48dp hit box; visual badge stays 28px.
                     Positioned(
-                      right: -6,
-                      bottom: -6,
-                      child: GestureDetector(
-                        onTap: onAvatarStoryTap,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.brandPurpleMid,
-                                AppColors.brandPink,
-                              ],
+                      right: -16,
+                      bottom: -16,
+                      child: Tooltip(
+                        message: 'Why your avatar looks like this',
+                        child: Semantics(
+                          button: true,
+                          label: 'Avatar made from your answers. See why',
+                          excludeSemantics: true,
+                          onTap: onAvatarStoryTap,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onAvatarStoryTap,
+                            child: SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: Center(
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        AppColors.brandPurpleMid,
+                                        AppColors.brandPink,
+                                      ],
+                                    ),
+                                    border: Border.all(
+                                      color: AppColors.surfaceCard,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.auto_awesome,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                             ),
-                            border: Border.all(
-                              color: AppColors.surfaceCard,
-                              width: 2,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome,
-                            size: 14,
-                            color: Colors.white,
                           ),
                         ),
                       ),

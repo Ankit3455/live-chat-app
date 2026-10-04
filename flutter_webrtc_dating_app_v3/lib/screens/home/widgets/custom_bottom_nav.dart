@@ -29,7 +29,8 @@ class CustomBottomNav extends StatelessWidget {
     final unread = context.watch<UnreadManager>().totalUnread;
 
     return Container(
-      height: 70,
+      // minHeight (not height) so scaled labels can grow the bar.
+      constraints: const BoxConstraints(minHeight: 70),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -50,7 +51,7 @@ class CustomBottomNav extends StatelessWidget {
           ),
         ],
       ),
-      // Fixed-height bar: cap label scaling; full labels stay in Semantics.
+      // Cap label scaling; full labels stay in Semantics.
       child: MediaQuery.withClampedTextScaling(
         maxScaleFactor: 1.3,
         child: Row(
@@ -117,6 +118,7 @@ class _NavItem extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: isSelected,
+        inMutuallyExclusiveGroup: true,
         label: semanticLabel,
         // excludeSemantics drops the GestureDetector's tap action.
         onTap: onTap,
@@ -133,7 +135,7 @@ class _NavItem extends StatelessWidget {
 
   Widget _buildPill() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         gradient: isSelected
             ? const LinearGradient(
@@ -153,7 +155,7 @@ class _NavItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isSelected ? Colors.white : AppColors.lavender,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -178,17 +180,17 @@ class _NavItem extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.redAccent,
+                color: AppColors.error,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white, width: 1),
               ),
-              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
               child: Text(
                 badgeCount > 99 ? '99+' : '$badgeCount',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   height: 1.0,
                 ),

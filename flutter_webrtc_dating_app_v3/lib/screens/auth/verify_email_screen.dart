@@ -114,124 +114,144 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.brandPurple.withOpacity(0.16),
-                          border: Border.all(color: AppColors.borderStrong),
-                        ),
-                        child: const Icon(
-                          Icons.mark_email_unread_outlined,
-                          size: 44,
-                          color: AppColors.pinkLight,
+                child: _constrained(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.brandPurple.withOpacity(0.16),
+                            border: Border.all(color: AppColors.borderStrong),
+                          ),
+                          child: const Icon(
+                            Icons.mark_email_unread_outlined,
+                            size: 44,
+                            color: AppColors.pinkLight,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Check your inbox',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.montserrat(
-                        color: AppColors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 24),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          'Check your inbox',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.montserrat(
+                            color: AppColors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'We sent a verification link to',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.lavender, fontSize: 15),
-                    ),
-                    const SizedBox(height: 4),
-                    // Own line, scaled down instead of wrapping mid-address.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
+                      const SizedBox(height: 12),
+                      const Text(
+                        'We sent a verification link to',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Own line; honours text scaling, wraps only if too long.
+                      Text(
                         email,
-                        maxLines: 1,
-                        softWrap: false,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    _tip(1, 'Open the email from Destined and tap the link.'),
-                    _tip(2, "Come back here and tap \"I've verified\"."),
-                    _tip(3, 'Nothing yet? Check Spam or Promotions.'),
-                  ],
+                      const SizedBox(height: 28),
+                      _tip(1, 'Open the email from Destined and tap the link.'),
+                      _tip(2, "Come back here and tap \"I've verified\"."),
+                      _tip(3, 'Nothing yet? Check Spam or Promotions.'),
+                    ],
+                  ),
                 ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (error != null) ...[
-                    AppBanner(message: error, tone: AppBannerTone.error),
-                    const SizedBox(height: 12),
-                  ],
-                  CustomButton(
-                    text: "I've verified",
-                    isLoading: _checking,
-                    onPressed: _checking ? null : _checkVerified,
-                  ),
-                  const SizedBox(height: 12),
-                  Semantics(
-                    liveRegion: true,
-                    child: CustomButton(
-                      text: coolingDown
-                          ? 'Resend in ${_clock(_cooldown)}'
-                          : 'Resend email',
-                      type: ButtonType.outline,
-                      leftIcon: coolingDown ? Icons.schedule : Icons.refresh,
-                      isLoading: _sending,
-                      onPressed: coolingDown || _sending ? null : _resend,
+              child: _constrained(
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (error != null) ...[
+                      AppBanner(message: error, tone: AppBannerTone.error),
+                      const SizedBox(height: 12),
+                    ],
+                    CustomButton(
+                      text: "I've verified",
+                      isLoading: _checking,
+                      onPressed: _checking ? null : _checkVerified,
                     ),
-                  ),
-                  if (_sent && coolingDown)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            size: 14,
-                            color: AppColors.success,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Email sent',
-                            style: TextStyle(
-                              color: AppColors.success,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+                    Semantics(
+                      liveRegion: true,
+                      child: CustomButton(
+                        text: coolingDown
+                            ? 'Resend in ${_clock(_cooldown)}'
+                            : 'Resend email',
+                        type: ButtonType.outline,
+                        leftIcon: coolingDown ? Icons.schedule : Icons.refresh,
+                        isLoading: _sending,
+                        onPressed: coolingDown || _sending ? null : _resend,
                       ),
                     ),
-                  CustomButton(
-                    text: 'Use a different email',
-                    type: ButtonType.text,
-                    onPressed: () => AuthRouter.signOutToLogin(context),
-                  ),
-                ],
+                    if (_sent && coolingDown)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 14,
+                              color: AppColors.success,
+                            ),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Email sent',
+                                style: TextStyle(
+                                  color: AppColors.success,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    CustomButton(
+                      text: 'Use a different email',
+                      type: ButtonType.text,
+                      onPressed: () => AuthRouter.signOutToLogin(context),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Caps line length on tablets.
+  Widget _constrained(Widget child) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: child,
       ),
     );
   }
@@ -243,8 +263,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 24,
-            height: 24,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
             alignment: Alignment.center,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,

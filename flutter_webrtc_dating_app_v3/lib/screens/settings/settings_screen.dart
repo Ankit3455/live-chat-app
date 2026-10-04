@@ -76,145 +76,154 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-        children: [
-          const _GroupLabel('Account', first: true),
-          _SettingsGroup(
+      // Cap width on tablets so rows aren't stretched.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
             children: [
-              _SettingsRow(
-                icon: Icons.mail_outline,
-                title: 'Email',
-                subtitle: currentUser?.email ?? 'Not available',
-              ),
-              if (hasPassword)
-                _SettingsRow(
-                  icon: Icons.lock_outline,
-                  title: 'Change password',
-                  subtitle: 'Update the password you sign in with',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ChangePasswordScreen(),
-                      ),
-                    );
-                  },
-                ),
-              _SettingsRow(
-                icon: Icons.explore_outlined,
-                title: 'Discovery',
-                subtitle: 'Who you see and who can see you',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DiscoverySettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const _GroupLabel('Notifications'),
-          const _NotificationSettingsTiles(),
-          const _GroupLabel('Help & Support'),
-          _SettingsGroup(
-            children: [
-              _SettingsRow(
-                icon: Icons.auto_awesome_outlined,
-                title: 'App tour',
-                subtitle: 'Replay the quick intro to Destined',
-                onTap: () => _showTutorial(context),
-              ),
-              _SettingsRow(
-                icon: Icons.support_agent,
-                title: 'Contact support',
-                subtitle: 'Get help from the Destined team',
-                onTap: () => _openUrl(context, AppLinks.support),
-              ),
-            ],
-          ),
-          const _GroupLabel('Privacy & Safety'),
-          _SettingsGroup(
-            children: [
-              const _BlockedUsersRow(),
-              _SettingsRow(
-                icon: Icons.shield_outlined,
-                title: 'Privacy Policy',
-                onTap: () => _openUrl(context, AppLinks.privacyPolicy),
-              ),
-              _SettingsRow(
-                icon: Icons.description_outlined,
-                title: 'Terms of Service',
-                onTap: () => _openUrl(context, AppLinks.terms),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          _SettingsGroup(
-            children: [
-              _SettingsRow(
-                icon: Icons.logout,
-                title: 'Sign out',
-                tone: _RowTone.neutral,
-                showChevron: false,
-                onTap: () => _handleSignOut(context),
-              ),
-              _SettingsRow(
-                icon: Icons.delete_outline,
-                title: 'Delete account',
-                subtitle: 'Permanently remove your profile',
-                tone: _RowTone.danger,
-                showChevron: false,
-                onTap: () => _deleteAccount(context),
-              ),
-            ],
-          ),
-
-          // Developer tools: debug builds only.
-          if (kDebugMode) ...[
-            const _GroupLabel('Developer options'),
-            _SettingsGroup(
-              children: [
-                _SettingsRow(
-                  icon: Icons.refresh,
-                  title: 'Reset tutorial',
-                  subtitle: 'Show tutorial again on next visit',
-                  tone: _RowTone.neutral,
-                  onTap: () => _resetTutorial(context),
-                ),
-                _SettingsRow(
-                  icon: Icons.bug_report_outlined,
-                  title: 'Debug info',
-                  subtitle: 'View tour debug information',
-                  tone: _RowTone.neutral,
-                  onTap: () => _showDebugInfo(context),
-                ),
-              ],
-            ),
-          ],
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 24, 0, 40),
-            child: Column(
-              children: [
-                Text(
-                  'Destined',
-                  style: GoogleFonts.montserrat(
-                    color: AppColors.lavender,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
+              const _GroupLabel('Account', first: true),
+              _SettingsGroup(
+                children: [
+                  _SettingsRow(
+                    icon: Icons.mail_outline,
+                    title: 'Email',
+                    subtitle: currentUser?.email ?? 'Not available',
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'v$_appVersion',
-                  style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
+                  if (hasPassword)
+                    _SettingsRow(
+                      icon: Icons.lock_outline,
+                      title: 'Change password',
+                      subtitle: 'Update the password you sign in with',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChangePasswordScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  _SettingsRow(
+                    icon: Icons.explore_outlined,
+                    title: 'Discovery',
+                    subtitle: 'Who you see and who can see you',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const DiscoverySettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const _GroupLabel('Notifications'),
+              const _NotificationSettingsTiles(),
+              const _GroupLabel('Help & Support'),
+              _SettingsGroup(
+                children: [
+                  _SettingsRow(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'App tour',
+                    subtitle: 'Replay the quick intro to Destined',
+                    onTap: () => _showTutorial(context),
+                  ),
+                  _SettingsRow(
+                    icon: Icons.support_agent,
+                    title: 'Contact support',
+                    subtitle: 'Get help from the Destined team',
+                    onTap: () => _openUrl(context, AppLinks.support),
+                  ),
+                ],
+              ),
+              const _GroupLabel('Privacy & Safety'),
+              _SettingsGroup(
+                children: [
+                  const _BlockedUsersRow(),
+                  _SettingsRow(
+                    icon: Icons.shield_outlined,
+                    title: 'Privacy Policy',
+                    onTap: () => _openUrl(context, AppLinks.privacyPolicy),
+                  ),
+                  _SettingsRow(
+                    icon: Icons.description_outlined,
+                    title: 'Terms of Service',
+                    onTap: () => _openUrl(context, AppLinks.terms),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              _SettingsGroup(
+                children: [
+                  _SettingsRow(
+                    icon: Icons.logout,
+                    title: 'Sign out',
+                    tone: _RowTone.neutral,
+                    showChevron: false,
+                    onTap: () => _handleSignOut(context),
+                  ),
+                  _SettingsRow(
+                    icon: Icons.delete_outline,
+                    title: 'Delete account',
+                    subtitle: 'Permanently remove your profile',
+                    tone: _RowTone.danger,
+                    showChevron: false,
+                    onTap: () => _deleteAccount(context),
+                  ),
+                ],
+              ),
+
+              // Developer tools: debug builds only.
+              if (kDebugMode) ...[
+                const _GroupLabel('Developer options'),
+                _SettingsGroup(
+                  children: [
+                    _SettingsRow(
+                      icon: Icons.refresh,
+                      title: 'Reset tutorial',
+                      subtitle: 'Show tutorial again on next visit',
+                      tone: _RowTone.neutral,
+                      onTap: () => _resetTutorial(context),
+                    ),
+                    _SettingsRow(
+                      icon: Icons.bug_report_outlined,
+                      title: 'Debug info',
+                      subtitle: 'View tour debug information',
+                      tone: _RowTone.neutral,
+                      onTap: () => _showDebugInfo(context),
+                    ),
+                  ],
                 ),
               ],
-            ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 24, 0, 40),
+                child: Column(
+                  children: [
+                    Text(
+                      'Destined',
+                      style: GoogleFonts.montserrat(
+                        color: AppColors.lavender,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'v$_appVersion',
+                      style: TextStyle(
+                        color: AppColors.textSubtle,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -307,7 +316,7 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Icon(Icons.bug_report, color: AppColors.brandPurpleLight),
             SizedBox(width: 12),
-            Text('Tour Debug Info'),
+            Flexible(child: Text('Tour Debug Info')),
           ],
         ),
         content: Container(
@@ -324,9 +333,11 @@ class SettingsScreen extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      e.key,
-                      style: const TextStyle(color: AppColors.lavender),
+                    Flexible(
+                      child: Text(
+                        e.key,
+                        style: const TextStyle(color: AppColors.lavender),
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -554,13 +565,16 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                'Delete your account?',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.montserrat(
-                  color: AppColors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+              Semantics(
+                header: true,
+                child: Text(
+                  'Delete your account?',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -642,8 +656,8 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                 AppBanner(message: _error!, tone: AppBannerTone.error),
               ],
               const SizedBox(height: 20),
-              SizedBox(
-                height: 52,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 52),
                 child: ElevatedButton(
                   onPressed: _busy ? null : _submit,
                   style: ElevatedButton.styleFrom(
@@ -659,6 +673,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
+                            semanticsLabel: 'Deleting account',
                             color: AppColors.backgroundDeep,
                             strokeWidth: 2.5,
                           ),
@@ -786,67 +801,71 @@ class _SettingsRow extends StatelessWidget {
     final extra = trailing;
     final tappable = onTap != null;
 
-    return InkWell(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 56),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: tileColor,
-                  borderRadius: BorderRadius.circular(10),
+    // Switch rows expose toggle state via MergeSemantics instead.
+    return Semantics(
+      button: tappable && extra is! Switch,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: tileColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 18, color: iconColor),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: tone == _RowTone.danger
-                            ? AppColors.error
-                            : AppColors.white,
-                        fontSize: 15,
-                        fontWeight: tone == _RowTone.danger
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                      ),
-                    ),
-                    if (sub != null) ...[
-                      const SizedBox(height: 2),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 13,
+                        title,
+                        style: TextStyle(
+                          color: tone == _RowTone.danger
+                              ? AppColors.error
+                              : AppColors.white,
+                          fontSize: 15,
+                          fontWeight: tone == _RowTone.danger
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                       ),
+                      if (sub != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          sub,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.lavender,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              if (extra != null) ...[const SizedBox(width: 8), extra],
-              if (tappable && showChevron && extra is! Switch)
-                const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: AppColors.textSubtle,
                   ),
                 ),
-            ],
+                if (extra != null) ...[const SizedBox(width: 8), extra],
+                if (tappable && showChevron && extra is! Switch)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppColors.textSubtle,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

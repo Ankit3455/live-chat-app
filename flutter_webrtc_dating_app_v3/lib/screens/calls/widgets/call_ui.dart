@@ -319,8 +319,11 @@ class CallEndedView extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         Container(
-                          height: 30,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          constraints: const BoxConstraints(minHeight: 30),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.error.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(999),
@@ -339,12 +342,14 @@ class CallEndedView extends StatelessWidget {
                                 color: AppColors.error,
                               ),
                               const SizedBox(width: 6),
-                              Text(
-                                CallService.endReasonMessage(reason),
-                                style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                              Flexible(
+                                child: Text(
+                                  CallService.endReasonMessage(reason),
+                                  style: const TextStyle(
+                                    color: AppColors.error,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],

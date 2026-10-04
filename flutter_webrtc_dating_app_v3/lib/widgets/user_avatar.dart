@@ -72,17 +72,23 @@ import '../core/constants/app_colors.dart';
         content = _fallback();
       }
 
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: AppColors.brandPurple, width: 2),
+      final name = user.username.trim();
+      return Semantics(
+        image: true,
+        button: onTap != null,
+        label: name.isEmpty ? 'Profile photo' : '$name profile photo',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(color: AppColors.brandPurple, width: 2),
+            ),
+            child: content,
           ),
-          child: content,
         ),
       );
     }
@@ -122,7 +128,7 @@ import '../core/constants/app_colors.dart';
             height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Colors.white70,
+              color: AppColors.textMuted,
             ),
           ),
         ),

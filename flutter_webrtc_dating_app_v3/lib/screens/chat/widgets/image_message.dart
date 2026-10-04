@@ -80,6 +80,8 @@ class _ImageMessageState extends State<ImageMessage> {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (context, url) => Shimmer.fromColors(
+                          // No sweep under reduced motion.
+                          enabled: !MediaQuery.disableAnimationsOf(context),
                           baseColor: AppColors.surfaceCard,
                           highlightColor: AppColors.surface2,
                           child: Container(

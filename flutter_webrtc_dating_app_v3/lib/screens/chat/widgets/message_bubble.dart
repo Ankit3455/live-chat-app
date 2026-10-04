@@ -58,27 +58,38 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isCallEvent(message)) return _buildCallEvent();
 
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
     final isMedia = _isMediaMessage() && !message.isDeleted;
 
-    return GestureDetector(
-      onLongPress: () => _showMessageOptions(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        child: Align(
-          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                // Media keeps its own frame, so the quote sits above it.
-                if (isMedia && _hasReply) _buildReplyPreview(),
-                _buildMessageContainer(),
-                if (isMedia) _buildExternalFooter(),
-              ],
+    // One screen-reader node: sender, content, time and status.
+    return MergeSemantics(
+      child: Semantics(
+        label: isMe ? 'You' : otherUserName,
+        hint: 'Long press for message options',
+        child: GestureDetector(
+          onLongPress: () => _showMessageOptions(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            // Width from the parent, so it follows the 720 chat column.
+            child: LayoutBuilder(
+              builder: (context, constraints) => Align(
+                alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      // Media keeps its own frame, so the quote sits above it.
+                      if (isMedia && _hasReply) _buildReplyPreview(),
+                      _buildMessageContainer(),
+                      if (isMedia) _buildExternalFooter(),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),

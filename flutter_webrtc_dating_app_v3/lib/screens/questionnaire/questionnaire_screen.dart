@@ -229,58 +229,69 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       child: Scaffold(
         backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
-          child: Column(
-            children: [
-              ProgressHeader(
-                currentStep: _currentPage + 1,
-                totalSteps: _questions.length,
-                // First question is the root of onboarding: no back exit.
-                onBack: _currentPage > 0 && !_isSaving ? _previousPage : null,
-              ),
-              if (uid != null) ...[
-                const SizedBox(height: 12),
-                AvatarLivePreview(
-                  uid: uid,
-                  revision: _avatarRevision,
-                  answerLabel: _lastAvatarAnswer,
-                  answers: {..._answers, if (_dob != null) 'dateOfBirth': _dob},
-                ),
-              ],
+          // Cap width on tablets so the form stays readable.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  ProgressHeader(
+                    currentStep: _currentPage + 1,
+                    totalSteps: _questions.length,
+                    // First question is the root of onboarding: no back exit.
+                    onBack: _currentPage > 0 && !_isSaving
+                        ? _previousPage
+                        : null,
+                  ),
+                  if (uid != null) ...[
+                    const SizedBox(height: 12),
+                    AvatarLivePreview(
+                      uid: uid,
+                      revision: _avatarRevision,
+                      answerLabel: _lastAvatarAnswer,
+                      answers: {
+                        ..._answers,
+                        if (_dob != null) 'dateOfBirth': _dob,
+                      },
+                    ),
+                  ],
 
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (page) {
-                    setState(() => _currentPage = page);
-                  },
-                  itemCount: _questions.length,
-                  itemBuilder: (context, index) {
-                    final q = _questions[index];
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: QuestionWidget(
-                        question: q,
-                        answer: _answers[q.fieldName],
-                        onAnswerChanged: (ans) =>
-                            _onAnswerChanged(q.fieldName, ans),
-                      ),
-                    );
-                  },
-                ),
-              ),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      onPageChanged: (page) {
+                        setState(() => _currentPage = page);
+                      },
+                      itemCount: _questions.length,
+                      itemBuilder: (context, index) {
+                        final q = _questions[index];
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: QuestionWidget(
+                            question: q,
+                            answer: _answers[q.fieldName],
+                            onAnswerChanged: (ans) =>
+                                _onAnswerChanged(q.fieldName, ans),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: CustomButton(
-                  text: _currentPage == _questions.length - 1
-                      ? 'Finish & Create Avatar'
-                      : 'Continue',
-                  onPressed: _isSaving ? null : _nextPage,
-                  isLoading: _isSaving,
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    child: CustomButton(
+                      text: _currentPage == _questions.length - 1
+                          ? 'Finish & Create Avatar'
+                          : 'Continue',
+                      onPressed: _isSaving ? null : _nextPage,
+                      isLoading: _isSaving,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

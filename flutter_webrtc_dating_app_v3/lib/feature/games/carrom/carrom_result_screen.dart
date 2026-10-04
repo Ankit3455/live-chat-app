@@ -6,9 +6,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../screens/chat/chat_screen.dart';
+import '../../../widgets/custom_button.dart';
 import 'carrom_lobby_screen.dart';
 import 'carrom_match_screen.dart';
+import 'common/carrom_rank_badge.dart';
 import 'common/game_leaderboard_screen.dart';
 import 'services/carrom_stats_service.dart';
 import 'services/carrom_audio_service.dart';
@@ -89,6 +92,13 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     _playResultSound();
     _saveThenLoadStats();
     if (_hasOpponent) _listenRematch();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: show the result without the entrance animation.
+    if (MediaQuery.of(context).disableAnimations) _controller.value = 1.0;
   }
 
   Future<void> _saveThenLoadStats() async {
@@ -282,16 +292,10 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     super.dispose();
   }
 
-  Color get _primaryColor {
-    if (isWinner) return const Color(0xFF2E7D32);
-    if (isDraw) return const Color(0xFF616161);
-    return const Color(0xFFC62828);
-  }
-
-  Color get _secondaryColor {
-    if (isWinner) return const Color(0xFF1B5E20);
-    if (isDraw) return const Color(0xFF424242);
-    return const Color(0xFFB71C1C);
+  Color get _accent {
+    if (isWinner) return AppColors.pinkLight;
+    if (isDraw) return AppColors.lavender;
+    return AppColors.brandPurpleLight;
   }
 
   @override
@@ -302,45 +306,25 @@ class _CarromResultScreenState extends State<CarromResultScreen>
         if (!didPop) _goToGameList();
       },
       child: Scaffold(
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [_secondaryColor, _primaryColor],
-            ),
-          ),
-          child: SafeArea(
+        backgroundColor: AppColors.backgroundDeep,
+        body: SafeArea(
+          child: Center(
             child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
                   children: [
-                    const SizedBox(height: 20),
-
-                    // ===== RESULT ICON =====
                     _buildResultIcon(),
-                    const SizedBox(height: 24),
-
-                    // ===== RESULT TEXT =====
+                    const SizedBox(height: 20),
                     _buildResultText(),
-                    const SizedBox(height: 40),
-
-                    // ===== SCORE CARD =====
+                    const SizedBox(height: 28),
                     _buildScoreCard(),
-                    const SizedBox(height: 24),
-
-                    // ===== STATS CARD =====
-                    _buildStatsCard(),
-                    const SizedBox(height: 32),
-
-                    // ===== ACTION BUTTONS =====
-                    _buildActionButtons(),
                     const SizedBox(height: 16),
-
-                    // ===== BACK LINK =====
+                    _buildStatsCard(),
+                    const SizedBox(height: 28),
+                    _buildActionButtons(),
+                    const SizedBox(height: 8),
                     _buildBackLink(),
                   ],
                 ),
@@ -355,28 +339,27 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   Widget _buildResultIcon() {
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: Container(
-        width: 120,
-        height: 120,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Icon(
-          isWinner
-              ? Icons.emoji_events
-              : isDraw
-              ? Icons.handshake
-              : Icons.sentiment_dissatisfied,
-          size: 70,
-          color: Colors.white,
+      child: ExcludeSemantics(
+        child: Container(
+          width: 112,
+          height: 112,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _accent.withOpacity(0.12),
+            border: Border.all(color: _accent.withOpacity(0.4)),
+            boxShadow: [
+              BoxShadow(color: _accent.withOpacity(0.25), blurRadius: 40),
+            ],
+          ),
+          child: Icon(
+            isWinner
+                ? Icons.emoji_events_outlined
+                : isDraw
+                    ? Icons.handshake_outlined
+                    : Icons.sentiment_dissatisfied_outlined,
+            size: 60,
+            color: _accent,
+          ),
         ),
       ),
     );
@@ -385,26 +368,31 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   Widget _buildResultText() {
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: Column(
-        children: [
-          Text(
-            isWinner ? '🎉 VICTORY!' : isDraw ? '🤝 DRAW!' : '😔 DEFEAT',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          children: [
+            Semantics(
+              header: true,
+              liveRegion: true,
+              child: Text(
+                isWinner ? 'Victory!' : isDraw ? 'Draw' : 'Defeat',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getSubtitle(),
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 14,
+            const SizedBox(height: 8),
+            Text(
+              _getSubtitle(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.lavender, fontSize: 15),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -413,30 +401,25 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        padding: const EdgeInsets.all(24),
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.3),
-          ),
+          border: Border.all(color: AppColors.border),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildScoreColumn('YOU', widget.myScore, isWinner),
-            Container(
-              height: 80,
-              width: 1,
-              color: Colors.white.withOpacity(0.3),
-            ),
-            _buildScoreColumn(
-              _formatName(widget.opponentName),
-              widget.opponentScore,
-              !isWinner && !isDraw,
-            ),
-          ],
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              _buildScoreColumn('You', widget.myScore, isWinner),
+              const VerticalDivider(width: 1, color: AppColors.border),
+              _buildScoreColumn(
+                _formatName(widget.opponentName),
+                widget.opponentScore,
+                !isWinner && !isDraw,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -444,204 +427,173 @@ class _CarromResultScreenState extends State<CarromResultScreen>
 
   Widget _buildScoreColumn(String label, int score, bool isHighlighted) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
+      child: Semantics(
+        label: '$label: $score points${isHighlighted ? ', winner' : ''}',
+        excludeSemantics: true,
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.lavender,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: isHighlighted
-                ? BoxDecoration(
-              color: Colors.amber.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber, width: 2),
-            )
-                : null,
-            child: Text(
-              '$score',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: isHighlighted ? 48 : 40,
-                fontWeight: FontWeight.bold,
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: isHighlighted
+                  ? BoxDecoration(
+                      color: AppColors.pinkLight.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.pinkLight.withOpacity(0.5),
+                      ),
+                    )
+                  : null,
+              child: Text(
+                '$score',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: isHighlighted ? 44 : 38,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-          if (isHighlighted) ...[
-            const SizedBox(height: 8),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.star, color: Colors.amber, size: 18),
-                SizedBox(width: 4),
-                Text(
-                  'WINNER',
-                  style: TextStyle(
-                    color: Colors.amber,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+            if (isHighlighted) ...[
+              const SizedBox(height: 8),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.star, color: AppColors.pinkLight, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Winner',
+                    style: TextStyle(
+                      color: AppColors.pinkLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildStatsCard() {
+    final stats = _myStats;
+    final Widget body;
+    if (_loadingStats) {
+      body = const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            color: AppColors.brandPurpleLight,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    } else if (stats != null) {
+      body = Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.bar_chart,
+                color: AppColors.brandPurpleLight,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Your stats',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              CarromTierBadge(tier: stats.rank),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildStatItem('Games', '${stats.totalGames}'),
+              _buildStatItem('Wins', '${stats.wins}'),
+              _buildStatItem(
+                'Win rate',
+                '${stats.winRate.toStringAsFixed(0)}%',
+              ),
+              _buildStatItem('Streak', '${stats.winStreak}🔥'),
+            ],
+          ),
+        ],
+      );
+    } else {
+      body = const Text(
+        'Stats will appear after this game',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: AppColors.lavender, fontSize: 14),
+      );
+    }
+
     return AnimatedBuilder(
       animation: _slideAnimation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _slideAnimation.value),
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: _loadingStats
-                  ? const Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                ),
-              )
-                  : _myStats != null
-                  ? Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.bar_chart,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'YOUR STATS',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const Spacer(),
-                      _buildRankBadge(_myStats!.rank),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatItem('Games', '${_myStats!.totalGames}'),
-                      _buildStatItem('Wins', '${_myStats!.wins}'),
-                      _buildStatItem('Win Rate', '${_myStats!.winRate.toStringAsFixed(0)}%'),
-                      _buildStatItem('Streak', '${_myStats!.winStreak}🔥'),
-                    ],
-                  ),
-                ],
-              )
-                  : Text(
-                'Stats will appear after this game',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 14,
-                ),
-              ),
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _slideAnimation.value),
+        child: child,
+      ),
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.brandPurple.withOpacity(0.22),
+                AppColors.brandPink.withOpacity(0.12),
+              ],
             ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.brandPurpleMid.withOpacity(0.35)),
           ),
-        );
-      },
+          child: body,
+        ),
+      ),
     );
   }
 
   Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRankBadge(String rank) {
-    Color badgeColor;
-    switch (rank.toLowerCase()) {
-      case 'legend':
-        badgeColor = Colors.purple;
-        break;
-      case 'diamond':
-        badgeColor = Colors.cyan;
-        break;
-      case 'platinum':
-        badgeColor = Colors.blueGrey;
-        break;
-      case 'gold':
-        badgeColor = Colors.amber;
-        break;
-      case 'silver':
-        badgeColor = Colors.grey.shade400;
-        break;
-      case 'bronze':
-        badgeColor = Colors.brown;
-        break;
-      default:
-        badgeColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: badgeColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Expanded(
+      child: Column(
         children: [
-          Icon(Icons.military_tech, color: badgeColor, size: 14),
-          const SizedBox(width: 4),
           Text(
-            rank.toUpperCase(),
-            style: TextStyle(
-              color: badgeColor,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
+            value,
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
             ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.lavender, fontSize: 12),
           ),
         ],
       ),
@@ -652,116 +604,42 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           children: [
             // Rematch (needs both players) or a new opponent
             if (_hasOpponent) ...[
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _rematchRequested ? null : _requestRematch,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: _primaryColor,
-                    disabledBackgroundColor: Colors.white.withOpacity(0.6),
-                    disabledForegroundColor: _primaryColor,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.replay, size: 22),
-                      const SizedBox(width: 10),
-                      Text(
-                        _rematchLabel(),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              CustomButton(
+                text: _rematchLabel(),
+                leftIcon: Icons.replay,
+                onPressed: _rematchRequested ? null : _requestRematch,
               ),
               const SizedBox(height: 12),
             ],
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: _playAgain,
-                icon: const Icon(Icons.search, size: 20),
-                label: const Text(
-                  'NEW OPPONENT',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
+            CustomButton(
+              text: 'New opponent',
+              leftIcon: Icons.search,
+              type: _hasOpponent ? ButtonType.outline : ButtonType.primary,
+              onPressed: _playAgain,
             ),
             const SizedBox(height: 12),
-
-            // Row with Chat and Leaderboard buttons
             Row(
               children: [
-                // Chat Button
                 Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: _hasOpponent ? _openChat : null,
-                      icon: const Icon(Icons.chat_bubble_outline, size: 20),
-                      label: const Text(
-                        'CHAT',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white, width: 2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
+                  child: CustomButton(
+                    text: 'Chat',
+                    leftIcon: Icons.chat_bubble_outline,
+                    type: ButtonType.outline,
+                    onPressed: _hasOpponent ? _openChat : null,
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Leaderboard Button
                 Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: _openLeaderboard,
-                      icon: const Icon(Icons.leaderboard, size: 20),
-                      label: const Text(
-                        'RANKINGS',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white, width: 2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
+                  child: CustomButton(
+                    text: 'Rankings',
+                    leftIcon: Icons.leaderboard_outlined,
+                    type: ButtonType.outline,
+                    onPressed: _openLeaderboard,
                   ),
                 ),
               ],
@@ -773,23 +651,18 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   }
 
   Widget _buildBackLink() {
-    return TextButton(
+    return CustomButton(
+      text: 'Back to games',
+      type: ButtonType.text,
+      width: 220,
       onPressed: _goToGameList,
-      child: Text(
-        'Back to Game List',
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.7),
-          fontSize: 14,
-          decoration: TextDecoration.underline,
-        ),
-      ),
     );
   }
 
   String _rematchLabel() {
-    if (_rematchRequested) return 'WAITING FOR OPPONENT...';
-    if (_opponentWantsRematch) return 'ACCEPT REMATCH';
-    return 'REMATCH';
+    if (_rematchRequested) return 'Waiting for opponent…';
+    if (_opponentWantsRematch) return 'Accept rematch';
+    return 'Rematch';
   }
 
   String _getSubtitle() {
@@ -807,9 +680,9 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   }
 
   String _formatName(String name) {
-    if (name.isEmpty) return 'OPPONENT';
-    if (name.length > 10) return '${name.substring(0, 8).toUpperCase()}..';
-    return name.toUpperCase();
+    if (name.isEmpty) return 'Opponent';
+    if (name.length > 12) return '${name.substring(0, 10)}…';
+    return name;
   }
 
   void _playAgain() {

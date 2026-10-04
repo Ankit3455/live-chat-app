@@ -208,20 +208,23 @@ class _QuestionWidgetState extends State<QuestionWidget> {
             ),
             const SizedBox(height: 10),
           ],
-          Text.rich(
-            TextSpan(
-              text: question.text,
-              children: [
-                if (question.isMandatory && widget.dense)
-                  const TextSpan(
-                    text: ' *',
-                    style: TextStyle(color: AppColors.pinkLight),
-                  ),
-              ],
+          Semantics(
+            header: !widget.dense,
+            child: Text.rich(
+              TextSpan(
+                text: question.text,
+                children: [
+                  if (question.isMandatory && widget.dense)
+                    const TextSpan(
+                      text: ' *',
+                      style: TextStyle(color: AppColors.pinkLight),
+                    ),
+                ],
+              ),
+              style: widget.dense
+                  ? textTheme.titleLarge
+                  : textTheme.headlineMedium,
             ),
-            style: widget.dense
-                ? textTheme.titleLarge
-                : textTheme.headlineMedium,
           ),
           if (helper != null) ...[
             const SizedBox(height: 8),
@@ -357,6 +360,7 @@ class _OptionRow extends StatelessWidget {
       button: true,
       label: label,
       excludeSemantics: true,
+      onTap: onTap,
       child: Material(
         color: selected
             ? AppColors.brandPurpleMid.withOpacity(0.12)

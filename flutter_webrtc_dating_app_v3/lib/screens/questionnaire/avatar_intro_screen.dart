@@ -65,120 +65,136 @@ class AvatarIntroScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                child: Column(
-                  children: [
-                    const Text(
-                      'BEFORE WE START',
-                      style: TextStyle(
-                        color: AppColors.brandPink,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Your answers become\nyour avatar',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      "Your habits, interests and zodiac sign shape a face that's made only for you.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.lavender,
-                        fontSize: 15,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        // Cap width on tablets so the copy stays readable.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                    child: Column(
                       children: [
-                        for (var i = 0; i < _samples.length; i++)
-                          Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(top: i == 1 ? 0 : 14),
-                              child: _Sample(
-                                url: _samples[i].url,
-                                caption: _samples[i].caption,
-                                highlighted: i == 1,
-                              ),
+                        const Text(
+                          'BEFORE WE START',
+                          style: TextStyle(
+                            color: AppColors.brandPink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Semantics(
+                          header: true,
+                          child: const Text(
+                            'Your answers become\nyour avatar',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Your habits, interests and zodiac sign shape a face that's made only for you.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.lavender,
+                            fontSize: 15,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (var i = 0; i < _samples.length; i++)
+                              Expanded(
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    top: i == 1 ? 0 : 14,
+                                  ),
+                                  child: _Sample(
+                                    url: _samples[i].url,
+                                    caption: _samples[i].caption,
+                                    highlighted: i == 1,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Expanded(
+                                child: _CompareCard(
+                                  title: 'Other apps',
+                                  body:
+                                      'A random avatar from a small set that thousands of people share.',
+                                  muted: true,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _CompareCard(
+                                  title: 'Destined',
+                                  body:
+                                      'Built from your answers. No one else gets your face.',
+                                  faces: [for (final s in _samples) s.url],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'You can switch to a real photo any time.',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Expanded(
-                            child: _CompareCard(
-                              title: 'Other apps',
-                              body:
-                                  'A random avatar from a small set that thousands of people share.',
-                              muted: true,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _CompareCard(
-                              title: 'Destined',
-                              body:
-                                  'Built from your answers. No one else gets your face.',
-                              faces: [for (final s in _samples) s.url],
-                            ),
-                          ),
-                        ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: double.infinity,
+                      minHeight: 52,
+                    ),
+                    child: ElevatedButton(
+                      onPressed: () => _start(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brandPurple,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                      ),
+                      child: const Text(
+                        "Let's build mine",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'You can switch to a real photo any time.',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => _start(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brandPurple,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                  ),
-                  child: const Text(
-                    "Let's build mine",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -199,38 +215,43 @@ class _Sample extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = highlighted ? 104.0 : 92.0;
-    return Column(
-      children: [
-        Container(
-          width: size,
-          height: size,
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: highlighted ? AppColors.brandPink : AppColors.surfaceCard,
-            boxShadow: highlighted
-                ? [
-                    BoxShadow(
-                      color: AppColors.brandPink.withOpacity(0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : null,
+    return Semantics(
+      image: true,
+      excludeSemantics: true,
+      label: 'Example avatar: ${caption.replaceAll('\n', ', ')}',
+      child: Column(
+        children: [
+          Container(
+            width: size,
+            height: size,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: highlighted ? AppColors.brandPink : AppColors.surfaceCard,
+              boxShadow: highlighted
+                  ? [
+                      BoxShadow(
+                        color: AppColors.brandPink.withOpacity(0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipOval(child: _Net(url: url)),
           ),
-          child: ClipOval(child: _Net(url: url)),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          caption,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.lavender,
-            fontSize: 11,
-            height: 1.35,
+          const SizedBox(height: 8),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.lavender,
+              fontSize: 11,
+              height: 1.35,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

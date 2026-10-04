@@ -185,13 +185,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: UserAvatar(user: user, size: 96, borderRadius: 48),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Made from your answers',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                Semantics(
+                  header: true,
+                  child: const Text(
+                    'Made from your answers',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -208,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 AvatarWhyCard(traits: traits),
                 const SizedBox(height: 20),
                 SizedBox(
-                  height: 52,
+                  width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => choose(
                       ProfilePhotoService.regenerateAvatar,
@@ -223,6 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
                       backgroundColor: AppColors.brandPurple,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
@@ -233,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 10),
                 SizedBox(
-                  height: 52,
+                  width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () => choose(
                       ProfilePhotoService.pickAndUploadPhoto,
@@ -248,6 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
                       foregroundColor: Colors.white,
                       side: BorderSide(
                         color: AppColors.lavender.withValues(alpha: 0.35),
@@ -289,19 +294,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         return SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 UserAvatar(user: user, size: 88, borderRadius: 44),
                 const SizedBox(height: 12),
-                Text(
-                  'Change photo or avatar',
-                  style: GoogleFonts.montserrat(
-                    color: AppColors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'Change photo or avatar',
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -513,6 +521,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = _currentUser;
+    // Centre a 560dp column on tablets.
+    final width = MediaQuery.of(context).size.width;
+    final hPad = width > 600 ? (width - 560) / 2 : 20.0;
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       body: _isLoading
@@ -567,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 32),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate(_content(user)),
                     ),

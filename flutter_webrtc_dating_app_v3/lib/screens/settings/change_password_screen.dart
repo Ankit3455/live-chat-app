@@ -131,129 +131,137 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Widget _buildPasswordForm() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Icon
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.brandPurple.withOpacity(0.22),
-                        AppColors.brandPink.withOpacity(0.14),
-                      ],
+      padding: const EdgeInsets.all(20),
+      // Cap width on tablets so the form stays readable.
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Icon
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.brandPurple.withOpacity(0.22),
+                          AppColors.brandPink.withOpacity(0.14),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.borderStrong),
                     ),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.borderStrong),
-                  ),
-                  child: const Icon(
-                    Icons.lock_outline,
-                    color: AppColors.brandPurpleLight,
-                    size: 36,
+                    child: const Icon(
+                      Icons.lock_outline,
+                      color: AppColors.brandPurpleLight,
+                      size: 36,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Subtitle
-              const Center(
-                child: Text(
-                  'Create a strong password to\nkeep your account secure',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.lavender,
-                    fontSize: 14,
-                    height: 1.45,
+                // Subtitle
+                const Center(
+                  child: Text(
+                    'Create a strong password to\nkeep your account secure',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.lavender,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
-              const _FieldLabel('Current password'),
-              CustomTextField(
-                controller: _currentCtl,
-                hintText: 'Enter current password',
-                icon: Icons.lock_outline,
-                obscureText: _obscureCurrent,
-                suffixIcon: IconButton(
-                  tooltip: _obscureCurrent ? 'Show password' : 'Hide password',
-                  icon: Icon(
-                    _obscureCurrent ? Icons.visibility_off : Icons.visibility,
-                    color: AppColors.textSubtle,
+                const _FieldLabel('Current password'),
+                CustomTextField(
+                  controller: _currentCtl,
+                  hintText: 'Enter current password',
+                  icon: Icons.lock_outline,
+                  obscureText: _obscureCurrent,
+                  suffixIcon: IconButton(
+                    tooltip: _obscureCurrent
+                        ? 'Show password'
+                        : 'Hide password',
+                    icon: Icon(
+                      _obscureCurrent ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.textSubtle,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscureCurrent = !_obscureCurrent),
                   ),
-                  onPressed: () =>
-                      setState(() => _obscureCurrent = !_obscureCurrent),
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? AppStrings.passwordRequired
+                      : null,
                 ),
-                validator: (v) => (v == null || v.isEmpty)
-                    ? AppStrings.passwordRequired
-                    : null,
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              const _FieldLabel('New password'),
-              CustomTextField(
-                controller: _newCtl,
-                hintText: 'Enter new password',
-                icon: Icons.lock_reset,
-                obscureText: _obscureNew,
-                suffixIcon: IconButton(
-                  tooltip: _obscureNew ? 'Show password' : 'Hide password',
-                  icon: Icon(
-                    _obscureNew ? Icons.visibility_off : Icons.visibility,
-                    color: AppColors.textSubtle,
+                const _FieldLabel('New password'),
+                CustomTextField(
+                  controller: _newCtl,
+                  hintText: 'Enter new password',
+                  icon: Icons.lock_reset,
+                  obscureText: _obscureNew,
+                  suffixIcon: IconButton(
+                    tooltip: _obscureNew ? 'Show password' : 'Hide password',
+                    icon: Icon(
+                      _obscureNew ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.textSubtle,
+                    ),
+                    onPressed: () => setState(() => _obscureNew = !_obscureNew),
                   ),
-                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                  validator: _validateNew,
                 ),
-                validator: _validateNew,
-              ),
-              const SizedBox(height: 8),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _newCtl,
-                builder: (_, __, ___) => _buildPasswordHints(),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _newCtl,
+                  builder: (_, __, ___) => _buildPasswordHints(),
+                ),
+                const SizedBox(height: 20),
 
-              const _FieldLabel('Confirm new password'),
-              CustomTextField(
-                controller: _confirmCtl,
-                hintText: 'Confirm new password',
-                icon: Icons.lock_outline,
-                obscureText: _obscureConfirm,
-                suffixIcon: IconButton(
-                  tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
-                  icon: Icon(
-                    _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                    color: AppColors.textSubtle,
+                const _FieldLabel('Confirm new password'),
+                CustomTextField(
+                  controller: _confirmCtl,
+                  hintText: 'Confirm new password',
+                  icon: Icons.lock_outline,
+                  obscureText: _obscureConfirm,
+                  suffixIcon: IconButton(
+                    tooltip: _obscureConfirm
+                        ? 'Show password'
+                        : 'Hide password',
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.textSubtle,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
-                  onPressed: () =>
-                      setState(() => _obscureConfirm = !_obscureConfirm),
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? AppStrings.passwordRequired
+                      : null,
                 ),
-                validator: (v) => (v == null || v.isEmpty)
-                    ? AppStrings.passwordRequired
-                    : null,
-              ),
-              const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-              CustomButton(
-                text: 'Update password',
-                leftIcon: Icons.security,
-                isLoading: _isLoading,
-                onPressed: _submit,
-              ),
-              const SizedBox(height: 8),
+                CustomButton(
+                  text: 'Update password',
+                  leftIcon: Icons.security,
+                  isLoading: _isLoading,
+                  onPressed: _submit,
+                ),
+                const SizedBox(height: 8),
 
-              CustomButton(
-                text: 'Cancel',
-                type: ButtonType.text,
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
+                CustomButton(
+                  text: 'Cancel',
+                  type: ButtonType.text,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -287,22 +295,29 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Widget _buildHintRow(String text, bool isValid) {
-    return Row(
-      children: [
-        Icon(
-          isValid ? Icons.check_circle : Icons.circle_outlined,
-          size: 16,
-          color: isValid ? AppColors.success : AppColors.textSubtle,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 13,
-            color: isValid ? AppColors.success : AppColors.lavender,
+    // Icon state is spoken as part of the label.
+    return Semantics(
+      label: '$text, ${isValid ? 'done' : 'not yet'}',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.circle_outlined,
+            size: 16,
+            color: isValid ? AppColors.success : AppColors.textSubtle,
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: isValid ? AppColors.success : AppColors.lavender,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -343,10 +358,12 @@ class _ProviderBanner extends StatelessWidget {
     final providerName =
         providers.isEmpty ? 'your provider' : _name(providerId);
 
+    // Scrolls in landscape; width capped on tablets.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 560),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -376,14 +393,17 @@ class _ProviderBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'Password Managed by $providerName',
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Semantics(
+                header: true,
+                child: Text(
+                  'Password Managed by $providerName',
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(

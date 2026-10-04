@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'services/ludo_game_service.dart';
 import 'ludo_wrapper_screen.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 
 class LudoLobbyScreen extends StatefulWidget {
@@ -318,41 +319,31 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
       child: Row(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              tooltip: 'Back',
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                _cancelSearch();
-                Navigator.pop(context);
-              },
-            ),
+          IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back, color: AppColors.white),
+            onPressed: () {
+              _cancelSearch();
+              Navigator.pop(context);
+            },
           ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🎲 Ludo',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                _searching ? 'Ludo · Find a match' : 'Ludo',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
                 ),
-                Text(
-                  'Classic Board Game',
-                  style: TextStyle(color: Colors.white54, fontSize: 14),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -361,108 +352,67 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   }
 
   Widget _buildLobbyView() {
+    final error = _error;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
         children: [
-          // Game icon
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.casino,
-              size: 80,
-              color: Colors.blue,
+          ExcludeSemantics(
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.brandPurpleMid.withOpacity(0.16),
+                border: Border.all(
+                  color: AppColors.brandPurpleMid.withOpacity(0.4),
+                ),
+              ),
+              child: const Icon(
+                Icons.casino_outlined,
+                size: 60,
+                color: AppColors.brandPurpleLight,
+              ),
             ),
           ),
-
-          const SizedBox(height: 32),
-
+          const SizedBox(height: 24),
           const Text(
-            'Play Ludo Online',
+            'Play Ludo online',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
+              color: AppColors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
             ),
           ),
-
           const SizedBox(height: 8),
-
-          Text(
-            'Choose game mode and find opponents!',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 16,
-            ),
+          const Text(
+            'Choose a mode and find opponents.',
+            style: TextStyle(color: AppColors.lavender, fontSize: 15),
             textAlign: TextAlign.center,
           ),
-
-          const SizedBox(height: 32),
-
-          if (_resumeMatchId != null) ...[
-            _buildResumeBanner(),
-            const SizedBox(height: 24),
-          ],
-
-          // Player Count Selection
-          _buildPlayerCountSelector(),
-
           const SizedBox(height: 24),
-
-          // Error message
-          if (_error != null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.5)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
-              ),
+          if (_resumeMatchId != null) ...[
+            AppBanner(
+              message: 'You have a match in progress.',
+              icon: Icons.sports_esports_outlined,
+              actionLabel: 'Resume',
+              onAction: _resumeMatch,
             ),
-
-          // Find Match Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _findMatch,
-              icon: const Icon(Icons.search, size: 24),
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'FIND ${_selectedPlayerCount}P MATCH',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _selectedPlayerCount == 2 ? Colors.blue : Colors.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
+            const SizedBox(height: 20),
+          ],
+          _buildPlayerCountSelector(),
+          const SizedBox(height: 20),
+          if (error != null) ...[
+            AppBanner(message: error, tone: AppBannerTone.error),
+            const SizedBox(height: 16),
+          ],
+          CustomButton(
+            text: 'Find $_selectedPlayerCount-player match',
+            leftIcon: Icons.search,
+            onPressed: _findMatch,
           ),
-
-          const SizedBox(height: 32),
-
-          // Game info
+          const SizedBox(height: 24),
           _buildGameInfo(),
         ],
       ),
@@ -473,157 +423,110 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          // 2 Players
           Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedPlayerCount = 2),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: _selectedPlayerCount == 2
-                      ? Colors.blue
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.people,
-                      color: _selectedPlayerCount == 2
-                          ? Colors.white
-                          : Colors.white54,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '2 Players',
-                      style: TextStyle(
-                        color: _selectedPlayerCount == 2
-                            ? Colors.white
-                            : Colors.white54,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Quick Match',
-                      style: TextStyle(
-                        color: _selectedPlayerCount == 2
-                            ? Colors.white70
-                            : Colors.white60,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            child: _modeOption(
+              count: 2,
+              icon: Icons.people_outline,
+              label: '2 players',
+              caption: 'Quick match',
             ),
           ),
-
-          // 4 Players
           Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedPlayerCount = 4),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: _selectedPlayerCount == 4
-                      ? Colors.purple
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.groups,
-                      color: _selectedPlayerCount == 4
-                          ? Colors.white
-                          : Colors.white54,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '4 Players',
-                      style: TextStyle(
-                        color: _selectedPlayerCount == 4
-                            ? Colors.white
-                            : Colors.white54,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Full Game',
-                      style: TextStyle(
-                        color: _selectedPlayerCount == 4
-                            ? Colors.white70
-                            : Colors.white60,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            child: _modeOption(
+              count: 4,
+              icon: Icons.groups_outlined,
+              label: '4 players',
+              caption: 'Full game',
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _modeOption({
+    required int count,
+    required IconData icon,
+    required String label,
+    required String caption,
+  }) {
+    final selected = _selectedPlayerCount == count;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label, $caption',
+      excludeSemantics: true,
+      onTap: () => setState(() => _selectedPlayerCount = count),
+      child: InkWell(
+        onTap: () => setState(() => _selectedPlayerCount = count),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.brandPurple.withOpacity(0.24)
+                : AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.brandPurpleMid : AppColors.surfaceCard,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: selected ? AppColors.brandPurpleLight : AppColors.lavender,
+                size: 28,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: selected ? AppColors.white : AppColors.lavender,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                caption,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSubtle, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildGameInfo() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
           _buildInfoRow(
-            Icons.people,
-            _selectedPlayerCount == 2 ? '2 Players' : '4 Players',
+            Icons.people_outline,
+            _selectedPlayerCount == 2 ? '2 players' : '4 players',
           ),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.timer, '30 sec per turn'),
+          _buildInfoRow(Icons.timer_outlined, '30 sec per turn'),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.chat, 'In-game chat available'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResumeBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.withOpacity(0.6)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.sports_esports, color: Colors.green),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'You have a match in progress.',
-              style: TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: _resumeMatch,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Resume match'),
-          ),
+          _buildInfoRow(Icons.chat_bubble_outline, 'In-game chat available'),
         ],
       ),
     );
@@ -632,11 +535,13 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   Widget _buildInfoRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white54, size: 20),
+        Icon(icon, color: AppColors.brandPurpleLight, size: 20),
         const SizedBox(width: 12),
-        Text(
-          text,
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: AppColors.lavender, fontSize: 14),
+          ),
         ),
       ],
     );
@@ -768,7 +673,18 @@ class _SearchPulseState extends State<_SearchPulse>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2400),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: decorative rings stay still.
+    if (MediaQuery.of(context).disableAnimations) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
 
   @override
   void dispose() {

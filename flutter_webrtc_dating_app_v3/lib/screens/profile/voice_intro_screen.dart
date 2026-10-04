@@ -144,103 +144,115 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
       child: Scaffold(
         backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
-          child: Column(
-            children: [
-              ProgressHeader(
-                currentStep: 1,
-                totalSteps: 1,
-                stepLabel: 'Last step',
-                onBack: _saving ? null : () => Navigator.of(context).pop(false),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'LAST STEP',
-                        style: TextStyle(
-                          color: AppColors.pinkLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Add a voice intro',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Say hi in up to ${VoiceIntroService.kMaxSeconds} '
-                        'seconds. People hear it on your profile.',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 14,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Need an idea? Pick a prompt',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [for (final p in _prompts) _promptChip(p)],
-                      ),
-                      const SizedBox(height: 32),
-                      if (hasClip) _previewCard() else _recorder(),
-                    ],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  ProgressHeader(
+                    currentStep: 1,
+                    totalSteps: 1,
+                    stepLabel: 'Last step',
+                    onBack: _saving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (hasClip) ...[
-                      Row(
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: CustomButton(
-                              text: 'Re-record',
-                              type: ButtonType.outline,
-                              leftIcon: Icons.mic_rounded,
-                              onPressed: _saving ? null : _discard,
+                          const Text(
+                            'LAST STEP',
+                            style: TextStyle(
+                              color: AppColors.pinkLight,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: CustomButton(
-                              text: 'Save',
-                              onPressed: _save,
-                              isLoading: _saving,
+                          const SizedBox(height: 10),
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              'Add a voice intro',
+                              style: Theme.of(context).textTheme.headlineMedium,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Say hi in up to ${VoiceIntroService.kMaxSeconds} '
+                            'seconds. People hear it on your profile.',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 14,
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Need an idea? Pick a prompt',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              for (final p in _prompts) _promptChip(p),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          if (hasClip) _previewCard() else _recorder(),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                    ],
-                    CustomButton(
-                      text: 'Skip for now',
-                      type: ButtonType.text,
-                      onPressed: _saving || _recording
-                          ? null
-                          : () => Navigator.of(context).pop(false),
                     ),
-                  ],
-                ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasClip) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: CustomButton(
+                                  text: 'Re-record',
+                                  type: ButtonType.outline,
+                                  leftIcon: Icons.mic_rounded,
+                                  onPressed: _saving ? null : _discard,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: CustomButton(
+                                  text: 'Save',
+                                  onPressed: _save,
+                                  isLoading: _saving,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+                        CustomButton(
+                          text: 'Skip for now',
+                          type: ButtonType.text,
+                          onPressed: _saving || _recording
+                              ? null
+                              : () => Navigator.of(context).pop(false),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -255,14 +267,15 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
       selected: selected,
       label: text,
       excludeSemantics: true,
+      onTap: () => setState(() => _prompt = selected ? null : text),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => setState(() => _prompt = selected ? null : text),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: selected
                   ? AppColors.brandPurpleMid.withOpacity(0.18)
@@ -275,14 +288,16 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  text,
-                  style: TextStyle(
-                    color: selected
-                        ? AppColors.brandPurpleLight
-                        : AppColors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: selected
+                          ? AppColors.brandPurpleLight
+                          : AppColors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -351,6 +366,7 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
         button: true,
         label: recording ? 'Recording. Tap to stop' : 'Start recording',
         excludeSemantics: true,
+        onTap: recording ? _stop : _start,
         child: DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -432,26 +448,29 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
       ),
       child: Row(
         children: [
-          Tooltip(
-            message: 'Play preview',
-            child: Material(
-              type: MaterialType.transparency,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: Ink(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: AppColors.primaryGradient,
-                ),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _playPreview,
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    size: 28,
-                    color: AppColors.white,
+          Semantics(
+            button: true,
+            child: Tooltip(
+              message: 'Play preview',
+              child: Material(
+                type: MaterialType.transparency,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: Ink(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: AppColors.primaryGradient,
+                  ),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _playPreview,
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      size: 28,
+                      color: AppColors.white,
+                    ),
                   ),
                 ),
               ),

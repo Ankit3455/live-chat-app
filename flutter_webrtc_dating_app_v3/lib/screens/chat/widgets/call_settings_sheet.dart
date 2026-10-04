@@ -81,57 +81,61 @@ class _CallSettingsSheetState extends State<CallSettingsSheet> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: ValueListenableBuilder<Map<String, dynamic>?>(
-          valueListenable: widget.conversation,
-          builder: (context, data, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.borderStrong,
-                    borderRadius: BorderRadius.circular(2),
+        // Scrolls in landscape / large text.
+        child: SingleChildScrollView(
+          child: ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: widget.conversation,
+            builder: (context, data, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderStrong,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Semantics(
-                header: true,
-                child: Text(
-                  'Calls with ${widget.otherName}',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'Calls with ${widget.otherName}',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'A call type is available only when you both turn it on. '
-                'You can turn it off any time.',
-                style: TextStyle(
-                  color: AppColors.lavender,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (!widget.canEdit) ...[
-                const SizedBox(height: 8),
-                const AppBanner(
-                  message: 'Send a message first, then you can turn calls on.',
+                const SizedBox(height: 6),
+                const Text(
+                  'A call type is available only when you both turn it on. '
+                  'You can turn it off any time.',
+                  style: TextStyle(
+                    color: AppColors.lavender,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 8),
+                if (!widget.canEdit) ...[
+                  const SizedBox(height: 8),
+                  const AppBanner(
+                    message:
+                        'Send a message first, then you can turn calls on.',
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                _buildRow(data, CallType.audio),
+                const Divider(color: AppColors.border, height: 1),
+                _buildRow(data, CallType.video),
+                const SizedBox(height: 16),
+                CustomButton(
+                  text: 'Done',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
               ],
-              _buildRow(data, CallType.audio),
-              const Divider(color: AppColors.border, height: 1),
-              _buildRow(data, CallType.video),
-              const SizedBox(height: 16),
-              CustomButton(
-                text: 'Done',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
+            ),
           ),
         ),
       ),

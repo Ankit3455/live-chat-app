@@ -7,6 +7,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/custom_button.dart';
 
 // Camera zoom: 100 logical px = 1 world meter. The camera is anchored top-left,
 // so world = screen / pixelsPerMeter.
@@ -108,7 +109,7 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
               child: Text(
                 'Draw ramps with your finger to bring the hearts together',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: AppColors.lavender, fontSize: 14),
               ),
             ),
           ),
@@ -121,18 +122,25 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Match Found! ❤️',
-                      style: TextStyle(
-                        color: Colors.pinkAccent,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                    Semantics(
+                      header: true,
+                      liveRegion: true,
+                      child: const Text(
+                        'Match found! ❤️',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.pinkLight,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
+                    CustomButton(
+                      text: 'Play again',
+                      leftIcon: Icons.refresh,
+                      width: 200,
                       onPressed: _restart,
-                      child: const Text('Play again'),
                     ),
                   ],
                 ),

@@ -62,7 +62,7 @@ class _CustomButtonState extends State<CustomButton>
   double get _height {
     switch (widget.size) {
       case ButtonSize.small:
-        return 44;
+        return 48; // minimum touch target
       case ButtonSize.medium:
         return 52;
       case ButtonSize.large:
@@ -124,6 +124,8 @@ class _CustomButtonState extends State<CustomButton>
       child: Semantics(
         button: true,
         enabled: !_isDisabled,
+        // The spinner replaces the text while loading.
+        label: widget.isLoading ? '${widget.text}, loading' : null,
         child: GestureDetector(
           onTapDown: _onTapDown,
           onTapUp: _onTapUp,

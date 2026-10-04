@@ -51,13 +51,16 @@ class BrandHeader extends StatelessWidget {
       children: [
         const BrandMark(),
         const SizedBox(height: 18),
-        Text(
-          'Destined',
-          style: GoogleFonts.montserrat(
-            color: AppColors.white,
-            fontSize: 36,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
+        Semantics(
+          header: true,
+          child: Text(
+            'Destined',
+            style: GoogleFonts.montserrat(
+              color: AppColors.white,
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
           ),
         ),
         const SizedBox(height: 6),
@@ -176,6 +179,7 @@ class AuthPickerField extends StatelessWidget {
       button: true,
       label: '$semanticLabel, ${v ?? placeholder}, opens picker',
       excludeSemantics: true,
+      onTap: onTap,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
@@ -216,12 +220,14 @@ class ZodiacHelper extends StatelessWidget {
         children: [
           const Icon(Icons.auto_awesome, size: 14, color: AppColors.gold),
           const SizedBox(width: 6),
-          Text(
-            summary(dob),
-            style: const TextStyle(
-              color: AppColors.gold,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              summary(dob),
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -437,7 +443,18 @@ class _LoadingDotsState extends State<LoadingDots>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1200),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Only loop when motion is allowed.
+    if (MediaQuery.of(context).disableAnimations) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
 
   @override
   void dispose() {

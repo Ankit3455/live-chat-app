@@ -4,7 +4,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../services/carrom_stats_service.dart';
+import 'carrom_rank_badge.dart';
 import 'game_leaderboard_screen.dart';
 
 class CarromStatsCard extends StatefulWidget {
@@ -28,7 +30,10 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
 
   Future<void> _loadStats() async {
     final uid = widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
 
     final stats = await CarromStatsService.getUserStats(uid);
     if (mounted) {
@@ -41,6 +46,7 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
 
   @override
   Widget build(BuildContext context) {
+    final stats = _stats;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -48,116 +54,115 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.orange.withOpacity(0.2),
-            Colors.purple.withOpacity(0.1),
+            AppColors.brandPurple.withOpacity(0.22),
+            AppColors.brandPink.withOpacity(0.12),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.orange.withOpacity(0.3),
-        ),
+        border: Border.all(color: AppColors.brandPurpleMid.withOpacity(0.35)),
       ),
       child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CarromLeaderboardScreen(),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _loading
-                ? const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.orange,
-                  strokeWidth: 2,
+        type: MaterialType.transparency,
+        child: Semantics(
+          button: true,
+          hint: 'Opens the Carrom leaderboard',
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CarromLeaderboardScreen(),
                 ),
-              ),
-            )
-                : _stats == null
-                ? _buildEmptyState()
-                : _buildStatsContent(),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _loading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: AppColors.brandPurpleLight,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : stats == null
+                      ? _buildEmptyState()
+                      : _buildStatsContent(stats),
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildHeaderRow({required String subtitle, Widget? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.pinkLight.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.pinkLight.withOpacity(0.4)),
+          ),
+          child: const Icon(Icons.adjust, color: AppColors.pinkLight, size: 24),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Carrom',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(color: AppColors.lavender, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        trailing ??
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.lavender,
+              size: 22,
+            ),
+      ],
+    );
+  }
+
   Widget _buildEmptyState() {
     return Column(
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.radio_button_checked,
-                color: Colors.orange,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Carrom',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'No games played yet',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white38,
-              size: 16,
-            ),
-          ],
-        ),
+        _buildHeaderRow(subtitle: 'No games played yet'),
         const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.play_circle_outline,
-                color: Colors.orange.withOpacity(0.7),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Play your first game!',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 13,
+              Icon(Icons.play_circle_outline, color: AppColors.pinkLight),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Play your first game!',
+                  style: TextStyle(color: AppColors.lavender, fontSize: 14),
                 ),
               ),
             ],
@@ -167,93 +172,62 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
     );
   }
 
-  Widget _buildStatsContent() {
+  Widget _buildStatsContent(CarromStats stats) {
     return Column(
       children: [
-        // Header
+        _buildHeaderRow(
+          subtitle: '${stats.totalGames} games played',
+          trailing: CarromTierBadge(tier: stats.rank),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.radio_button_checked,
-                color: Colors.orange,
-                size: 24,
+            Expanded(
+              child: _buildStatBox('Wins', '${stats.wins}', AppColors.success),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatBox(
+                'Win rate',
+                '${stats.winRate.toStringAsFixed(0)}%',
+                AppColors.brandPurpleLight,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Carrom',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    '${_stats!.totalGames} games played',
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+              child: _buildStatBox(
+                'Best streak',
+                '${stats.bestWinStreak}🔥',
+                AppColors.pinkLight,
               ),
             ),
-            _buildRankBadge(_stats!.rank),
           ],
         ),
-        const SizedBox(height: 20),
-
-        // Stats Grid
-        Row(
-          children: [
-            Expanded(child: _buildStatBox('Wins', '${_stats!.wins}', Colors.green)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatBox('Win Rate', '${_stats!.winRate.toStringAsFixed(0)}%', Colors.blue)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatBox('Best Streak', '${_stats!.bestWinStreak}🔥', Colors.orange)),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // View Leaderboard
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Row(
+        const SizedBox(height: 12),
+        const SizedBox(
+          height: 48,
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.leaderboard,
-                color: Colors.orange,
+                Icons.leaderboard_outlined,
+                color: AppColors.brandPurpleLight,
                 size: 18,
               ),
               SizedBox(width: 8),
               Text(
-                'View Leaderboard',
+                'View leaderboard',
                 style: TextStyle(
-                  color: Colors.orange,
-                  fontSize: 13,
+                  color: AppColors.brandPurpleLight,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(width: 4),
+              SizedBox(width: 2),
               Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.orange,
-                size: 12,
+                Icons.chevron_right,
+                color: AppColors.brandPurpleLight,
+                size: 18,
               ),
             ],
           ),
@@ -264,13 +238,11 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
 
   Widget _buildStatBox(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-        ),
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -279,66 +251,14 @@ class _CarromStatsCardState extends State<CarromStatsCard> {
             style: TextStyle(
               color: color,
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRankBadge(String rank) {
-    Color badgeColor;
-    switch (rank.toLowerCase()) {
-      case 'legend':
-        badgeColor = Colors.purple;
-        break;
-      case 'diamond':
-        badgeColor = Colors.cyan;
-        break;
-      case 'platinum':
-        badgeColor = Colors.blueGrey;
-        break;
-      case 'gold':
-        badgeColor = Colors.amber;
-        break;
-      case 'silver':
-        badgeColor = Colors.grey.shade400;
-        break;
-      case 'bronze':
-        badgeColor = Colors.brown;
-        break;
-      default:
-        badgeColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: badgeColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.military_tech, color: badgeColor, size: 16),
-          const SizedBox(width: 4),
-          Text(
-            rank,
-            style: TextStyle(
-              color: badgeColor,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.lavender, fontSize: 12),
           ),
         ],
       ),

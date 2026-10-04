@@ -78,6 +78,7 @@ class ProfileHeader extends StatelessWidget {
                   child: Semantics(
                     image: true,
                     label: 'Your profile photo',
+                    excludeSemantics: true,
                     child: UserAvatar(user: user, size: 112, borderRadius: 56),
                   ),
                 ),
@@ -141,6 +142,7 @@ class ProfileHeader extends StatelessWidget {
         button: true,
         label: 'Change photo or avatar',
         excludeSemantics: true,
+        onTap: busy ? null : onChangePhoto,
         child: InkResponse(
           onTap: busy ? null : onChangePhoto,
           radius: 24,
@@ -176,6 +178,7 @@ class ProfileHeader extends StatelessWidget {
         button: true,
         label: 'Avatar made from your answers. See why',
         excludeSemantics: true,
+        onTap: onTap,
         child: InkResponse(
           onTap: onTap,
           radius: 24,

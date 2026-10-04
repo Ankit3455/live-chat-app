@@ -351,6 +351,19 @@ class _AvailChatAppState extends State<AvailChatApp>
       scaffoldMessengerKey: _router.messengerKey,
       navigatorObservers: [_router.observer],
       theme: AppTheme.darkTheme,
+      // Honour large text but cap it so layouts stay intact.
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: mq.textScaler.clamp(
+              minScaleFactor: 0.85,
+              maxScaleFactor: 1.35,
+            ),
+          ),
+          child: child!,
+        );
+      },
       home: const SplashScreen(),
       routes: {
         '/splash': (_) => const SplashScreen(),

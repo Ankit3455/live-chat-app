@@ -92,7 +92,7 @@ class HomeOnboarding {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Tutorial is already running'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.surfaceCard,
         ),
       );
       return;
@@ -108,7 +108,7 @@ class HomeOnboarding {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           content: Text('Please wait for profiles to load'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.surfaceCard,
         ),
       );
       return;
@@ -151,11 +151,13 @@ class HomeOnboarding {
       colorShadow: AppColors.backgroundDarkest,
       paddingFocus: 10,
       opacityShadow: 0.9,
+      // No looping pulse under reduced motion.
+      pulseEnable: !MediaQuery.disableAnimationsOf(context),
       hideSkip: false,
       textSkip: "SKIP",
       alignSkip: Alignment.topRight,
       textStyleSkip: const TextStyle(
-        color: Colors.white60,
+        color: AppColors.textMuted,
         fontSize: 14,
         fontWeight: FontWeight.w500,
         letterSpacing: 1,
@@ -332,7 +334,7 @@ class HomeOnboarding {
                   stepNumber: 3 + stepOffset,
                   totalSteps: totalSteps,
                   icon: Icons.pan_tool_rounded,
-                  iconColor: const Color(0xFFFF6B6B),
+                  iconColor: AppColors.error,
                   title: "Hold for More Details 📋",
                   description:
                   "Press and hold any profile to see detailed info like interests, bio, and compatibility!",
@@ -495,69 +497,75 @@ class HomeOnboarding {
             children: [
               // Skip button (optional)
               if (onSkipTap != null)
-                GestureDetector(
-                  onTap: onSkipTap,
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 14, horizontal: 8),
-                    child: Text(
-                      "Skip",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                Semantics(
+                  button: true,
+                  child: GestureDetector(
+                    onTap: onSkipTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 15, horizontal: 8),
+                      child: Text(
+                        "Skip",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 ),
               const Spacer(),
-              // Main button
-              GestureDetector(
-                onTap: onButtonTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isLastStep
-                          ? [AppColors.online, AppColors.onlineDeep]
-                          : [AppColors.brandPurple, AppColors.brandMagenta],
+              // Main button (48dp tall)
+              Semantics(
+                button: true,
+                child: GestureDetector(
+                  onTap: onButtonTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isLastStep
-                            ? AppColors.online
-                            : AppColors.brandPurple)
-                            .withOpacity(0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isLastStep
+                            ? [AppColors.online, AppColors.onlineDeep]
+                            : [AppColors.brandPurple, AppColors.brandMagenta],
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        buttonText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isLastStep
+                              ? AppColors.online
+                              : AppColors.brandPurple)
+                              .withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        isLastStep
-                            ? Icons.celebration_rounded
-                            : Icons.arrow_forward_rounded,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          buttonText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          isLastStep
+                              ? Icons.celebration_rounded
+                              : Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -621,7 +629,7 @@ class HomeOnboarding {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black54,
+      barrierColor: Colors.black.withValues(alpha: 0.54),
       builder: (context) => _CompletionDialog(),
     );
   }
@@ -677,7 +685,10 @@ class _CompletionDialogState extends State<_CompletionDialog>
   @override
   Widget build(BuildContext context) {
     return ScaleTransition(
-      scale: _scaleAnimation,
+      // Reduced motion: no bounce-in.
+      scale: MediaQuery.disableAnimationsOf(context)
+          ? const AlwaysStoppedAnimation<double>(1.0)
+          : _scaleAnimation,
       child: Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
@@ -720,12 +731,16 @@ class _CompletionDialogState extends State<_CompletionDialog>
               const SizedBox(height: 16),
 
               // Title
-              const Text(
-                "You're All Set! 🎉",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              Semantics(
+                header: true,
+                child: const Text(
+                  "You're All Set! 🎉",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -742,32 +757,35 @@ class _CompletionDialogState extends State<_CompletionDialog>
               const SizedBox(height: 20),
 
               // Button
-              GestureDetector(
-                onTap: _close,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.online, AppColors.onlineDeep],
+              Semantics(
+                button: true,
+                child: GestureDetector(
+                  onTap: _close,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.online.withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.online, AppColors.onlineDeep],
                       ),
-                    ],
-                  ),
-                  child: const Text(
-                    "Let's Go!",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.online.withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      "Let's Go!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),

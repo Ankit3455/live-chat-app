@@ -183,17 +183,20 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.surface2,
-                  foregroundImage: image,
-                  onForegroundImageError: image != null ? (_, __) {} : null,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: const TextStyle(
-                      color: AppColors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                // Name is read from the text beside it.
+                ExcludeSemantics(
+                  child: CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.surface2,
+                    foregroundImage: image,
+                    onForegroundImageError: image != null ? (_, __) {} : null,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -235,6 +238,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
+                          semanticsLabel: 'Unblocking',
                           strokeWidth: 2,
                           color: AppColors.brandPurpleLight,
                         ),

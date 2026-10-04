@@ -182,7 +182,12 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                         _buildTopBar(status),
                         if (reconnecting)
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 136, 0),
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              4,
+                              _previewSize.width + 32,
+                              0,
+                            ),
                             child: _buildReconnectingBanner(),
                           ),
                       ],
@@ -289,14 +294,21 @@ class _VideoCallScreenState extends State<VideoCallScreen>
     );
   }
 
+  // Landscape uses a landscape-shaped preview so it clears the controls.
+  Size get _previewSize =>
+      MediaQuery.orientationOf(context) == Orientation.landscape
+      ? const Size(148, 104)
+      : const Size(104, 148);
+
   Widget _buildLocalPreview() {
+    final previewSize = _previewSize;
     final hasLocal = _renderersReady && _localRenderer.srcObject != null;
     final cameraOn = callService.isVideoEnabled;
     return Semantics(
       label: 'Your camera preview',
       child: Container(
-        width: 104,
-        height: 148,
+        width: previewSize.width,
+        height: previewSize.height,
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),

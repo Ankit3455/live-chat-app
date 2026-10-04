@@ -313,43 +313,52 @@ class _LoginScreenState extends State<LoginScreen> {
         enabled: !disabled,
         label: 'Continue with Google',
         excludeSemantics: true,
+        onTap: disabled ? null : _handleGoogleSignIn,
         child: Material(
           color: AppColors.white,
           shape: const StadiumBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: disabled ? null : _handleGoogleSignIn,
-            child: SizedBox(
-              height: 52,
-              child: Center(
-                child: _googleBusy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          color: AppColors.brandPurple,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            AppAssets.googleIcon,
-                            width: 20,
-                            height: 20,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 52),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Center(
+                  child: _googleBusy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: AppColors.brandPurple,
+                            strokeWidth: 2.5,
                           ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Continue with Google',
-                            style: TextStyle(
-                              color: AppColors.backgroundDeep,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              AppAssets.googleIcon,
+                              width: 20,
+                              height: 20,
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            const Flexible(
+                              child: Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  color: AppColors.backgroundDeep,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ),
           ),

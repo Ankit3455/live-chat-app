@@ -36,10 +36,20 @@ class _SplashScreenState extends State<SplashScreen>
       end: 1.0,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
-    _controller.forward();
-
     // Auto navigate after 2 seconds
     Future.delayed(const Duration(seconds: 2), _checkAuthAndNavigate);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_controller.isAnimating || _controller.isCompleted) return;
+    // Reduced motion: show the final frame.
+    if (MediaQuery.of(context).disableAnimations) {
+      _controller.value = 1.0;
+    } else {
+      _controller.forward();
+    }
   }
 
   @override

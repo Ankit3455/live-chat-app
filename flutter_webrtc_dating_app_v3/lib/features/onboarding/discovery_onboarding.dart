@@ -63,6 +63,7 @@ class DiscoveryOnboarding {
       }
     }
 
+    if (!context.mounted) return;
     debugPrint('✅ DiscoveryOnboarding: Starting tutorial');
     _show(context);
   }
@@ -72,7 +73,7 @@ class DiscoveryOnboarding {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Tutorial is already running'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.surfaceCard,
         ),
       );
       return;
@@ -86,7 +87,7 @@ class DiscoveryOnboarding {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please wait for the screen to load'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.surfaceCard,
         ),
       );
       return;
@@ -124,11 +125,13 @@ class DiscoveryOnboarding {
       colorShadow: AppColors.backgroundDarkest,
       paddingFocus: 8,
       opacityShadow: 0.9,
+      // No looping pulse under reduced motion.
+      pulseEnable: !MediaQuery.disableAnimationsOf(context),
       hideSkip: false,
       textSkip: "SKIP",
       alignSkip: Alignment.topRight,
       textStyleSkip: const TextStyle(
-        color: Colors.white60,
+        color: AppColors.textMuted,
         fontSize: 14,
         fontWeight: FontWeight.w500,
         letterSpacing: 1,
@@ -258,7 +261,7 @@ class DiscoveryOnboarding {
                   stepNumber: 3,
                   totalSteps: totalSteps,
                   icon: Icons.people_rounded,
-                  iconColor: const Color(0xFFE91E63),
+                  iconColor: AppColors.brandPink,
                   title: "Gender Preference 👥",
                   description: "Choose: Everyone, Men, or Women",
                   onNext: () {
@@ -296,7 +299,7 @@ class DiscoveryOnboarding {
                   stepNumber: 4,
                   totalSteps: totalSteps,
                   icon: Icons.cake_rounded,
-                  iconColor: const Color(0xFF64B5F6),
+                  iconColor: AppColors.brandPurpleLight,
                   title: "Age Range 🎂",
                   description: "Set minimum and maximum age (18-60)",
                   onNext: () {
@@ -334,7 +337,7 @@ class DiscoveryOnboarding {
                   stepNumber: 5,
                   totalSteps: totalSteps,
                   icon: Icons.social_distance_rounded,
-                  iconColor: const Color(0xFFFF9800),
+                  iconColor: AppColors.warning,
                   title: "Distance Limit 📏",
                   description: "Max distance to find matches (5-100 km)",
                   onNext: () {
@@ -372,7 +375,7 @@ class DiscoveryOnboarding {
                   stepNumber: 6,
                   totalSteps: totalSteps,
                   icon: Icons.circle,
-                  iconColor: const Color(0xFF4CAF50),
+                  iconColor: AppColors.success,
                   title: "Online Only 🟢",
                   description: "Show only users who are currently online",
                   onNext: () {
@@ -415,7 +418,7 @@ class DiscoveryOnboarding {
                   stepNumber: 7,
                   totalSteps: totalSteps,
                   icon: Icons.my_location_rounded,
-                  iconColor: const Color(0xFFFF6B6B),
+                  iconColor: AppColors.error,
                   title: "Update Location 📍",
                   description: "Tap to use your current location",
                   onNext: () {
@@ -559,7 +562,7 @@ class DiscoveryOnboarding {
                 "$stepNumber/$totalSteps",
                 style: const TextStyle(
                   color: AppColors.lavender,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -608,68 +611,79 @@ class DiscoveryOnboarding {
           Row(
             children: [
               if (onSkip != null)
-                GestureDetector(
-                  onTap: onSkip,
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 14, horizontal: 8),
-                    child: Text(
-                      "Skip",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                Semantics(
+                  button: true,
+                  child: GestureDetector(
+                    onTap: onSkip,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 17, horizontal: 8),
+                      child: Text(
+                        "Skip",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 ),
               const Spacer(),
-              GestureDetector(
-                onTap: onNext,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isLastStep
-                          ? [AppColors.online, AppColors.onlineDeep]
-                          : [AppColors.brandPurple, AppColors.brandMagenta],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isLastStep
-                            ? AppColors.online
-                            : AppColors.brandPurple)
-                            .withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+              // Transparent padding gives a 48dp hit area.
+              Semantics(
+                button: true,
+                child: GestureDetector(
+                  onTap: onNext,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isLastStep ? "Done!" : "Next",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isLastStep
+                              ? [AppColors.online, AppColors.onlineDeep]
+                              : [AppColors.brandPurple, AppColors.brandMagenta],
                         ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isLastStep
+                                ? AppColors.online
+                                : AppColors.brandPurple)
+                                .withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        isLastStep
-                            ? Icons.celebration_rounded
-                            : Icons.arrow_forward_rounded,
-                        color: Colors.white,
-                        size: 14,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isLastStep ? "Done!" : "Next",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            isLastStep
+                                ? Icons.celebration_rounded
+                                : Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -705,9 +719,11 @@ class DiscoveryOnboarding {
             children: [
               Icon(Icons.check_circle, color: AppColors.online),
               SizedBox(width: 10),
-              Text(
-                'Discovery tutorial complete!',
-                style: TextStyle(color: Colors.white),
+              Expanded(
+                child: Text(
+                  'Discovery tutorial complete!',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),

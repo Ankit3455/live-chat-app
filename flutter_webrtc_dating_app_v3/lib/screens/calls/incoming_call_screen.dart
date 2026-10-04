@@ -59,7 +59,21 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 2400),
       vsync: this,
-    )..repeat();
+    );
+  }
+
+  bool _reduceMotion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: no ripple rings.
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _pulseController.stop();
+    } else if (!_pulseController.isAnimating) {
+      _pulseController.repeat();
+    }
   }
 
   Future<void> _playRingtone() async {
@@ -272,7 +286,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
                           ),
                           const SizedBox(height: 24),
                           CallHalo(
-                            pulse: _pulseController,
+                            pulse: _reduceMotion ? null : _pulseController,
                             avatar: CallAvatar(
                               name: callerName,
                               imageUrl: call.otherAvatarFor(call.receiverId),

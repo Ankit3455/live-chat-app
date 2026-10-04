@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../widgets/custom_button.dart';
 
 class CarromMatchScreen extends StatefulWidget {
   final String matchId;
@@ -139,7 +140,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     _glowController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
-    )..repeat(reverse: true);
+    );
     _glowAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
@@ -148,7 +149,20 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     _backgroundController = AnimationController(
       duration: const Duration(seconds: 10),
       vsync: this,
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: the glow and drifting background stay still.
+    if (MediaQuery.of(context).disableAnimations) {
+      _glowController.stop();
+      _backgroundController.stop();
+    } else {
+      if (!_glowController.isAnimating) _glowController.repeat(reverse: true);
+      if (!_backgroundController.isAnimating) _backgroundController.repeat();
+    }
   }
 
   void _listenMatch() {
@@ -341,8 +355,14 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
 
           // Main Content
           SafeArea(
-            child: Column(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
               children: [
+                const SizedBox(height: 16),
                 const Spacer(flex: 2),
 
                 // Match Found Title
@@ -364,8 +384,12 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                 if (!_navigated && _matchData?['status'] != 'started')
                   _buildCancelButton(),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
               ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -394,7 +418,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               colors: const [
                 AppColors.backgroundDeep,
                 AppColors.surfaceCard,
-                Color(0xFF3D2B5E),
+                AppColors.surface2,
                 AppColors.surfaceCard,
               ],
               stops: const [0.0, 0.3, 0.7, 1.0],
@@ -414,27 +438,27 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           style: TextStyle(fontSize: 32),
         ),
         const SizedBox(height: 8),
-        ShaderMask(
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Colors.orange, Colors.yellow, Colors.orange],
-          ).createShader(bounds),
-          child: const Text(
-            'MATCH FOUND!',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 3,
+        Semantics(
+          header: true,
+          liveRegion: true,
+          child: ShaderMask(
+            shaderCallback: (bounds) =>
+                AppColors.primaryGradient.createShader(bounds),
+            child: const Text(
+              'Match found!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 8),
-        Text(
+        const Text(
           'Get ready to play!',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
-            fontSize: 14,
-          ),
+          style: TextStyle(color: AppColors.lavender, fontSize: 15),
         ),
       ],
     );
@@ -454,7 +478,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               name: _myName,
               avatar: _myAvatar,
               isMe: true,
-              color: Colors.blue,
+              color: AppColors.brandPurpleLight,
             ),
           ),
 
@@ -471,15 +495,10 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.red.shade400,
-                          Colors.red.shade700,
-                        ],
-                      ),
+                      gradient: AppColors.primaryGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.red.withOpacity(0.3 + (_glowAnimation.value * 0.3)),
+                          color: AppColors.brandPink.withOpacity(0.3 + (_glowAnimation.value * 0.3)),
                           blurRadius: 20 + (_glowAnimation.value * 15),
                           spreadRadius: 5 + (_glowAnimation.value * 5),
                         ),
@@ -487,8 +506,9 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                     ),
                     child: const Text(
                       'VS',
+                      semanticsLabel: 'versus',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
@@ -507,7 +527,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               name: _opponentName,
               avatar: _opponentAvatar,
               isMe: false,
-              color: Colors.orange,
+              color: AppColors.pinkLight,
             ),
           ),
         ],
@@ -566,7 +586,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.white,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -579,16 +599,16 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
+              color: color.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withOpacity(0.5)),
             ),
-            child: const Text(
-              'YOU',
+            child: Text(
+              'You',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -615,23 +635,20 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
 
   Widget _buildCountdownOrStatus() {
     if (!_countdownStarted) {
-      return Column(
+      return const Column(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 24,
             height: 24,
             child: CircularProgressIndicator(
-              color: Colors.white,
+              color: AppColors.brandPurpleLight,
               strokeWidth: 2,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
-            'Preparing match...',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 16,
-            ),
+            'Preparing match…',
+            style: TextStyle(color: AppColors.lavender, fontSize: 16),
           ),
         ],
       );
@@ -639,7 +656,9 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
 
     return ScaleTransition(
       scale: _countdownScale,
-      child: Column(
+      child: Semantics(
+        liveRegion: true,
+        child: Column(
         children: [
           // Countdown Number or GO!
           Container(
@@ -647,9 +666,11 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _showGo ? Colors.green : Colors.white.withOpacity(0.1),
+              color: _showGo
+                  ? AppColors.success.withOpacity(0.2)
+                  : AppColors.surface2,
               border: Border.all(
-                color: _showGo ? Colors.green : Colors.white.withOpacity(0.3),
+                color: _showGo ? AppColors.success : AppColors.borderStrong,
                 width: 3,
               ),
             ),
@@ -657,7 +678,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
               child: Text(
                 _showGo ? 'GO!' : '$_countdown',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.white,
                   fontSize: _showGo ? 36 : 60,
                   fontWeight: FontWeight.bold,
                 ),
@@ -666,34 +687,23 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
           ),
           const SizedBox(height: 16),
           Text(
-            _showGo ? 'Starting game...' : 'Get ready!',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 16,
-            ),
+            _showGo ? 'Starting game…' : 'Get ready!',
+            style: const TextStyle(color: AppColors.lavender, fontSize: 16),
           ),
         ],
+        ),
       ),
     );
   }
 
   Widget _buildCancelButton() {
-    return TextButton(
+    return CustomButton(
+      text: 'Cancel',
+      leftIcon: Icons.close,
+      type: ButtonType.text,
+      width: 200,
       onPressed: _cancelMatch,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.close, color: Colors.red.shade300, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            'Cancel',
-            style: TextStyle(
-              color: Colors.red.shade300,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
     );
   }
+
 }

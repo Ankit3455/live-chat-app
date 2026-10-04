@@ -16,15 +16,17 @@ class ZodiacSignSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tile height grows with the user's text size.
+    final extent = MediaQuery.textScalerOf(context).scale(60);
     return GridView.builder(
       shrinkWrap: true,
       padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        mainAxisExtent: 60,
+        mainAxisExtent: extent,
       ),
       itemCount: AstrologyUtils.zodiacSigns.length,
       itemBuilder: (context, index) {
@@ -60,6 +62,7 @@ class _SignTile extends StatelessWidget {
       selected: selected,
       label: sign,
       excludeSemantics: true,
+      onTap: onTap,
       child: Material(
         color: selected
             ? AppColors.gold.withOpacity(0.12)

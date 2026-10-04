@@ -130,6 +130,8 @@ class ProfileCompletionCard extends StatelessWidget {
           Expanded(
             child: Text(
               item.label,
+              semanticsLabel:
+                  '${item.label}, ${item.done ? 'done' : 'not done'}',
               style: TextStyle(
                 color: item.done ? AppColors.textSubtle : AppColors.white,
                 fontSize: 14,

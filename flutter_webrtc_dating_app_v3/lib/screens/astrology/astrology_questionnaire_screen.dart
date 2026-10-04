@@ -94,96 +94,120 @@ class _AstrologyQuestionnaireScreenState
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Your cosmic profile',
-                        style: textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Used for the compatibility score on profile cards.',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 14,
-                          height: 1.45,
+                  child: _constrained(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            'Your cosmic profile',
+                            style: textTheme.headlineMedium,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _sunSignCard(textTheme),
-                      if (_vm.ownSign != null) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         const Text(
-                          'Wrong sign? Update your birth date in Edit profile.',
+                          'Used for the compatibility score on profile cards.',
                           style: TextStyle(
-                            color: AppColors.textSubtle,
-                            fontSize: 12,
+                            color: AppColors.textMuted,
+                            fontSize: 14,
+                            height: 1.45,
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 24),
-                      Text(
-                        'How much do you believe in astrology?',
-                        style: textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          for (var i = 0; i < _beliefChoices.length; i++) ...[
-                            if (i > 0) const SizedBox(width: 8),
-                            Expanded(
-                              child: _beliefCard(
-                                label: _beliefChoices[i].label,
-                                emoji: _beliefChoices[i].emoji,
-                                selected: _vm.belief == _beliefChoices[i].value,
-                                onTap: () =>
-                                    _vm.setBelief(_beliefChoices[i].value),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Signs you vibe with',
-                              style: textTheme.titleLarge,
-                            ),
-                          ),
-                          Text(
-                            '${_vm.preferredSigns.length} selected',
-                            style: const TextStyle(
+                        const SizedBox(height: 20),
+                        _sunSignCard(textTheme),
+                        if (_vm.ownSign != null) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Wrong sign? Update your birth date in Edit profile.',
+                            style: TextStyle(
                               color: AppColors.textSubtle,
                               fontSize: 12,
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      ZodiacSignSelector(
-                        selectedSigns: _vm.preferredSigns,
-                        onToggle: _vm.toggleSign,
-                      ),
-                      const SizedBox(height: 20),
-                      const AppBanner(message: CompatibilityService.tooltip),
-                    ],
+                        const SizedBox(height: 24),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            'How much do you believe in astrology?',
+                            style: textTheme.titleLarge,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            for (var i = 0; i < _beliefChoices.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              Expanded(
+                                child: _beliefCard(
+                                  label: _beliefChoices[i].label,
+                                  emoji: _beliefChoices[i].emoji,
+                                  selected:
+                                      _vm.belief == _beliefChoices[i].value,
+                                  onTap: () =>
+                                      _vm.setBelief(_beliefChoices[i].value),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  'Signs you vibe with',
+                                  style: textTheme.titleLarge,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${_vm.preferredSigns.length} selected',
+                              style: const TextStyle(
+                                color: AppColors.textSubtle,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ZodiacSignSelector(
+                          selectedSigns: _vm.preferredSigns,
+                          onToggle: _vm.toggleSign,
+                        ),
+                        const SizedBox(height: 20),
+                        const AppBanner(message: CompatibilityService.tooltip),
+                      ],
+                    ),
                   ),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: CustomButton(
-                  text: 'Save',
-                  onPressed: _vm.isLoading || _vm.isSaving ? null : _save,
-                  isLoading: _vm.isSaving,
+                child: _constrained(
+                  CustomButton(
+                    text: 'Save',
+                    onPressed: _vm.isLoading || _vm.isSaving ? null : _save,
+                    isLoading: _vm.isSaving,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Caps line length on tablets.
+  Widget _constrained(Widget child) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: child,
       ),
     );
   }
@@ -233,10 +257,19 @@ class _AstrologyQuestionnaireScreenState
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.gold.withOpacity(0.45)),
             ),
+            // Decorative; the sign name is read from the title.
             child: glyph != null
-                ? Text(
-                    glyph,
-                    style: const TextStyle(fontSize: 34, color: AppColors.gold),
+                ? ExcludeSemantics(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        glyph,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          color: AppColors.gold,
+                        ),
+                      ),
+                    ),
                   )
                 : const Icon(
                     Icons.auto_awesome,
@@ -290,6 +323,7 @@ class _AstrologyQuestionnaireScreenState
       button: true,
       label: label,
       excludeSemantics: true,
+      onTap: onTap,
       child: Material(
         color: selected
             ? AppColors.brandPurpleMid.withOpacity(0.14)

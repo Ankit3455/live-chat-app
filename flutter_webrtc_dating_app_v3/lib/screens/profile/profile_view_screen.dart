@@ -28,6 +28,8 @@ class ProfileViewScreen extends StatelessWidget {
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 user.username,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -51,51 +53,63 @@ class ProfileViewScreen extends StatelessWidget {
 
           // Main content
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ✅ Avatar + Username + Bio + progress
-                  ProfileInfoCard(
-                    user: user,
-                    completionPercentage: 100, // Viewing other user → assume full
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ✅ Stats Row
-                  ProfileStatsRow(user: user),
-                  const SizedBox(height: 24),
-
-                  // ✅ Interests Grid
-                  if (user.interests.isNotEmpty) ...[
-                    const Text(
-                      'Interests',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ✅ Avatar + Username + Bio + progress
+                      ProfileInfoCard(
+                        user: user,
+                        completionPercentage:
+                            100, // Viewing other user → assume full
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    InterestsGrid(interests: user.interests),
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 16),
 
-                  // ✅ Astrology Profile Card
-                  const Text(
-                    'Astrology Profile',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                      // ✅ Stats Row
+                      ProfileStatsRow(user: user),
+                      const SizedBox(height: 24),
+
+                      // ✅ Interests Grid
+                      if (user.interests.isNotEmpty) ...[
+                        Semantics(
+                          header: true,
+                          child: const Text(
+                            'Interests',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InterestsGrid(interests: user.interests),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // ✅ Astrology Profile Card
+                      Semantics(
+                        header: true,
+                        child: const Text(
+                          'Astrology Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AstrologyCompatibilityCard(user: user),
+
+                      const SizedBox(height: 100), // bottom space for FAB
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  AstrologyCompatibilityCard(user: user),
-
-                  const SizedBox(height: 100), // bottom space for FAB
-                ],
+                ),
               ),
             ),
           ),
@@ -108,10 +122,7 @@ class ProfileViewScreen extends StatelessWidget {
         icon: const Icon(Icons.chat, color: Colors.white),
         label: const Text(
           'Message',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         onPressed: () {
           Navigator.push(

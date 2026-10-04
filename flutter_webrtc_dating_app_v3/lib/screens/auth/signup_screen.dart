@@ -204,12 +204,19 @@ class _SignupScreenState extends State<SignupScreen> {
                     onPressed: () => Navigator.maybePop(context),
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    'Create account',
-                    style: GoogleFonts.montserrat(
-                      color: AppColors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        'Create account',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.montserrat(
+                          color: AppColors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -220,150 +227,156 @@ class _SignupScreenState extends State<SignupScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'Two quick parts: your login, then the birth details '
-                        'we use to read your chart.',
-                        style: TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 14,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const AuthLabel('Email'),
-                      _buildTextField(
-                        controller: _emailController,
-                        hint: 'you@example.com',
-                        icon: Icons.mail_outline,
-                        keyboardType: TextInputType.emailAddress,
-                        autofillHints: const [AutofillHints.email],
-                        validator: AuthValidators.email,
-                      ),
-                      const SizedBox(height: 16),
-                      const AuthLabel('Password'),
-                      _buildTextField(
-                        controller: _passwordController,
-                        hint: 'At least 8 characters, letters and numbers',
-                        icon: Icons.lock_outline,
-                        obscure: _obscurePassword,
-                        suffix: _visibilityToggle(
-                          _obscurePassword,
-                          () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                        autofillHints: const [AutofillHints.newPassword],
-                        validator: AuthValidators.newPassword,
-                      ),
-                      const SizedBox(height: 16),
-                      const AuthLabel('Confirm password'),
-                      _buildTextField(
-                        controller: _confirmPasswordController,
-                        hint: 'Type it again',
-                        icon: Icons.lock_outline,
-                        obscure: _obscureConfirm,
-                        suffix: _visibilityToggle(
-                          _obscureConfirm,
-                          () => setState(
-                            () => _obscureConfirm = !_obscureConfirm,
-                          ),
-                        ),
-                        validator: (v) => AuthValidators.confirmPassword(
-                          v,
-                          _passwordController.text,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader(),
-                      const SizedBox(height: 16),
-                      const AuthLabel('Birth date', required: true),
-                      _buildTextField(
-                        controller: _birthDateController,
-                        hint: 'DD/MM/YYYY',
-                        icon: Icons.calendar_today_outlined,
-                        readOnly: true,
-                        onTap: _isLoading ? null : _pickBirthDate,
-                        validator: _validateDob,
-                      ),
-                      if (dob != null) ZodiacHelper(dob: dob),
-                      const SizedBox(height: 16),
-                      const AuthLabel('Birth time', optional: true),
-                      _buildTextField(
-                        controller: _birthTimeController,
-                        hint: 'HH:MM',
-                        icon: Icons.access_time,
-                        readOnly: true,
-                        onTap: _isLoading ? null : _pickBirthTime,
-                        helper:
-                            "Makes your chart more precise. Skip it if "
-                            "you're not sure.",
-                      ),
-                      const SizedBox(height: 16),
-                      const AuthLabel('Birth location', required: true),
-                      _buildTextField(
-                        controller: _birthLocationController,
-                        hint: 'City, Country',
-                        icon: Icons.location_on_outlined,
-                        validator: (v) => (v ?? '').trim().isEmpty
-                            ? 'Birth location is required'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      AuthCheckRow(
-                        value: _confirmedAdult,
-                        onChanged: _isLoading
-                            ? null
-                            : (v) => setState(() {
-                                _confirmedAdult = v;
-                                if (v) _adultError = false;
-                              }),
-                        errorText: _adultError
-                            ? 'Please confirm you are 18 or older'
-                            : null,
-                        label: const Text(
-                          'I confirm I am 18 or older',
-                          style: TextStyle(
-                            color: AppColors.white,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                // Cap line length on tablets.
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            'Already have an account? ',
+                            'Two quick parts: your login, then the birth details '
+                            'we use to read your chart.',
                             style: TextStyle(
                               color: AppColors.lavender,
                               fontSize: 14,
+                              height: 1.45,
                             ),
                           ),
-                          TextButton(
-                            onPressed: _isLoading
-                                ? null
-                                : () => Navigator.maybePop(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.brandPurpleLight,
-                              minimumSize: const Size(48, 48),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
+                          const SizedBox(height: 20),
+                          const AuthLabel('Email'),
+                          _buildTextField(
+                            controller: _emailController,
+                            hint: 'you@example.com',
+                            icon: Icons.mail_outline,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            validator: AuthValidators.email,
+                          ),
+                          const SizedBox(height: 16),
+                          const AuthLabel('Password'),
+                          _buildTextField(
+                            controller: _passwordController,
+                            hint: 'At least 8 characters, letters and numbers',
+                            icon: Icons.lock_outline,
+                            obscure: _obscurePassword,
+                            suffix: _visibilityToggle(
+                              _obscurePassword,
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
                               ),
                             ),
-                            child: const Text(
-                              'Log in',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                            autofillHints: const [AutofillHints.newPassword],
+                            validator: AuthValidators.newPassword,
+                          ),
+                          const SizedBox(height: 16),
+                          const AuthLabel('Confirm password'),
+                          _buildTextField(
+                            controller: _confirmPasswordController,
+                            hint: 'Type it again',
+                            icon: Icons.lock_outline,
+                            obscure: _obscureConfirm,
+                            suffix: _visibilityToggle(
+                              _obscureConfirm,
+                              () => setState(
+                                () => _obscureConfirm = !_obscureConfirm,
+                              ),
                             ),
+                            validator: (v) => AuthValidators.confirmPassword(
+                              v,
+                              _passwordController.text,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(),
+                          const SizedBox(height: 16),
+                          const AuthLabel('Birth date', required: true),
+                          _buildTextField(
+                            controller: _birthDateController,
+                            hint: 'DD/MM/YYYY',
+                            icon: Icons.calendar_today_outlined,
+                            readOnly: true,
+                            onTap: _isLoading ? null : _pickBirthDate,
+                            validator: _validateDob,
+                          ),
+                          if (dob != null) ZodiacHelper(dob: dob),
+                          const SizedBox(height: 16),
+                          const AuthLabel('Birth time', optional: true),
+                          _buildTextField(
+                            controller: _birthTimeController,
+                            hint: 'HH:MM',
+                            icon: Icons.access_time,
+                            readOnly: true,
+                            onTap: _isLoading ? null : _pickBirthTime,
+                            helper:
+                                "Makes your chart more precise. Skip it if "
+                                "you're not sure.",
+                          ),
+                          const SizedBox(height: 16),
+                          const AuthLabel('Birth location', required: true),
+                          _buildTextField(
+                            controller: _birthLocationController,
+                            hint: 'City, Country',
+                            icon: Icons.location_on_outlined,
+                            validator: (v) => (v ?? '').trim().isEmpty
+                                ? 'Birth location is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          AuthCheckRow(
+                            value: _confirmedAdult,
+                            onChanged: _isLoading
+                                ? null
+                                : (v) => setState(() {
+                                    _confirmedAdult = v;
+                                    if (v) _adultError = false;
+                                  }),
+                            errorText: _adultError
+                                ? 'Please confirm you are 18 or older'
+                                : null,
+                            label: const Text(
+                              'I confirm I am 18 or older',
+                              style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              const Text(
+                                'Already have an account? ',
+                                style: TextStyle(
+                                  color: AppColors.lavender,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () => Navigator.maybePop(context),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.brandPurpleLight,
+                                  minimumSize: const Size(48, 48),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Log in',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -376,22 +389,29 @@ class _SignupScreenState extends State<SignupScreen> {
                 color: AppColors.surfaceRaised,
                 border: Border(top: BorderSide(color: AppColors.border)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (error != null) ...[
-                    AppBanner(message: error, tone: AppBannerTone.error),
-                    const SizedBox(height: 12),
-                  ],
-                  CustomButton(
-                    text: 'Sign up',
-                    isLoading: _isLoading,
-                    onPressed: _isLoading ? null : _handleSignup,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (error != null) ...[
+                        AppBanner(message: error, tone: AppBannerTone.error),
+                        const SizedBox(height: 12),
+                      ],
+                      CustomButton(
+                        text: 'Sign up',
+                        isLoading: _isLoading,
+                        onPressed: _isLoading ? null : _handleSignup,
+                      ),
+                      const SizedBox(height: 10),
+                      const LegalText(
+                        prefix: 'By signing up, you agree to our ',
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  const LegalText(prefix: 'By signing up, you agree to our '),
-                ],
+                ),
               ),
             ),
           ],
@@ -422,12 +442,15 @@ class _SignupScreenState extends State<SignupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Your natal chart details',
-                style: GoogleFonts.montserrat(
-                  color: AppColors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+              Semantics(
+                header: true,
+                child: Text(
+                  'Your natal chart details',
+                  style: GoogleFonts.montserrat(
+                    color: AppColors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),

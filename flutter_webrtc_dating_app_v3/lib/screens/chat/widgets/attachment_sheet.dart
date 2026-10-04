@@ -26,61 +26,64 @@ class AttachmentSheet extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.borderStrong,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Semantics(
-              header: true,
-              child: Text(
-                'Share',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+        // Scrolls in landscape, where the sheet is short.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderStrong,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                _buildOption(
-                  icon: Icons.camera_alt_rounded,
-                  label: 'Camera',
-                  semanticLabel: 'Take a photo',
-                  accent: AppColors.brandPink,
-                  iconColor: AppColors.pinkLight,
-                  onTap: () => pick(AttachmentType.camera),
+              const SizedBox(height: 16),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Share',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                _buildOption(
-                  icon: Icons.photo_library_rounded,
-                  label: 'Gallery',
-                  semanticLabel: 'Choose a photo from gallery',
-                  accent: AppColors.brandPurpleMid,
-                  iconColor: AppColors.brandPurpleLight,
-                  onTap: () => pick(AttachmentType.gallery),
-                ),
-                const SizedBox(width: 12),
-                _buildOption(
-                  icon: Icons.mic_rounded,
-                  label: 'Voice note',
-                  semanticLabel: 'Record a voice note',
-                  accent: AppColors.gold,
-                  iconColor: AppColors.gold,
-                  onTap: () => pick(AttachmentType.audio),
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  _buildOption(
+                    icon: Icons.camera_alt_rounded,
+                    label: 'Camera',
+                    semanticLabel: 'Take a photo',
+                    accent: AppColors.brandPink,
+                    iconColor: AppColors.pinkLight,
+                    onTap: () => pick(AttachmentType.camera),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildOption(
+                    icon: Icons.photo_library_rounded,
+                    label: 'Gallery',
+                    semanticLabel: 'Choose a photo from gallery',
+                    accent: AppColors.brandPurpleMid,
+                    iconColor: AppColors.brandPurpleLight,
+                    onTap: () => pick(AttachmentType.gallery),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildOption(
+                    icon: Icons.mic_rounded,
+                    label: 'Voice note',
+                    semanticLabel: 'Record a voice note',
+                    accent: AppColors.gold,
+                    iconColor: AppColors.gold,
+                    onTap: () => pick(AttachmentType.audio),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -98,6 +101,8 @@ class AttachmentSheet extends StatelessWidget {
       child: Semantics(
         button: true,
         label: semanticLabel,
+        // excludeSemantics drops the InkWell's tap action, so re-add it.
+        onTap: onTap,
         excludeSemantics: true,
         child: Material(
           color: AppColors.surfaceCard,

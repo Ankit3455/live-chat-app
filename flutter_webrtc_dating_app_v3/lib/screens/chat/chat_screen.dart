@@ -787,32 +787,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     final editing = _editingMessage;
     final replyTo = _replyToMessage;
+    // Short viewport (phone landscape): keep room for the messages.
+    final compact = MediaQuery.sizeOf(context).height < 480;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
       appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          if (_canSend && _callsOff) _buildCallsOffCard(),
-          Expanded(child: _buildMessagesList()),
-          _buildTypingIndicator(),
-          if (_canSend && editing != null)
-            _buildComposerBanner(
-              icon: Icons.edit,
-              title: 'Editing message',
-              text: editing.message,
-              onClose: _cancelEdit,
-            )
-          else if (_canSend && replyTo != null)
-            _buildComposerBanner(
-              icon: Icons.reply,
-              title:
-                  'Replying to ${replyTo.senderId == _myUid ? "yourself" : _displayName}',
-              text: replyTo.previewText,
-              onClose: () => setState(() => _replyToMessage = null),
-            ),
-          _canSend ? _buildMessageInput() : _buildUnavailableInput(),
-        ],
+      // Centred, max 720 wide on tablets.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            children: [
+              if (_canSend && _callsOff && !compact) _buildCallsOffCard(),
+              Expanded(child: _buildMessagesList()),
+              _buildTypingIndicator(),
+              if (_canSend && editing != null)
+                _buildComposerBanner(
+                  icon: Icons.edit,
+                  title: 'Editing message',
+                  text: editing.message,
+                  onClose: _cancelEdit,
+                )
+              else if (_canSend && replyTo != null)
+                _buildComposerBanner(
+                  icon: Icons.reply,
+                  title:
+                      'Replying to ${replyTo.senderId == _myUid ? "yourself" : _displayName}',
+                  text: replyTo.previewText,
+                  onClose: () => setState(() => _replyToMessage = null),
+                ),
+              _canSend ? _buildMessageInput(compact) : _buildUnavailableInput(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -848,6 +856,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       shape: const Border(bottom: BorderSide(color: AppColors.border)),
       titleSpacing: 0,
       title: Semantics(
+        header: true,
         label: showOnline
             ? '$displayName, ${isOnline ? 'online' : 'offline'}'
             : displayName,
@@ -902,6 +911,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     displayName,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.white,
@@ -1369,7 +1379,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildMessageInput() {
+  Widget _buildMessageInput(bool compact) {
     final isEditing = _editingMessage != null;
     final attachDisabled = _isUploadingMedia || isEditing;
     const pillRadius = BorderRadius.all(Radius.circular(22));
@@ -1401,7 +1411,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 focusNode: _messageFocusNode,
                 style: const TextStyle(color: AppColors.white, fontSize: 15),
                 cursorColor: AppColors.brandPurpleLight,
-                maxLines: 5,
+                maxLines: compact ? 2 : 5,
                 minLines: 1,
                 maxLength: ChatMessage.maxLength,
                 buildCounter:

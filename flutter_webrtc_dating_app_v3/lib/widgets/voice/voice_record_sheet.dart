@@ -116,82 +116,90 @@ class _VoiceRecordSheetState extends State<VoiceRecordSheet> {
       decoration: BoxDecoration(
         color: AppColors.surfaceRaised,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border.all(color: Colors.white24, width: 0.5),
+        border: Border.all(color: AppColors.borderStrong, width: 0.5),
       ),
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 42, height: 5, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4))),
-            const SizedBox(height: 12),
-            const Text(
-              "Add a short voice intro",
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "Why voice? It helps others feel your vibe quickly — tone, energy, confidence.\nKeep it friendly and real. Max 20 seconds.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 13.5),
-            ),
-            const SizedBox(height: 16),
-
-            // Timer
-            Text(
-              _fmt(_recording ? _elapsed : (_tempPath != null ? _elapsed : 0)),
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-
-            // Big button area
-            if (_recording) ...[
-              ElevatedButton.icon(
-                onPressed: _stop,
-                icon: const Icon(Icons.stop_rounded),
-                label: const Text('Stop'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+        // Scrolls in landscape / large text.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 42, height: 5, decoration: BoxDecoration(color: AppColors.borderStrong, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(height: 12),
+              Semantics(
+                header: true,
+                child: const Text(
+                  "Add a short voice intro",
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
               ),
-            ] else if (_tempPath == null) ...[
-              ElevatedButton.icon(
-                onPressed: _start,
-                icon: const Icon(Icons.mic_rounded),
-                label: const Text('Start Recording'),
+              const SizedBox(height: 6),
+              const Text(
+                "Why voice? It helps others feel your vibe quickly — tone, energy, confidence.\nKeep it friendly and real. Max 20 seconds.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
               ),
-            ] else ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _playPreview,
-                    icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-                    label: const Text('Preview', style: TextStyle(color: Colors.white)),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: _discard,
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                    label: const Text('Re-record', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
+              const SizedBox(height: 16),
+
+              // Timer
+              Text(
+                _fmt(_recording ? _elapsed : (_tempPath != null ? _elapsed : 0)),
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save_rounded),
-                label: const Text('Save'),
+
+              // Big button area
+              if (_recording) ...[
+                ElevatedButton.icon(
+                  onPressed: _stop,
+                  icon: const Icon(Icons.stop_rounded),
+                  label: const Text('Stop'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                ),
+              ] else if (_tempPath == null) ...[
+                ElevatedButton.icon(
+                  onPressed: _start,
+                  icon: const Icon(Icons.mic_rounded),
+                  label: const Text('Start Recording'),
+                ),
+              ] else ...[
+                // Wrap so large text never overflows.
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _playPreview,
+                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                      label: const Text('Preview', style: TextStyle(color: Colors.white)),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _discard,
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                      label: const Text('Re-record', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_rounded),
+                  label: const Text('Save'),
+                ),
+              ],
+
+              const SizedBox(height: 8),
+              const Text(
+                "Tips: Speak clearly, smile while you talk. Share 1–2 things you love.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSubtle, fontSize: 12.5),
               ),
             ],
-
-            const SizedBox(height: 8),
-            const Text(
-              "Tips: Speak clearly, smile while you talk. Share 1–2 things you love.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 12.5),
-            ),
-          ],
+          ),
         ),
       ),
     );

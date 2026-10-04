@@ -219,6 +219,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
               padding: const EdgeInsets.only(right: 16.0),
               child: Text(
                 '$_completionPercentage%',
+                semanticsLabel: 'Profile $_completionPercentage% complete',
                 style: const TextStyle(
                   color: AppColors.brandPurpleLight,
                   fontSize: 18,
@@ -231,204 +232,222 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Completion Progress Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.brandPurple.withOpacity(0.2),
-                    AppColors.brandPurple.withOpacity(0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Cap width on tablets so the form stays readable.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Completion Progress Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.brandPurple.withOpacity(0.2),
+                        AppColors.brandPurple.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
                     children: [
-                      const Text(
-                        'Profile strength',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '$_completionPercentage%',
-                        style: const TextStyle(
-                          color: AppColors.brandPurpleLight,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: _completionPercentage / 100,
-                      backgroundColor: AppColors.surface2,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.brandPurpleMid,
-                      ),
-                      minHeight: 10,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _completionPercentage == 100
-                        ? '🎉 Your profile is complete!'
-                        : 'Complete optional sections to boost your profile!',
-                    style: const TextStyle(
-                      color: AppColors.lavender,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Sections
-            ..._sections.map((section) {
-              final questions = section.questions.isNotEmpty
-                  ? section.questions
-                  : _getQuestionsForSection(section.title);
-              final isCompleted = _completedSections.contains(section.title);
-
-              // ✅ Count how many questions are currently answered
-              final answeredCount = questions.where((q) {
-                final answer = _answers[q.fieldName];
-                if (answer == null) return false;
-                if (answer is String) return answer.trim().isNotEmpty;
-                if (answer is List) return answer.isNotEmpty;
-                return true;
-              }).length;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isCompleted
-                        ? AppColors.brandPurpleMid
-                        : AppColors.border,
-                  ),
-                ),
-                child: Theme(
-                  data: Theme.of(
-                    context,
-                  ).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    leading: Text(
-                      section.icon ?? '🌟',
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            section.title,
-                            style: const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        // ✅ Show answer count badge
-                        if (answeredCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.brandPurple.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Flexible(
                             child: Text(
-                              '$answeredCount/${questions.length}',
-                              style: const TextStyle(
+                              'Profile strength',
+                              style: TextStyle(
                                 color: AppColors.white,
-                                fontSize: 12,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      section.description,
-                      style: const TextStyle(
-                        color: AppColors.lavender,
-                        fontSize: 14,
-                      ),
-                    ),
-                    trailing: isCompleted
-                        ? const Icon(
-                            Icons.check_circle,
-                            color: AppColors.brandPurpleLight,
-                          )
-                        : const Icon(
-                            Icons.expand_more,
-                            color: AppColors.lavender,
-                          ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            // Questions
-                            ...questions.map((question) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 24.0),
-                                child: QuestionWidget(
-                                  dense: true,
-                                  question: question,
-                                  answer: _answers[question.fieldName],
-                                  onAnswerChanged: (answer) {
-                                    setState(() {
-                                      _answers[question.fieldName] = answer;
-                                    });
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                            const SizedBox(height: 16),
-
-                            CustomButton(
-                              text: isCompleted
-                                  ? 'Update ${section.title}'
-                                  : 'Save ${section.title}',
-                              onPressed: _isSaving
-                                  ? null
-                                  : () =>
-                                        _saveSection(section.title, questions),
-                              isLoading: _isSaving,
+                          Text(
+                            '$_completionPercentage%',
+                            style: const TextStyle(
+                              color: AppColors.brandPurpleLight,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: _completionPercentage / 100,
+                          semanticsLabel: 'Profile strength',
+                          semanticsValue: '$_completionPercentage%',
+                          backgroundColor: AppColors.surface2,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.brandPurpleMid,
+                          ),
+                          minHeight: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _completionPercentage == 100
+                            ? '🎉 Your profile is complete!'
+                            : 'Complete optional sections to boost your profile!',
+                        style: const TextStyle(
+                          color: AppColors.lavender,
+                          fontSize: 14,
                         ),
                       ),
                     ],
                   ),
                 ),
-              );
-            }).toList(),
-          ],
+                const SizedBox(height: 24),
+
+                // Sections
+                ..._sections.map((section) {
+                  final questions = section.questions.isNotEmpty
+                      ? section.questions
+                      : _getQuestionsForSection(section.title);
+                  final isCompleted = _completedSections.contains(
+                    section.title,
+                  );
+
+                  // ✅ Count how many questions are currently answered
+                  final answeredCount = questions.where((q) {
+                    final answer = _answers[q.fieldName];
+                    if (answer == null) return false;
+                    if (answer is String) return answer.trim().isNotEmpty;
+                    if (answer is List) return answer.isNotEmpty;
+                    return true;
+                  }).length;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isCompleted
+                            ? AppColors.brandPurpleMid
+                            : AppColors.border,
+                      ),
+                    ),
+                    child: Theme(
+                      data: Theme.of(
+                        context,
+                      ).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        leading: ExcludeSemantics(
+                          child: Text(
+                            section.icon ?? '🌟',
+                            style: const TextStyle(fontSize: 28),
+                          ),
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                section.title,
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            // ✅ Show answer count badge
+                            if (answeredCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brandPurple.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$answeredCount/${questions.length}',
+                                  style: const TextStyle(
+                                    color: AppColors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          section.description,
+                          style: const TextStyle(
+                            color: AppColors.lavender,
+                            fontSize: 14,
+                          ),
+                        ),
+                        trailing: isCompleted
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppColors.brandPurpleLight,
+                              )
+                            : const Icon(
+                                Icons.expand_more,
+                                color: AppColors.lavender,
+                              ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              children: [
+                                // Questions
+                                ...questions.map((question) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 24.0,
+                                    ),
+                                    child: QuestionWidget(
+                                      dense: true,
+                                      question: question,
+                                      answer: _answers[question.fieldName],
+                                      onAnswerChanged: (answer) {
+                                        setState(() {
+                                          _answers[question.fieldName] = answer;
+                                        });
+                                      },
+                                    ),
+                                  );
+                                }).toList(),
+                                const SizedBox(height: 16),
+
+                                CustomButton(
+                                  text: isCompleted
+                                      ? 'Update ${section.title}'
+                                      : 'Save ${section.title}',
+                                  onPressed: _isSaving
+                                      ? null
+                                      : () => _saveSection(
+                                          section.title,
+                                          questions,
+                                        ),
+                                  isLoading: _isSaving,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
         ),
       ),
     );

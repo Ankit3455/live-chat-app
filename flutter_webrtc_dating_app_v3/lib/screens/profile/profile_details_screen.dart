@@ -174,6 +174,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   Widget build(BuildContext context) {
     final showActions = !_isSelf && _otherUid.isNotEmpty;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    // Centre a 560dp column on tablets.
+    final width = MediaQuery.of(context).size.width;
+    final hPad = width > 600 ? (width - 560) / 2 : 20.0;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -184,9 +187,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               SliverToBoxAdapter(child: _hero()),
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
-                  20,
+                  hPad,
                   8,
-                  20,
+                  hPad,
                   (showActions ? 120 : 32) + bottomInset,
                 ),
                 sliver: SliverList(
@@ -326,6 +329,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           Semantics(
             image: true,
             label: 'Profile photo of $_name',
+            excludeSemantics: true,
             child: url == null
                 ? fallback
                 : CachedNetworkImage(
@@ -822,12 +826,17 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           ],
         ),
       ),
-      child: CustomButton(
-        text: 'Message $_firstName',
-        leftIcon: Icons.chat_bubble_outline,
-        size: ButtonSize.large,
-        width: double.infinity,
-        onPressed: _openChat,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: CustomButton(
+            text: 'Message $_firstName',
+            leftIcon: Icons.chat_bubble_outline,
+            size: ButtonSize.large,
+            width: double.infinity,
+            onPressed: _openChat,
+          ),
+        ),
       ),
     );
   }

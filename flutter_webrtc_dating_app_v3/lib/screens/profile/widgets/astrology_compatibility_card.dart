@@ -90,9 +90,11 @@ class AstrologyCompatibilityCard extends StatelessWidget {
                     color: AppColors.gold.withValues(alpha: 0.35),
                   ),
                 ),
-                child: Text(
-                  _getZodiacEmoji(zodiacSign),
-                  style: const TextStyle(fontSize: 28, color: AppColors.gold),
+                child: ExcludeSemantics(
+                  child: Text(
+                    _getZodiacEmoji(zodiacSign),
+                    style: const TextStyle(fontSize: 28, color: AppColors.gold),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),

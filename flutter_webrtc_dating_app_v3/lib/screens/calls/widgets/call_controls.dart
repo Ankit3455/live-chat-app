@@ -98,7 +98,8 @@ class CallControlButton extends StatelessWidget {
             Text(
               label,
               maxLines: 1,
-              overflow: TextOverflow.visible,
+              // Full label stays in the tooltip / semantics.
+              overflow: TextOverflow.ellipsis,
               softWrap: false,
               style: TextStyle(
                 color: isEnd || on ? AppColors.white : AppColors.lavender,
@@ -223,8 +224,8 @@ class CallStatusChip extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Container(
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        constraints: const BoxConstraints(minHeight: 30),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           color: accent.withOpacity(0.14),
           borderRadius: BorderRadius.circular(999),
@@ -239,12 +240,16 @@ class CallStatusChip extends StatelessWidget {
               decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
             ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

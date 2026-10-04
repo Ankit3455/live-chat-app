@@ -56,8 +56,10 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
   void didUpdateWidget(PawnWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.highlight && !oldWidget.highlight) {
-      // Start bounce animation when highlighted
-      _bounceController.repeat(reverse: true);
+      // Start bounce animation when highlighted (not for reduced motion)
+      if (!MediaQuery.of(context).disableAnimations) {
+        _bounceController.repeat(reverse: true);
+      }
     } else if (!widget.highlight && oldWidget.highlight) {
       // Stop animation when not highlighted
       _bounceController.stop();
@@ -89,7 +91,16 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
         break;
     }
 
-    return IgnorePointer(
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final pawnName = '${widget.type.name} pawn ${widget.index + 1}';
+
+    return Semantics(
+      button: widget.highlight,
+      enabled: widget.highlight,
+      label: widget.highlight ? 'Move $pawnName' : pawnName,
+      excludeSemantics: true,
+      onTap: widget.highlight ? () => _handleTap(context) : null,
+      child: IgnorePointer(
       ignoring: !widget.highlight,
       child: GestureDetector(
         onTap: () => _handleTap(context),
@@ -126,7 +137,7 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
                       ),
 
                     // Ripple animation
-                    if (widget.highlight)
+                    if (widget.highlight && !reduceMotion)
                       RippleAnimation(
                         color: Colors.white,
                         minRadius: 15,
@@ -194,11 +205,11 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
                     // "TAP" text indicator
                     if (widget.highlight)
                       Positioned(
-                        bottom: -18,
+                        bottom: -20,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                            horizontal: 4,
+                            vertical: 1,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.7),
@@ -208,7 +219,7 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
                             'TAP',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 8,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -220,6 +231,7 @@ class _PawnWidgetState extends State<PawnWidget> with SingleTickerProviderStateM
             );
           },
         ),
+      ),
       ),
     );
   }

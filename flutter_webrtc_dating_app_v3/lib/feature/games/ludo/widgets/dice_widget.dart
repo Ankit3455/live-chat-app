@@ -18,8 +18,23 @@ class DiceWidget extends StatelessWidget {
             !provider.diceStarted;
 
         final diceColor = provider.currentPlayer.color;
+        final reduceMotion = MediaQuery.of(context).disableAnimations;
+        final String label;
+        if (provider.diceStarted) {
+          label = 'Rolling dice';
+        } else if (canThrow) {
+          label = 'Roll dice';
+        } else {
+          label = 'Dice shows ${provider.diceResult}';
+        }
 
-        return GestureDetector(
+        return Semantics(
+          button: true,
+          enabled: canThrow,
+          label: label,
+          excludeSemantics: true,
+          onTap: canThrow ? () => provider.throwDice() : null,
+          child: GestureDetector(
           onTap: canThrow ? () => provider.throwDice() : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -38,8 +53,8 @@ class DiceWidget extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Ripple animation when can throw
-                if (canThrow)
+                // Ripple animation when can throw (off for reduced motion)
+                if (canThrow && !reduceMotion)
                   RippleAnimation(
                     color: diceColor,
                     ripplesCount: 3,
@@ -75,6 +90,7 @@ class DiceWidget extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         );
       },

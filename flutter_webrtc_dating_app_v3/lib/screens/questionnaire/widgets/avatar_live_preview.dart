@@ -95,6 +95,7 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
   Widget build(BuildContext context) {
     return Semantics(
       liveRegion: true,
+      excludeSemantics: true,
       label: _hint == null
           ? 'Your avatar is taking shape'
           : 'Your avatar is taking shape. $_hint',

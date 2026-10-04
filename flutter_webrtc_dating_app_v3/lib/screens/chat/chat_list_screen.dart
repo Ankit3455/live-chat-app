@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
@@ -197,26 +198,35 @@ class _ChatListScreenState extends State<ChatListScreen>
               : null,
           body: SafeArea(
             bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_selectionMode)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        'Chats',
-                        style: Theme.of(context).textTheme.headlineMedium,
+            // Centred, max 720 wide on tablets.
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!_selectionMode)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            'Chats',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                      child: _SegmentedTabs(
+                        controller: _tab,
+                        newCount: newUnread,
                       ),
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _SegmentedTabs(controller: _tab, newCount: newUnread),
+                    Expanded(child: body),
+                  ],
                 ),
-                Expanded(child: body),
-              ],
+              ),
             ),
           ),
         );
@@ -250,9 +260,9 @@ class _SegmentedTabs extends StatelessWidget {
         labelColor: AppColors.white,
         unselectedLabelColor: AppColors.lavender,
         tabs: [
-          const Tab(height: 38, text: 'Active'),
+          const Tab(height: 40, text: 'Active'),
           Tab(
-            height: 38,
+            height: 40,
             child: _TabLabel(text: 'New', badge: newCount),
           ),
         ],
@@ -545,119 +555,145 @@ class _ConversationTile extends StatelessWidget {
           ],
         );
 
-        final content = Material(
-          color: isSelected
-              ? AppColors.brandPurple.withValues(alpha: 0.16)
-              : AppColors.backgroundDeep,
-          child: InkWell(
-            onLongPress: () => onToggleSelect(conv.id),
-            onTap: () {
-              if (selectionMode) {
-                onToggleSelect(conv.id);
-                return;
-              }
-              _openChat(context, otherId);
-            },
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 72),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    avatar,
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
+        // Swipe actions are mirrored as screen-reader custom actions.
+        final content = Semantics(
+          button: true,
+          selected: selectionMode ? isSelected : null,
+          customSemanticsActions: selectionMode
+              ? null
+              : {
+                  const CustomSemanticsAction(label: 'Mark as read'): () =>
+                      _run(
+                        context,
+                        () => chat.markMessagesAsRead(conv.id, otherId),
+                        'Could not mark as read',
+                      ),
+                  CustomSemanticsAction(label: muted ? 'Unmute' : 'Mute'): () =>
+                      _run(
+                        context,
+                        () => chat.toggleMute(conv.id, myUid, !muted),
+                        muted ? 'Could not unmute chat' : 'Could not mute chat',
+                      ),
+                  const CustomSemanticsAction(label: 'Delete chat'): () =>
+                      _confirmDelete(context),
+                },
+          child: MergeSemantics(
+            child: Material(
+              color: isSelected
+                  ? AppColors.brandPurple.withValues(alpha: 0.16)
+                  : AppColors.backgroundDeep,
+              child: InkWell(
+                onLongPress: () => onToggleSelect(conv.id),
+                onTap: () {
+                  if (selectionMode) {
+                    onToggleSelect(conv.id);
+                    return;
+                  }
+                  _openChat(context, otherId);
+                },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 72),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        avatar,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: textTheme.titleMedium?.copyWith(
-                                          color: AppColors.white,
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: textTheme.titleMedium
+                                                ?.copyWith(
+                                                  color: AppColors.white,
+                                                ),
+                                          ),
                                         ),
+                                        if (muted) ...[
+                                          const SizedBox(width: 4),
+                                          Semantics(
+                                            label: 'Muted',
+                                            child: const Icon(
+                                              Icons.volume_off_rounded,
+                                              size: 14,
+                                              color: AppColors.textSubtle,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (timeStr.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      timeStr,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: unread
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                        color: unread
+                                            ? AppColors.pinkLight
+                                            : AppColors.textSubtle,
                                       ),
                                     ),
-                                    if (muted) ...[
-                                      const SizedBox(width: 4),
-                                      Semantics(
-                                        label: 'Muted',
-                                        child: const Icon(
-                                          Icons.volume_off_rounded,
-                                          size: 14,
-                                          color: AppColors.textSubtle,
-                                        ),
-                                      ),
-                                    ],
                                   ],
-                                ),
+                                ],
                               ),
-                              if (timeStr.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Text(
-                                  timeStr,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: unread
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                    color: unread
-                                        ? AppColors.pinkLight
-                                        : AppColors.textSubtle,
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: unread
+                                            ? AppColors.white
+                                            : AppColors.lavender,
+                                        fontWeight: unread
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  if (unread) ...[
+                                    const SizedBox(width: 8),
+                                    _CountBadge(count: displayUnread),
+                                  ],
+                                ],
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: unread
-                                        ? AppColors.white
-                                        : AppColors.lavender,
-                                    fontWeight: unread
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                ),
-                              ),
-                              if (unread) ...[
-                                const SizedBox(width: 8),
-                                _CountBadge(count: displayUnread),
-                              ],
-                            ],
+                        ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 12),
+                          Semantics(
+                            label: 'Selected',
+                            child: const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.pinkLight,
+                            ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                    if (isSelected) ...[
-                      const SizedBox(width: 12),
-                      Semantics(
-                        label: 'Selected',
-                        child: const Icon(
-                          Icons.check_circle_rounded,
-                          color: AppColors.pinkLight,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),

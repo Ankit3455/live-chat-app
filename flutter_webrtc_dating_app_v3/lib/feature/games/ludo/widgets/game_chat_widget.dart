@@ -1,5 +1,6 @@
 // lib/feature/games/ludo/widgets/game_chat_widget.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -69,7 +70,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
       case 'red':
         return LudoColor.red;
       default:
-        return Colors.grey;
+        return AppColors.lavender;
     }
   }
 
@@ -94,8 +95,19 @@ class _GameChatWidgetState extends State<GameChatWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Shrink above the keyboard so the input stays visible.
+    final media = MediaQuery.of(context);
+    final inset = media.viewInsets.bottom;
+    final height = math.max(
+      200.0,
+      math.min(
+        media.size.height * 0.6,
+        media.size.height - inset - media.padding.top - 24,
+      ),
+    );
     return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
+      height: height,
+      margin: EdgeInsets.only(bottom: inset),
       decoration: const BoxDecoration(
         color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -108,37 +120,43 @@ class _GameChatWidgetState extends State<GameChatWidget> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.borderStrong,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
 
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
             child: Row(
               children: [
-                const Icon(Icons.chat, color: Colors.white),
+                const Icon(
+                  Icons.chat_bubble_outline,
+                  color: AppColors.brandPurpleLight,
+                ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Game Chat',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Semantics(
+                  header: true,
+                  child: const Text(
+                    'Game chat',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 IconButton(
                   tooltip: 'Close chat',
-                  icon: const Icon(Icons.close, color: Colors.white54),
+                  icon: const Icon(Icons.close, color: AppColors.lavender),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
 
-          const Divider(color: Colors.white12, height: 1),
+          const Divider(color: AppColors.border, height: 1),
 
           // Quick Reactions
           Container(
@@ -150,17 +168,28 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                 children: _quickReactions.map((emoji) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
+                    child: Semantics(
+                      button: true,
+                      label: 'Send reaction $emoji',
+                      excludeSemantics: true,
                       onTap: () => _sendMessage(emoji, type: 'reaction'),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          emoji,
-                          style: const TextStyle(fontSize: 24),
+                      child: Material(
+                        color: AppColors.surface2,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () => _sendMessage(emoji, type: 'reaction'),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 48,
+                              minHeight: 48,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -170,7 +199,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
             ),
           ),
 
-          const Divider(color: Colors.white12, height: 1),
+          const Divider(color: AppColors.border, height: 1),
 
           // Messages List
           Expanded(
@@ -179,38 +208,45 @@ class _GameChatWidgetState extends State<GameChatWidget> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(
-                    child: CircularProgressIndicator(color: Colors.white54),
+                    child: CircularProgressIndicator(
+                      color: AppColors.brandPurpleLight,
+                    ),
                   );
                 }
 
                 final messages = snapshot.data!.docs;
 
                 if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 48,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
+                  return const Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 40,
+                            color: AppColors.pinkLight,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Send a reaction or message!',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: 12,
+                          SizedBox(height: 8),
+                          Text(
+                            'No messages yet',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: 4),
+                          Text(
+                            'Send a reaction or message!',
+                            style: TextStyle(
+                              color: AppColors.lavender,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -238,9 +274,10 @@ class _GameChatWidgetState extends State<GameChatWidget> {
 
           // Input Field
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceRaised,
+              border: Border(top: BorderSide(color: AppColors.border)),
             ),
             child: Row(
               children: [
@@ -248,13 +285,13 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                   child: TextField(
                     controller: _textController,
                     maxLength: LudoGameService.chatMaxLength,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.white),
                     decoration: InputDecoration(
                       counterText: '',
-                      hintText: 'Type a message...',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      hintText: 'Type a message…',
+                      hintStyle: const TextStyle(color: AppColors.lavender),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: AppColors.surface2,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -268,19 +305,19 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _sendMessage(_textController.text),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _getColorFromString(widget.localColor),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    tooltip: 'Send message',
+                    icon: const Icon(
                       Icons.send,
-                      color: Colors.white,
+                      color: AppColors.white,
                       size: 20,
                     ),
+                    onPressed: () => _sendMessage(_textController.text),
                   ),
                 ),
               ],
@@ -334,13 +371,13 @@ class _GameChatWidgetState extends State<GameChatWidget> {
                   ? const EdgeInsets.all(8)
                   : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? color : color.withOpacity(0.2),
+                color: isMe ? AppColors.brandPurple : AppColors.surface2,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 message,
                 style: TextStyle(
-                  color: isMe ? Colors.white : color,
+                  color: AppColors.white,
                   fontSize: type == 'reaction' ? 28 : 14,
                 ),
               ),

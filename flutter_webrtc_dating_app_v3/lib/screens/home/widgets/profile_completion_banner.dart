@@ -117,7 +117,7 @@ class ProfileCompletionBanner extends StatelessWidget {
             tooltip: 'Dismiss',
             onPressed: onDismiss,
             icon: const Icon(Icons.close, size: 18, color: AppColors.lavender),
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             padding: EdgeInsets.zero,
           ),
         ],

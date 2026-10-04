@@ -197,52 +197,58 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
       child: Scaffold(
         backgroundColor: AppColors.backgroundDeep,
         body: SafeArea(
-          child: Column(
-            children: [
-              ProgressHeader(
-                currentStep: _currentPage + 1,
-                totalSteps: _questions.length,
-                onBack: _currentPage > 0 && !busy ? _previousPage : null,
-              ),
+          // Cap width on tablets so the form stays readable.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  ProgressHeader(
+                    currentStep: _currentPage + 1,
+                    totalSteps: _questions.length,
+                    onBack: _currentPage > 0 && !busy ? _previousPage : null,
+                  ),
 
-              // Questions
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (index) {
-                    setState(() => _currentPage = index);
-                  },
-                  itemCount: _questions.length,
-                  itemBuilder: (context, index) {
-                    final question = _questions[index];
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: QuestionWidget(
-                        question: question,
-                        answer: _answers[question.fieldName],
-                        onAnswerChanged: (value) {
-                          setState(() {
-                            _answers[question.fieldName] = value;
-                          });
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
+                  // Questions
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      onPageChanged: (index) {
+                        setState(() => _currentPage = index);
+                      },
+                      itemCount: _questions.length,
+                      itemBuilder: (context, index) {
+                        final question = _questions[index];
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: QuestionWidget(
+                            question: question,
+                            answer: _answers[question.fieldName],
+                            onAnswerChanged: (value) {
+                              setState(() {
+                                _answers[question.fieldName] = value;
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: CustomButton(
-                  text: _currentPage == _questions.length - 1
-                      ? 'Finish'
-                      : 'Continue',
-                  onPressed: busy ? null : _nextPage,
-                  isLoading: _isLoading,
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    child: CustomButton(
+                      text: _currentPage == _questions.length - 1
+                          ? 'Finish'
+                          : 'Continue',
+                      onPressed: busy ? null : _nextPage,
+                      isLoading: _isLoading,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

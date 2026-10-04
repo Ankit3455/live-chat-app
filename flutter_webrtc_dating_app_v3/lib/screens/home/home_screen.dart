@@ -185,12 +185,20 @@ class _DiscoverTabState extends State<DiscoverTab> {
   // BUILD METHOD
   // ===========================================================================
 
-  static const _gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
-    crossAxisCount: 2,
-    childAspectRatio: 4 / 5,
-    crossAxisSpacing: 12,
-    mainAxisSpacing: 12,
-  );
+  // More columns on tablets: 3 at >= 600dp, 4 at >= 900dp.
+  static SliverGridDelegate _gridDelegateFor(double width) {
+    final columns = width >= 900
+        ? 4
+        : width >= 600
+        ? 3
+        : 2;
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
+      childAspectRatio: 4 / 5,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,6 +264,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
           child: Lottie.asset(
             'assets/animations/space.json',
             fit: BoxFit.cover,
+            // Static frame when the OS asks for reduced motion.
+            animate: !MediaQuery.of(context).disableAnimations,
             errorBuilder: (context, error, stackTrace) {
               return const DecoratedBox(
                 decoration: BoxDecoration(
@@ -334,13 +344,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
       backgroundColor: AppColors.surfaceCard,
       child: NotificationListener<ScrollNotification>(
         onNotification: _onFeedScroll,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            if (filtersActive)
-              SliverToBoxAdapter(child: _buildFilterChips(filterLabels)),
-            ..._buildStateSlivers(filtersActive),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final grid = _gridDelegateFor(constraints.maxWidth);
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                if (filtersActive)
+                  SliverToBoxAdapter(child: _buildFilterChips(filterLabels)),
+                ..._buildStateSlivers(filtersActive, grid),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -356,7 +371,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
     return false;
   }
 
-  List<Widget> _buildStateSlivers(bool filtersActive) {
+  List<Widget> _buildStateSlivers(bool filtersActive, SliverGridDelegate grid) {
     if (_controller.error != null) {
       return [
         SliverFillRemaining(
@@ -372,7 +387,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ];
     }
 
-    if (_controller.isLoading) return [_buildSkeletonGrid()];
+    if (_controller.isLoading) return [_buildSkeletonGrid(grid)];
 
     final users = _controller.displayedUsers;
     if (users.isEmpty) {
@@ -408,7 +423,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
       SliverToBoxAdapter(
         child: _buildSectionTitle('For you', 'Recently active'),
       ),
-      _buildProfileGrid(users),
+      _buildProfileGrid(users, grid),
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 20),
@@ -438,8 +453,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
         children: [
           for (final label in labels)
             Container(
-              height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              constraints: const BoxConstraints(minHeight: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: AppColors.brandPurpleMid.withOpacity(0.18),
@@ -505,11 +520,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
-  Widget _buildProfileGrid(List<UserModel> users) {
+  Widget _buildProfileGrid(List<UserModel> users, SliverGridDelegate grid) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       sliver: SliverGrid(
-        gridDelegate: _gridDelegate,
+        gridDelegate: grid,
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final user = users[index];
@@ -536,11 +551,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
-  Widget _buildSkeletonGrid() {
+  Widget _buildSkeletonGrid(SliverGridDelegate grid) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       sliver: SliverGrid(
-        gridDelegate: _gridDelegate,
+        gridDelegate: grid,
         delegate: SliverChildBuilderDelegate(
           (_, index) => Semantics(
             label: index == 0 ? 'Loading people' : null,

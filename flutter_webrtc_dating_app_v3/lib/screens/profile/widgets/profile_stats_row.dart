@@ -47,24 +47,34 @@ class ProfileStatsRow extends StatelessWidget {
     required String label,
     required String value,
   }) {
-    return Column(
-      children: [
-        Icon(icon, color: AppColors.brandPurpleLight, size: 24),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+    return Expanded(
+      child: Semantics(
+        label: '$label: $value',
+        excludeSemantics: true,
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.brandPurpleLight, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.lavender, fontSize: 12),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(color: AppColors.lavender, fontSize: 12),
-        ),
-      ],
+      ),
     );
   }
 

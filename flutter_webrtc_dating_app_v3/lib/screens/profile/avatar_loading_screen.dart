@@ -18,32 +18,36 @@ class AvatarLoadingScreen extends StatelessWidget {
       backgroundColor: AppColors.backgroundDeep,
       body: SafeArea(
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(28.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                SizedBox(
+              children: [
+                const SizedBox(
                   width: 48,
                   height: 48,
                   child: CircularProgressIndicator(color: Colors.white),
                 ),
-                SizedBox(height: 20),
-                Text(
-                  '🎨 Creating your unique avatar…',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(height: 20),
+                Semantics(
+                  header: true,
+                  liveRegion: true,
+                  child: const Text(
+                    '🎨 Creating your unique avatar…',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 8),
+                const Text(
                   'We’re styling it from your answers. Just a moment.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: AppColors.textMuted,
                     fontSize: 14,
                     height: 1.4,
                   ),
