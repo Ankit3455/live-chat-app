@@ -1,0 +1,25 @@
+# Known findings ignored by gitleaks (fingerprints: [commit:]file:rule:line).
+# Firebase client API keys are public identifiers (restricted in GCP + App Check).
+# OneSignal REST key lines are from the pre-remediation commit 4b7a124; the key must be rotated (O-1).
+
+# git history
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_firebase_auth_app/android/app/google-services.json:gcp-api-key:32
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:32
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:68
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:44
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:55
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:64
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:76
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:88
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/services/notification/onesignal_sender.dart:onesignal-legacy-rest-api-key:84
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/services/notification/onesignal_sender.dart:onesignal-rest-api-key:10
+4b7a1240192e584b3e468ec5fcd80b170dacca2c:flutter_webrtc_dating_app_v3/lib/services/notification/onesignal_sender.dart:onesignal-rest-api-key:85
+
+# working tree (gitleaks dir)
+flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:32
+flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:68
+flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:44
+flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:55
+flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:64
+flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:76
+flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:88

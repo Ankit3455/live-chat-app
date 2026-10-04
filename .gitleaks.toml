@@ -46,6 +46,8 @@ secretGroup = 1
 keywords = ["static-auth-secret", "turn_secret", "turn-secret", "turn_shared_secret", "turnsecret"]
 
 # --- Allowlists ---
+# Note: gitleaks 8.28 in CI did not apply these blocks to the historical findings;
+# the exact known findings are listed in .gitleaksignore instead.
 
 # Firebase client config. These API keys are public identifiers by design and are
 # protected by API-key restrictions + App Check (see README "Secrets"), not secrecy.

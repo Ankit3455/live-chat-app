@@ -122,6 +122,6 @@ jobs:
       # Full history with the repo config (.gitleaks.toml allowlists the
       # revoked DEST-007 key in its two historical commits only).
       - name: Scan git history
-        run: gitleaks git --config .gitleaks.toml --redact --verbose --no-banner .
+        run: gitleaks git --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore --redact --verbose --no-banner .
       - name: Scan working tree
-        run: gitleaks dir --config .gitleaks.toml --redact --no-banner .
+        run: gitleaks dir --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore --redact --no-banner .
