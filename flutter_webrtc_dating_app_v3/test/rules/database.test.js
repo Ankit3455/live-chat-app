@@ -99,8 +99,9 @@ describe('database.rules.json', () => {
 
   it('a caller can read only their own entry in the callee inbox', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await ctx.database().ref('incoming_calls/bob/alice_bob_1').set({ callerId: 'alice', status: 'ringing' });
-      await ctx.database().ref('incoming_calls/bob/carol_bob_1').set({ callerId: 'carol', status: 'ringing' });
+      const db = ctx.database();
+      await set(ref(db, 'incoming_calls/bob/alice_bob_1'), { callerId: 'alice', status: 'ringing' });
+      await set(ref(db, 'incoming_calls/bob/carol_bob_1'), { callerId: 'carol', status: 'ringing' });
     });
     await assertSucceeds(get(ref(rtdb('alice'), 'incoming_calls/bob/alice_bob_1')));
     await assertFails(get(ref(rtdb('alice'), 'incoming_calls/bob/carol_bob_1')));
