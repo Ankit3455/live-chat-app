@@ -410,6 +410,32 @@ describe('firestore.rules', () => {
     });
   });
 
+  describe('avatar fingerprints', () => {
+    const fp = 'a1b2c3d4e5f60718';
+
+    it('a user can claim a free face only for themselves', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), `avatar_fingerprints/${fp}`),
+        { uid: 'alice', createdAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(db('bob'), 'avatar_fingerprints/0000000000000001'),
+        { uid: 'alice', createdAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(db('bob'), 'avatar_fingerprints/not-a-fingerprint'),
+        { uid: 'bob', createdAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(db('bob'), 'avatar_fingerprints/0000000000000002'),
+        { uid: 'bob', createdAt: serverTimestamp(), extra: true }));
+    });
+
+    it('a taken face cannot be overwritten, listed or deleted by others', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), `avatar_fingerprints/${fp}`), { uid: 'alice', createdAt: Timestamp.now() });
+      });
+      await assertSucceeds(getDoc(doc(db('bob'), `avatar_fingerprints/${fp}`)));
+      await assertFails(setDoc(doc(db('bob'), `avatar_fingerprints/${fp}`), { uid: 'bob', createdAt: serverTimestamp() }));
+      await assertFails(getDocs(collection(db('bob'), 'avatar_fingerprints')));
+      await assertFails(deleteDoc(doc(db('bob'), `avatar_fingerprints/${fp}`)));
+      await assertSucceeds(deleteDoc(doc(db('alice'), `avatar_fingerprints/${fp}`)));
+    });
+  });
+
   describe('reports', () => {
     it('reporter can create but nobody can read', async () => {
       await assertSucceeds(addDoc(collection(db('alice'), 'reports'), {

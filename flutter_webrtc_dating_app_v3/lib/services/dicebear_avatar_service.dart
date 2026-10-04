@@ -5,7 +5,6 @@
 // server-side, so there is no client SVG conversion (flutter_svg does not
 // draw avataaars' masks reliably).
 
-import 'dart:math';
 import 'dart:typed_data';
 import 'dart:async';
 
@@ -58,50 +57,24 @@ class DiceBearAvatarService {
           .collection('users')
           .doc(uid)
           .get();
+      final data = userDoc.data() ?? const <String, dynamic>{};
       final merged = _mergeWithUserDocFields(
         Map<String, dynamic>.from(answers),
-        userDoc.data() ?? const <String, dynamic>{},
+        data,
       );
       final props = AvatarMapping.buildFromAnswers(merged);
-
       _validateProperties(props);
 
-      final seed = _buildSeed(props);
+      final stored = data['avatarProperties'] is Map
+          ? Map<String, dynamic>.from(data['avatarProperties'] as Map)
+          : const <String, dynamic>{};
 
-      final apiUrl = _buildApiUrl(seed, props);
-
-      final pngBytes = await _downloadWithRetry(apiUrl);
-
-      final uploadResult = await _uploadPngImage(
+      return await _createAvatar(
         uid: uid,
-        pngBytes: pngBytes,
+        props: props,
+        startVariant: 0,
+        previousFingerprint: stored['avatarFingerprint'] as String?,
       );
-
-      final imageUrl = uploadResult['imageUrl'] as String;
-
-      final avatarPropsToSave = <String, dynamic>{
-        ...props,
-        'avatarSeed': seed,
-        'avatarImageUrl': imageUrl,
-        'avatarStyle': 'avataaars',
-        'generatedAt': DateTime.now().toUtc().toIso8601String(),
-        'generatedBy': 'dicebear-v9',
-      };
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'profileImage': imageUrl,
-        'avatarProperties': _withLegacyKeysRemoved(avatarPropsToSave),
-        'isCustomAvatar': false,
-        'avatarVersion': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-
-      _log('DiceBear: avatar saved');
-
-      return {
-        'uid': uid,
-        'avatarImageUrl': imageUrl,
-        'avatarProperties': avatarPropsToSave,
-      };
     } catch (e, st) {
       _log('DiceBear: generation failed: $e\n$st');
       rethrow;
@@ -110,9 +83,10 @@ class DiceBearAvatarService {
     }
   }
 
-  /// Regenerate from stored properties. With [newVariation] a fresh seed is
-  /// used so the user gets a different avatar within the same constraints;
-  /// otherwise the stored seed reproduces the same avatar.
+  /// Regenerate from stored properties. With [newVariation] the next
+  /// variant is used so the user gets a different (still unique) avatar
+  /// within the same answer-based constraints; otherwise the stored variant
+  /// reproduces the same avatar with the current mapping.
   static Future<Map<String, dynamic>> regenerateFromStoredProperties({
     bool newVariation = false,
   }) async {
@@ -146,48 +120,16 @@ class DiceBearAvatarService {
 
       // Re-run the mapping so older docs get the current props shape.
       final props = AvatarMapping.buildFromAnswers(merged);
-
       _validateProperties(props);
 
-      final storedSeed = stored['avatarSeed'] as String?;
-      final baseSeed = (storedSeed != null && storedSeed.isNotEmpty)
-          ? storedSeed
-          : _buildSeed(props);
-      final seed = newVariation
-          ? '${_buildSeed(props)}_${Random().nextInt(1000000000)}'
-          : baseSeed;
+      final storedVariant = (stored['avatarVariant'] as num?)?.toInt() ?? 0;
 
-      final apiUrl = _buildApiUrl(seed, props);
-      final pngBytes = await _downloadWithRetry(apiUrl);
-
-      final uploadResult = await _uploadPngImage(
+      return await _createAvatar(
         uid: uid,
-        pngBytes: pngBytes,
+        props: props,
+        startVariant: newVariation ? storedVariant + 1 : storedVariant,
+        previousFingerprint: stored['avatarFingerprint'] as String?,
       );
-
-      final imageUrl = uploadResult['imageUrl'] as String;
-
-      final propsToSave = Map<String, dynamic>.from(props);
-      propsToSave['avatarSeed'] = seed;
-      propsToSave['avatarImageUrl'] = imageUrl;
-      propsToSave['avatarStyle'] = 'avataaars';
-      propsToSave['generatedAt'] = DateTime.now().toUtc().toIso8601String();
-      propsToSave['generatedBy'] = 'dicebear-v9';
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'profileImage': imageUrl,
-        'avatarProperties': _withLegacyKeysRemoved(propsToSave),
-        'isCustomAvatar': false,
-        'avatarVersion': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-
-      _log('DiceBear: regenerated');
-
-      return {
-        'uid': uid,
-        'avatarImageUrl': imageUrl,
-        'avatarProperties': propsToSave,
-      };
     } catch (e, st) {
       _log('DiceBear: regeneration failed: $e\n$st');
       rethrow;
@@ -212,22 +154,128 @@ class DiceBearAvatarService {
     };
   }
 
-  /// Build DiceBear API URL: seed for stable randomness plus explicit
-  /// avataaars params mapped from the answers.
-  static String _buildApiUrl(String seed, Map<String, dynamic> props) {
+  /// Picks a unique face for [uid], renders, uploads and saves it.
+  static Future<Map<String, dynamic>> _createAvatar({
+    required String uid,
+    required Map<String, dynamic> props,
+    required int startVariant,
+    String? previousFingerprint,
+  }) async {
+    final choice = await _claimUniqueFace(uid, props, startVariant);
+    final params = choice.params;
+    final fingerprint = choice.fingerprint;
+
+    final pngBytes = await _downloadWithRetry(_buildApiUrl(uid, params));
+    final uploadResult = await _uploadPngImage(uid: uid, pngBytes: pngBytes);
+    final imageUrl = uploadResult['imageUrl'] as String;
+
+    final propsToSave = <String, dynamic>{
+      ...props,
+      'avatarVariant': choice.variant,
+      'avatarFingerprint': fingerprint,
+      'avatarParams': params,
+      'avatarImageUrl': imageUrl,
+      'avatarStyle': 'avataaars',
+      'generatedAt': DateTime.now().toUtc().toIso8601String(),
+      'generatedBy': 'dicebear-v9',
+    };
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'profileImage': imageUrl,
+      'avatarProperties': _withLegacyKeysRemoved(propsToSave),
+      'isCustomAvatar': false,
+      'avatarVersion': FieldValue.increment(1),
+    }, SetOptions(merge: true));
+
+    if (previousFingerprint != null &&
+        previousFingerprint.isNotEmpty &&
+        previousFingerprint != fingerprint) {
+      await _releaseFingerprint(uid, previousFingerprint);
+    }
+
+    _log('DiceBear: avatar saved');
+    return {
+      'uid': uid,
+      'avatarImageUrl': imageUrl,
+      'avatarProperties': propsToSave,
+    };
+  }
+
+  static const int _maxVariantTries = 40;
+
+  /// Tries variants from [startVariant] until one whose face fingerprint is
+  /// free (or already ours) is claimed in avatar_fingerprints. If the
+  /// registry can't be reached the first variant is used, so a missing
+  /// network or undeployed rule never blocks avatar creation.
+  static Future<({Map<String, String> params, String fingerprint, int variant})>
+      _claimUniqueFace(
+    String uid,
+    Map<String, dynamic> props,
+    int startVariant,
+  ) async {
+    final registry =
+        FirebaseFirestore.instance.collection('avatar_fingerprints');
+
+    for (var v = startVariant; v < startVariant + _maxVariantTries; v++) {
+      final r = AvatarMapping.resolve(props, uniqueKey: uid, variant: v);
+      try {
+        final claimed = await FirebaseFirestore.instance
+            .runTransaction<bool>((tx) async {
+          final ref = registry.doc(r.fingerprint);
+          final snap = await tx.get(ref);
+          if (snap.exists) return snap.data()?['uid'] == uid;
+          tx.set(ref, {'uid': uid, 'createdAt': FieldValue.serverTimestamp()});
+          return true;
+        });
+        if (claimed) {
+          return (params: r.params, fingerprint: r.fingerprint, variant: v);
+        }
+        _log('DiceBear: face taken, trying next variant');
+      } catch (e) {
+        _log('DiceBear: uniqueness registry unavailable: $e');
+        return (params: r.params, fingerprint: r.fingerprint, variant: v);
+      }
+    }
+
+    // Every tried variant was taken (practically impossible); fall back.
+    final r = AvatarMapping.resolve(props,
+        uniqueKey: uid, variant: startVariant + _maxVariantTries);
+    return (
+      params: r.params,
+      fingerprint: r.fingerprint,
+      variant: startVariant + _maxVariantTries,
+    );
+  }
+
+  static Future<void> _releaseFingerprint(String uid, String fingerprint) async {
+    try {
+      final ref = FirebaseFirestore.instance
+          .collection('avatar_fingerprints')
+          .doc(fingerprint);
+      await FirebaseFirestore.instance.runTransaction<void>((tx) async {
+        final snap = await tx.get(ref);
+        if (snap.exists && snap.data()?['uid'] == uid) tx.delete(ref);
+      });
+    } catch (e) {
+      _log('DiceBear: could not release old fingerprint: $e');
+    }
+  }
+
+  /// DiceBear URL with one explicit value per part (from
+  /// AvatarMapping.resolve), so the server adds no randomness of its own.
+  static String _buildApiUrl(String uid, Map<String, String> params) {
     const String style = 'avataaars';
 
     // 256 is DiceBear's PNG maximum. No zoom: scaling crops long hair.
-    final Map<String, String> params = <String, String>{
-      'seed': seed,
+    final query = <String, String>{
+      'seed': uid,
       'size': '256',
-      ...AvatarMapping.dicebearParams(props),
+      ...params,
     };
 
     final uri = Uri.parse('$_baseUrl/$style/png');
-    return uri.replace(queryParameters: params).toString();
+    return uri.replace(queryParameters: query).toString();
   }
-
 
   /// Download the avatar PNG with retry logic
   static Future<Uint8List> _downloadWithRetry(
@@ -347,77 +395,4 @@ class DiceBearAvatarService {
       props['gender'] = 'other';
     }
   }
-
-  /// Build deterministic seed
-  static String _buildSeed(Map<String, dynamic> props) {
-    final gender = _normalizeGender(props['gender']);
-
-    final username = (props['username'] ?? props['userName'] ?? 'user')
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]'), '_');
-
-    final habit = (props['habit'] ?? props['habits'] ?? 'balanced')
-        .toString()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]'), '_');
-
-    final interests = (props['interests'] is List)
-        ? List<String>.from((props['interests'] as List).map((e) => e.toString().toLowerCase()))
-        : <String>[];
-    interests.sort();
-
-    String ageTag = '';
-    if (props.containsKey('dateOfBirth') || props.containsKey('dob')) {
-      DateTime? dob;
-      final raw = props['dateOfBirth'] ?? props['dob'];
-      try {
-        if (raw is DateTime) {
-          dob = raw;
-        } else if (raw is Timestamp) {
-          dob = raw.toDate();
-        } else if (raw is String) {
-          dob = DateTime.tryParse(raw);
-        } else if (raw is int) {
-          dob = raw > 1000000000000
-              ? DateTime.fromMillisecondsSinceEpoch(raw)
-              : DateTime.fromMillisecondsSinceEpoch(raw * 1000);
-        }
-      } catch (_) {}
-
-      if (dob != null) {
-        final now = DateTime.now();
-        final age = now.year - dob.year -
-            ((now.month < dob.month || (now.month == dob.month && now.day < dob.day)) ? 1 : 0);
-        final ageGroup = (age <= 20) ? 'teen' : (age <= 35) ? 'young' : 'adult';
-        ageTag = '_$ageGroup';
-      }
-    }
-
-    final genderPrefix = gender == 'male'
-        ? 'MALE'
-        : (gender == 'female' ? 'FEMALE' : 'NEUTRAL');
-
-    final parts = <String>[
-      genderPrefix,
-      username,
-      habit,
-      if (interests.isNotEmpty) interests.join('_'),
-    ];
-
-    return parts.join('_') + ageTag;
-  }
-
-  /// Normalize gender
-  static String _normalizeGender(dynamic gender) {
-    if (gender == null) return 'other';
-    final g = gender.toString().trim().toLowerCase();
-    if (g.isEmpty) return 'other';
-    if (g == 'male' || g == 'man') return 'male';
-    if (g == 'female' || g == 'woman') return 'female';
-    return 'other';
-  }
 }
-
-

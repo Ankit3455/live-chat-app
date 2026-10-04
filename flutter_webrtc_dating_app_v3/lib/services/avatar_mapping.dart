@@ -34,8 +34,6 @@ class AvatarMapping {
     'shavedSides',
     'frizzle',
     'dreads01',
-    'shaggy',
-    'curly',
   ];
 
   static const List<String> _femaleTops = [
@@ -249,6 +247,134 @@ class AvatarMapping {
   static String ageGroupFromDob(dynamic raw) {
     final dob = _parseDob(raw);
     return dob == null ? '' : _ageGroup(dob);
+  }
+
+  /// Parts that define how the face looks; two avatars with the same values
+  /// for these look the same, so they form the uniqueness fingerprint.
+  static const List<String> _faceParts = [
+    'top',
+    'hairColor',
+    'skinColor',
+    'eyes',
+    'eyebrows',
+    'mouth',
+    'facialHair',
+    'accessories',
+    'clothing',
+    'clothingGraphic',
+    'clothesColor',
+  ];
+
+  /// Picks exactly one value per part from the allowed lists in
+  /// [dicebearParams], using a hash of [uniqueKey] (the uid) and [variant].
+  /// Background and clothes shades get a small per-user tint inside the
+  /// element palette. Returns the params plus a `fingerprint` of the face
+  /// parts; the generator claims that fingerprint so no two users share a
+  /// face, and bumps [variant] when it is already taken.
+  static ({Map<String, String> params, String fingerprint}) resolve(
+    Map<String, dynamic> props, {
+    required String uniqueKey,
+    int variant = 0,
+  }) {
+    final allowed = dicebearParams(props);
+    int pick(String part, int n) => _hash('$uniqueKey|$variant|$part') % n;
+    String one(String part) {
+      final options = (allowed[part] ?? '').split(',');
+      return options[pick(part, options.length)];
+    }
+
+    bool chance(String probabilityKey) {
+      final p = int.tryParse(allowed[probabilityKey] ?? '') ?? 0;
+      return pick(probabilityKey, 100) < p;
+    }
+
+    final params = <String, String>{
+      'backgroundType': 'gradientLinear',
+      'backgroundColor': (allowed['backgroundColor'] ?? '')
+          .split(',')
+          .map((c) => _tint(c, '$uniqueKey|$variant|bg|$c', 14))
+          .join(','),
+      'topProbability': '100',
+      'top': one('top'),
+      'hairColor': one('hairColor'),
+      'skinColor': one('skinColor'),
+      'eyes': one('eyes'),
+      'eyebrows': one('eyebrows'),
+      'mouth': one('mouth'),
+      'clothing': one('clothing'),
+      'clothesColor': one('clothesColor'),
+    };
+
+    if (params['clothing'] == 'graphicShirt' &&
+        allowed.containsKey('clothingGraphic')) {
+      params['clothingGraphic'] = one('clothingGraphic');
+    }
+
+    if (allowed.containsKey('facialHair') && chance('facialHairProbability')) {
+      params['facialHair'] = one('facialHair');
+      params['facialHairColor'] = params['hairColor']!;
+      params['facialHairProbability'] = '100';
+    } else {
+      params['facialHairProbability'] = '0';
+    }
+
+    if (allowed.containsKey('accessories') &&
+        chance('accessoriesProbability')) {
+      params['accessories'] = one('accessories');
+      params['accessoriesColor'] = one('accessoriesColor');
+      params['accessoriesProbability'] = '100';
+    } else {
+      params['accessoriesProbability'] = '0';
+    }
+
+    final face = _faceParts.map((k) => '$k=${params[k] ?? '-'}').join(';');
+    final fingerprint = _hash(face).toRadixString(16).padLeft(8, '0') +
+        _hash('destined:$face').toRadixString(16).padLeft(8, '0');
+
+    // Shade of the chosen clothes colour, so even equal outfits differ.
+    params['clothesColor'] =
+        _tint(params['clothesColor']!, '$uniqueKey|$variant|cc', 10);
+
+    return (params: params, fingerprint: fingerprint);
+  }
+
+  /// FNV-1a 32 bit followed by the murmur3 finaliser, so every bit of the
+  /// result depends on every input character (plain FNV's low bits are too
+  /// correlated for `% n` picks). All arithmetic stays below 2^53, which
+  /// keeps it exact on the web as well.
+  static int _hash(String input) {
+    var h = 0x811c9dc5;
+    for (final unit in input.codeUnits) {
+      h ^= unit;
+      h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) &
+          0xffffffff;
+    }
+    h ^= h >> 16;
+    h = _mul32(h, 0x85ebca6b);
+    h ^= h >> 13;
+    h = _mul32(h, 0xc2b2ae35);
+    h ^= h >> 16;
+    return h;
+  }
+
+  /// (a * b) mod 2^32 without exceeding 2^53 in intermediate values.
+  static int _mul32(int a, int b) {
+    final lo = (a & 0xffff) * b;
+    final hi = (((a >> 16) & 0xffff) * b) & 0xffff;
+    return (lo + (hi << 16)) & 0xffffffff;
+  }
+
+  /// Moves each RGB channel of [hex] by up to ±[spread], derived from [key].
+  static String _tint(String hex, String key, int spread) {
+    if (hex.length != 6) return hex;
+    final h = _hash(key);
+    final out = StringBuffer();
+    for (var i = 0; i < 3; i++) {
+      final channel = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+      final shift = ((h >> (i * 8)) & 0xff) % (spread * 2 + 1) - spread;
+      out.write((channel + shift).clamp(0, 255).toRadixString(16).padLeft(2, '0'));
+    }
+    return out.toString();
   }
 
   // ---------------------------------------------------------------------------

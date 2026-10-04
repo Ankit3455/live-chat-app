@@ -66,6 +66,15 @@ async function queueCloudinaryCleanup(uid, urls) {
 }
 
 // Removes both sides of every block involving uid.
+// Frees the user's avatar face so another user can get it.
+async function releaseAvatarFingerprints(uid) {
+  const snap = await db().collection('avatar_fingerprints').where('uid', '==', uid).get();
+  if (snap.empty) return;
+  const batch = db().batch();
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+}
+
 async function deleteBlocks(uid) {
   const userRef = db().collection('users').doc(uid);
   const [blocked, blockedBy] = await Promise.all([
@@ -179,6 +188,7 @@ exports.deleteAccount = onCall(
     // a failed run can be retried while still signed in.
     await step(uid, 'conversations', () => anonymiseConversations(uid), failed);
     await step(uid, 'blocks', () => deleteBlocks(uid), failed);
+    await step(uid, 'avatar', () => releaseAvatarFingerprints(uid), failed);
     await step(uid, 'games', () => deleteGameData(uid), failed);
     await step(uid, 'realtime', () => deleteRealtime(uid), failed);
     await step(uid, 'storage', () => deleteStorage(uid, urls), failed);

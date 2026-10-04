@@ -196,6 +196,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Avatar uniqueness registry: doc id = face fingerprint, value = owner.
+    // Get-only (no listing); a user claims and releases only their own.
+    match /avatar_fingerprints/{fingerprint} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && fingerprint.matches('^[0-9a-f]{16}$')
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && isServerTime(request.resource.data, 'createdAt');
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update, list: if false;
+    }
+
     // Read by rules only (see legacyUsersReadEnabled); edited in the console.
     match /config/{docId} {
       allow read, write: if false;

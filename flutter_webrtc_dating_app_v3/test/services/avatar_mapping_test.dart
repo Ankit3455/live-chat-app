@@ -89,4 +89,41 @@ void main() {
     expect(listOf(paramsFor({'profession': 'Artist'}), 'hairColor'), contains('f59797'));
     expect(listOf(paramsFor({'profession': 'Doctor'}), 'hairColor'), isNot(contains('f59797')));
   });
+
+  group('resolve (unique face per user)', () {
+    final props = AvatarMapping.buildFromAnswers({
+      'gender': 'female',
+      'habits': 'Night Owl',
+      'interests': ['Reading', 'Astrology'],
+      'dateOfBirth': DateTime(2000, 3, 12),
+    });
+
+    test('same uid and variant always give the same face', () {
+      final a = AvatarMapping.resolve(props, uniqueKey: 'uidA');
+      final b = AvatarMapping.resolve(props, uniqueKey: 'uidA');
+      expect(a.fingerprint, b.fingerprint);
+      expect(a.params, b.params);
+      expect(a.fingerprint, matches(RegExp(r'^[0-9a-f]{16}$')));
+    });
+
+    test('one value per part, always from the allowed list', () {
+      final allowed = AvatarMapping.dicebearParams(props);
+      final r = AvatarMapping.resolve(props, uniqueKey: 'uidB').params;
+      for (final k in ['top', 'hairColor', 'skinColor', 'eyes', 'eyebrows', 'mouth', 'clothing']) {
+        expect(allowed[k]!.split(','), contains(r[k]), reason: k);
+      }
+    });
+
+    test('identical answers still spread across many faces', () {
+      final faces = {
+        for (var i = 0; i < 2000; i++)
+          AvatarMapping.resolve(props, uniqueKey: 'user_$i').fingerprint,
+      };
+      expect(faces.length, greaterThan(1900));
+      expect(
+        AvatarMapping.resolve(props, uniqueKey: 'uidA', variant: 1).fingerprint,
+        isNot(AvatarMapping.resolve(props, uniqueKey: 'uidA').fingerprint),
+      );
+    });
+  });
 }
