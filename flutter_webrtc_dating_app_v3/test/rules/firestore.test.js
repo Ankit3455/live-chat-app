@@ -329,11 +329,12 @@ describe('firestore.rules', () => {
     });
 
     it('receiver may only move status forward', async () => {
-      await assertFails(updateDoc(doc(db('bob'), 'conversations/c1/messages/m1'), { status: 'sent' }));
-      await assertSucceeds(updateDoc(doc(db('bob'), 'conversations/c1/messages/m1'), {
-        status: 'delivered',
-        deliveredAt: serverTimestamp(),
-      }));
+      const ref = doc(db('bob'), 'conversations/c1/messages/m1');
+      await assertFails(updateDoc(ref, { status: 'bogus' }));
+      await assertSucceeds(updateDoc(ref, { status: 'delivered', deliveredAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { status: 'sent' }));
+      await assertSucceeds(updateDoc(ref, { status: 'read', readAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref, { status: 'delivered' }));
     });
 
     it('messages cannot be hard-deleted by clients', async () => {

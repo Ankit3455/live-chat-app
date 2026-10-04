@@ -70,6 +70,12 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Message status only moves sent -> delivered -> read.
+    function statusForward(from, to) {
+      return (from == 'sent' && to in ['delivered', 'read'])
+        || (from == 'delivered' && to == 'read');
+    }
+
     // Keys to validate: all keys on create, only changed keys on update, so
     // legacy oversized values do not block unrelated writes.
     function writtenKeys() {
@@ -427,7 +433,7 @@ service cloud.firestore {
             ||
             (request.auth.uid == resource.data.receiverId
               && changedKeys().hasOnly(['status', 'readAt', 'deliveredAt'])
-              && (!('status' in changedKeys()) || request.resource.data.status in ['delivered', 'read'])
+              && (!('status' in changedKeys()) || statusForward(resource.data.get('status', 'sent'), request.resource.data.status))
               && (!('readAt' in changedKeys()) || request.resource.data.readAt == request.time)
               && (!('deliveredAt' in changedKeys()) || request.resource.data.deliveredAt == request.time))
           );
