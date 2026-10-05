@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +17,18 @@ import '../../../widgets/custom_button.dart';
 
 class LudoWrapperScreen extends StatefulWidget {
   final String matchId;
-  const LudoWrapperScreen({Key? key, required this.matchId}) : super(key: key);
+
+  /// Opened from a chat invite: "back" returns to the chat, not the lobby.
+  final bool fromChat;
+
+  const LudoWrapperScreen({
+    Key? key,
+    required this.matchId,
+    this.fromChat = false,
+  }) : super(key: key);
+
+  /// How long a private match waits for the other player to open it.
+  static const Duration joinWait = Duration(seconds: 60);
 
   @override
   State<LudoWrapperScreen> createState() => _LudoWrapperScreenState();
@@ -26,6 +39,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
   late LudoMultiplayerProvider _provider;
   final _gameService = LudoGameService();
   bool _hasLeft = false;
+  Timer? _joinTimer;
 
   @override
   void initState() {
@@ -40,6 +54,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _joinTimer?.cancel();
     _provider.dispose();
     super.dispose();
   }
@@ -167,6 +182,10 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
   }
 
   void _backToLobby() {
+    if (widget.fromChat) {
+      Navigator.of(context).pop();
+      return;
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LudoLobbyScreen()),
     );
@@ -191,7 +210,18 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
                   return _buildLoadingView('Connecting to the game…');
                 }
 
-                if (!provider.isGameReady) {
+                if (provider.abandoned) {
+                  return _buildNotJoinedView();
+                }
+
+                if (!provider.isGameReady || provider.waitingForJoin) {
+                  if (provider.waitingForJoin) {
+                    _joinTimer ??= Timer(LudoWrapperScreen.joinWait, () {
+                      if (_provider.waitingForJoin) {
+                        _gameService.abandonPrivateMatch(widget.matchId);
+                      }
+                    });
+                  }
                   return _buildWaitingForOpponent();
                 }
 
@@ -333,7 +363,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
             ),
             const SizedBox(height: 32),
             CustomButton(
-              text: 'Back to lobby',
+              text: _backLabel,
               leftIcon: Icons.arrow_back,
               type: ButtonType.outline,
               width: 240,
@@ -349,6 +379,24 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
     );
   }
 
+  Widget _buildNotJoinedView() {
+    return AppEmptyState(
+      icon: Icons.timer_off_outlined,
+      illustration: AppIllustrationKind.noResults,
+      title: "They didn't join",
+      message:
+          'Your match did not open the game in time. Invite them again '
+          'from the chat.',
+      actionLabel: _backLabel,
+      onAction: () {
+        _hasLeft = true;
+        _backToLobby();
+      },
+    );
+  }
+
+  String get _backLabel => widget.fromChat ? 'Back to chat' : 'Back to lobby';
+
   Widget _buildMatchMissingView() {
     return AppEmptyState(
       icon: Icons.error_outline,
@@ -356,7 +404,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
       title: 'Match not found',
       message:
           'This match has ended or was cancelled. Find a new one from the lobby.',
-      actionLabel: 'Back to lobby',
+      actionLabel: _backLabel,
       onAction: () {
         _hasLeft = true;
         _backToLobby();
@@ -712,7 +760,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
                   ),
                   const SizedBox(height: 28),
                   CustomButton(
-                    text: 'Back to lobby',
+                    text: _backLabel,
                     leftIcon: Icons.home_outlined,
                     onPressed: () {
                       _hasLeft = true;

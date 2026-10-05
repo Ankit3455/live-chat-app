@@ -21,6 +21,7 @@ import 'ui/game_motion.dart';
 import 'ui/game_ui.dart';
 import 'ui/player_info.dart';
 import 'widgets/premium_pickers.dart';
+import 'widgets/room_mode.dart';
 import 'widgets/turn_clock.dart';
 
 class ChatGameScreen extends StatefulWidget {
@@ -30,6 +31,9 @@ class ChatGameScreen extends StatefulWidget {
   final String otherName;
   final UserModel? otherUser;
 
+  /// Random-match room: this player made the room and starts the first game.
+  final bool startOnOpen;
+
   const ChatGameScreen({
     super.key,
     required this.kind,
@@ -37,6 +41,7 @@ class ChatGameScreen extends StatefulWidget {
     required this.otherUserId,
     required this.otherName,
     this.otherUser,
+    this.startOnOpen = false,
   });
 
   @override
@@ -44,7 +49,7 @@ class ChatGameScreen extends StatefulWidget {
 }
 
 class _ChatGameScreenState extends State<ChatGameScreen>
-    with TurnClockTicker, MyProfile {
+    with TurnClockTicker, MyProfile, RoomMode {
   final ChatGameService _service = ChatGameService.instance;
   late Stream<ChatGame?> _game = _watch();
 
@@ -54,6 +59,9 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   bool _heardEnd = false;
 
   ChatGameKind get _kind => widget.kind;
+
+  @override
+  String get spaceId => widget.conversationId;
   GameTheme get _theme => GameTheme.of(_kind.name);
 
   Stream<ChatGame?> _watch() =>
@@ -197,6 +205,20 @@ class _ChatGameScreenState extends State<ChatGameScreen>
           _timeout,
         );
         if (game != null) _sounds(game);
+        if (!waiting) {
+          roomStep(
+            hasGame: game != null,
+            bothJoined: game?.bothJoined ?? false,
+            needsMyJoin:
+                game != null &&
+                game.isActive &&
+                !game.joined.contains(myUid) &&
+                game.createdBy != myUid,
+            startOnOpen: widget.startOnOpen,
+            start: _start,
+            join: _join,
+          );
+        }
         return Scaffold(
           backgroundColor: Colors.transparent,
           extendBodyBehindAppBar: true,
@@ -261,6 +283,9 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   }
 
   Widget _body(ChatGame? game) {
+    if (roomSettingUp && (game == null || (game.isActive && !game.bothJoined))) {
+      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+    }
     if (game == null || game.cancelled) {
       return GameIntro(
         theme: _theme,
@@ -285,6 +310,7 @@ class _ChatGameScreenState extends State<ChatGameScreen>
         onCancel: waitingForOther
             ? _endGame
             : () => Navigator.of(context).maybePop(),
+        inRoom: inRoom,
       );
     }
     final view = ChatGameView(
@@ -384,7 +410,7 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   }
 
   Widget _result(ChatGameView view) {
-    final goForReal = _kind == ChatGameKind.date ? _goForReal : null;
+    final goForReal = _kind == ChatGameKind.date && !inRoom ? _goForReal : null;
     return WinCelebration(
       won: true,
       theme: _theme,
@@ -448,13 +474,21 @@ class _ChatGameScreenState extends State<ChatGameScreen>
               ),
               const SizedBox(height: 12),
             ],
+            if (inRoom) ...[
+              SayHiButton(
+                theme: _theme,
+                otherUserId: widget.otherUserId,
+                otherName: widget.otherName,
+              ),
+              const SizedBox(height: 12),
+            ],
             enterFx(
               context,
               GameButton(
                 label: 'Play again',
                 icon: Icons.refresh_rounded,
                 theme: _theme,
-                secondary: goForReal != null,
+                secondary: goForReal != null || inRoom,
                 onPressed: _busy ? null : _start,
               ),
               delay: 700.ms,

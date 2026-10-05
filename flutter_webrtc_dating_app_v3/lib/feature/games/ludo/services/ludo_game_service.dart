@@ -217,6 +217,96 @@ class LudoGameService {
   }
 
   // ============================================================
+  // PRIVATE MATCHES (invited from a chat)
+  // ============================================================
+
+  /// The match doc of a 2-player game between [hostUid] (who accepted the
+  /// invite) and [guestUid], written in the same batch as the invite update
+  /// (see MatchInviteService). It waits ('waiting') until both opened it.
+  Map<String, dynamic> privateMatchData({
+    required String hostUid,
+    required String hostName,
+    required String hostAvatar,
+    required String guestUid,
+    required String guestName,
+    required String guestAvatar,
+  }) {
+    final colors = LudoRules.colorsFor(2);
+    final uids = [hostUid, guestUid];
+    final names = [hostName, guestName];
+    final avatars = [hostAvatar, guestAvatar];
+    final playersMap = <String, dynamic>{};
+    final pawnSteps = <String, List<int>>{};
+    for (int i = 0; i < 2; i++) {
+      playersMap[uids[i]] = {
+        'displayName': names[i],
+        'avatar': avatars[i],
+        'color': colors[i],
+        'status': 'active',
+        'leftAt': null,
+        'awaySince': null,
+        'joinedAt': FieldValue.serverTimestamp(),
+      };
+      pawnSteps[colors[i]] = List<int>.filled(LudoRules.pawnCount, -1);
+    }
+    return {
+      'players': playersMap,
+      'playerUids': uids,
+      'activeColors': colors,
+      'activePlayers': 2,
+      'maxPlayers': 2,
+      'state': 'waiting',
+      'private': true,
+      'joined': {hostUid: true},
+      'host': hostUid,
+      'turnColor': colors[Random().nextInt(colors.length)],
+      'turnSeq': 0,
+      'rolled': false,
+      'turnStartedAt': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'pawnSteps': pawnSteps,
+      'dice': 1,
+      'winners': [],
+      'isPublic': false,
+      'finishReason': null,
+      'forfeitDeadline': null,
+    };
+  }
+
+  /// Private match: I opened it.
+  Future<void> markJoined(String matchId, String uid) =>
+      _matches.doc(matchId).update({'joined.$uid': true});
+
+  /// Private match: both opened it, so the first turn starts now.
+  Future<void> startPrivateMatch(String matchId) async {
+    final ref = _matches.doc(matchId);
+    await _fs.runTransaction((tx) async {
+      final data = (await tx.get(ref)).data();
+      if (data == null || data['state'] != 'waiting') return;
+      tx.update(ref, {
+        'state': 'playing',
+        'turnStartedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  /// Private match the other player didn't open in time.
+  Future<void> abandonPrivateMatch(String matchId) async {
+    final ref = _matches.doc(matchId);
+    await _fs.runTransaction((tx) async {
+      final data = (await tx.get(ref)).data();
+      if (data == null || data['state'] != 'waiting') return;
+      tx.update(ref, {
+        'state': 'abandoned',
+        'finishReason': 'not_joined',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  // ============================================================
   // TURN WRITES (all transactional, guarded by turnColor + turnSeq)
   // ============================================================
 

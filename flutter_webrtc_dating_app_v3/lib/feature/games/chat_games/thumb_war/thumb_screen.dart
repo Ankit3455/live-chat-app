@@ -17,6 +17,7 @@ import '../duel/duel_service.dart';
 import '../ui/game_fx.dart';
 import '../ui/game_motion.dart';
 import '../ui/game_ui.dart';
+import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
 import 'thumb_rules.dart';
 import 'thumb_war.dart';
@@ -27,22 +28,29 @@ class ThumbScreen extends StatefulWidget {
   final String otherUserId;
   final String otherName;
 
+  /// Random-match room: this player made the room and starts the first game.
+  final bool startOnOpen;
+
   const ThumbScreen({
     super.key,
     required this.conversationId,
     required this.otherUserId,
     required this.otherName,
+    this.startOnOpen = false,
   });
 
   @override
   State<ThumbScreen> createState() => _ThumbScreenState();
 }
 
-class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
+class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMode {
   static const GameTheme _theme = GameTheme.thumb;
 
   final DuelService _service = DuelService(ThumbRules.instance);
   late Stream<DuelGame?> _game = _service.watch(widget.conversationId);
+
+  @override
+  String get spaceId => widget.conversationId;
   bool _busy = false;
 
   /// Move chosen for this clash, before the grip gauge is stopped.
@@ -207,6 +215,20 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
             replay != null &&
             !replay.isOver;
         updateClock(running ? game.deadline : null, _timeout);
+        if (!waiting) {
+          roomStep(
+            hasGame: game != null,
+            bothJoined: game?.bothJoined ?? false,
+            needsMyJoin:
+                game != null &&
+                game.isPlaying &&
+                !game.joined.contains(_myUid) &&
+                game.createdBy != _myUid,
+            startOnOpen: widget.startOnOpen,
+            start: _start,
+            join: _join,
+          );
+        }
         if (replay != null) _onClashes(replay);
 
         return Scaffold(
@@ -243,6 +265,10 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
   }
 
   Widget _body(DuelGame? game, ThumbReplay? replay) {
+    if (roomSettingUp &&
+        (game == null || (game.isPlaying && !game.bothJoined))) {
+      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+    }
     if (game == null || replay == null || game.status == 'cancelled') {
       return GameIntro(
         theme: _theme,
@@ -279,6 +305,7 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
         onCancel: waitingForOther
             ? () => _resign(started: false)
             : () => Navigator.of(context).maybePop(),
+        inRoom: inRoom,
       );
     }
 
@@ -351,6 +378,14 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
                   won: iWon,
                   busy: _busy,
                   onPlayAgain: _start,
+                  extra: inRoom
+                      ? SayHiButton(
+                          theme: _theme,
+                          otherUserId: widget.otherUserId,
+                          otherName: widget.otherName,
+                          secondary: true,
+                        )
+                      : null,
                 )
               else if (myPick != null)
                 GlassPanel(
@@ -557,11 +592,15 @@ class _Over extends StatelessWidget {
   final bool busy;
   final VoidCallback onPlayAgain;
 
+  /// Shown under the button (e.g. "Say hi" in a random-match room).
+  final Widget? extra;
+
   const _Over({
     required this.text,
     required this.won,
     required this.busy,
     required this.onPlayAgain,
+    this.extra,
   });
 
   @override
@@ -589,6 +628,7 @@ class _Over extends StatelessWidget {
             ),
             delay: 500.ms,
           ),
+          if (extra != null) ...[const SizedBox(height: 12), extra!],
         ],
       ),
     );

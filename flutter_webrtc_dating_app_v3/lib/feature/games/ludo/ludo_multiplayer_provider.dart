@@ -154,6 +154,15 @@ class LudoMultiplayerProvider extends ChangeNotifier {
 
   bool get isGameReady => _matchLoaded && playersInfo.length >= 2;
 
+  /// Private match (from a chat invite) the other player hasn't opened yet.
+  bool get waitingForJoin => _matchState == 'waiting';
+
+  /// Private match the other player didn't open in time.
+  bool get abandoned => _matchState == 'abandoned';
+
+  bool _joinWritten = false;
+  bool _starting = false;
+
   String? get localColor => _localColor;
 
   /// Colours whose pawns are drawn (everyone who has not left).
@@ -266,7 +275,9 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     }
     ready = true;
 
+    final wasWaiting = _matchState == 'waiting';
     _matchState = data['state']?.toString() ?? '';
+    if (_matchState == 'waiting') _handleWaiting(data);
     _activePlayers = (data['activePlayers'] as num?)?.toInt() ?? _activeColors.length;
     _maxPlayers = (data['maxPlayers'] as num?)?.toInt() ?? 2;
     _finishReason = data['finishReason']?.toString();
@@ -279,7 +290,9 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     // measured from snapshot arrival so device clock skew does not matter.
     final newTurnColor = (data['turnColor'] ?? 'green').toString();
     final newSeq = LudoGameService.turnSeqOf(data);
-    if (newTurnColor != _currentTurnColor || newSeq != _turnSeq) {
+    if (newTurnColor != _currentTurnColor ||
+        newSeq != _turnSeq ||
+        (wasWaiting && _matchState == 'playing')) {
       _currentTurnColor = newTurnColor;
       _turnSeq = newSeq;
       _turnObservedAt = DateTime.now();
@@ -484,6 +497,31 @@ class LudoMultiplayerProvider extends ChangeNotifier {
         }
         notifyListeners();
       }
+    }
+  }
+
+  /// Marks me as joined; the host starts the match once both are in.
+  void _handleWaiting(Map<String, dynamic> data) {
+    final uid = _localUid;
+    if (uid == null) return;
+    final joined = Map<String, dynamic>.from(data['joined'] ?? const {});
+    if (joined[uid] != true && !_joinWritten) {
+      _joinWritten = true;
+      _service.markJoined(matchId, uid).catchError((Object e) {
+        _joinWritten = false;
+        debugPrint('❌ markJoined failed: $e');
+      });
+    }
+    final uids = List<String>.from(data['playerUids'] ?? const []);
+    if (data['host'] == uid &&
+        !_starting &&
+        uids.isNotEmpty &&
+        uids.every((u) => joined[u] == true)) {
+      _starting = true;
+      _service
+          .startPrivateMatch(matchId)
+          .catchError((Object e) => debugPrint('❌ start failed: $e'))
+          .whenComplete(() => _starting = false);
     }
   }
 

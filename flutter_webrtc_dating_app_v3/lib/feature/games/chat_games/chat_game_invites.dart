@@ -17,6 +17,8 @@ import 'chat_game_service.dart';
 import 'chess/chess_game.dart';
 import 'chess/chess_service.dart';
 import 'duel/duel_service.dart';
+import 'match_invite_service.dart';
+import 'ui/player_info.dart';
 import 'tennis/tennis_game.dart';
 import 'thumb_war/thumb_rules.dart';
 
@@ -30,8 +32,11 @@ class GameRoomState {
   /// Still being played (or still waiting for the other player).
   final bool isOpen;
 
-  /// Who resigned or closed the invite (chess and duels only).
+  /// Who resigned or closed the invite (chess, duels and match invites).
   final String? closedBy;
+
+  /// Ludo / Carrom invite: the private match created on accept.
+  final String? matchId;
 
   const GameRoomState({
     required this.gameId,
@@ -40,6 +45,7 @@ class GameRoomState {
     required this.joined,
     required this.isOpen,
     this.closedBy,
+    this.matchId,
   });
 
   bool get bothJoined => players.isNotEmpty && players.every(joined.contains);
@@ -62,6 +68,7 @@ class GameRoomState {
       isOpen: data['status'] == 'playing' &&
           (round is! num || round < ChatGame.roundCount),
       closedBy: data['resignedBy'] as String?,
+      matchId: data['matchId'] as String?,
     );
   }
 }
@@ -106,6 +113,13 @@ class ChatGameInvites {
     required String otherUserId,
     UserModel? otherUser,
   }) {
+    if (MatchInviteService.handles(name)) {
+      return MatchInviteService.instance.send(
+        name: name,
+        convId: convId,
+        otherUserId: otherUserId,
+      );
+    }
     if (name == ChessGame.gameName) {
       return ChessService.instance.start(
         convId: convId,
@@ -127,8 +141,24 @@ class ChatGameInvites {
     );
   }
 
-  /// Accepts the invite: joining starts the game's clock.
-  static Future<void> accept(String name, String convId) {
+  /// Accepts the invite: joining starts the game's clock. Ludo / Carrom:
+  /// creates the private match with [other] (the inviter).
+  static Future<void> accept(
+    String name,
+    String convId, {
+    required String otherUserId,
+    UserModel? other,
+  }) async {
+    if (MatchInviteService.handles(name)) {
+      await MatchInviteService.instance.accept(
+        name: name,
+        convId: convId,
+        inviterUid: otherUserId,
+        inviterName: other?.username.trim() ?? '',
+        inviterAvatar: avatarUrlOf(other) ?? '',
+      );
+      return;
+    }
     if (name == ChessGame.gameName) return ChessService.instance.join(convId);
     final duel = _duel(name);
     if (duel != null) return duel.join(convId);
@@ -144,6 +174,9 @@ class ChatGameInvites {
     required String convId,
     required String otherUserId,
   }) {
+    if (MatchInviteService.handles(name)) {
+      return MatchInviteService.instance.close(name, convId);
+    }
     if (name == ChessGame.gameName) {
       return ChessService.instance.resign(
         convId: convId,

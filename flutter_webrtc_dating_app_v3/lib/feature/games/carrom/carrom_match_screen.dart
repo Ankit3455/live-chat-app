@@ -13,7 +13,19 @@ import '../../../widgets/custom_button.dart';
 
 class CarromMatchScreen extends StatefulWidget {
   final String matchId;
-  const CarromMatchScreen({Key? key, required this.matchId}) : super(key: key);
+
+  /// If the match has not started by then, it is cancelled. A chat invite
+  /// waits longer than the lobby, since the inviter may not be looking.
+  final Duration joinTimeout;
+
+  const CarromMatchScreen({
+    Key? key,
+    required this.matchId,
+    this.joinTimeout = const Duration(seconds: 20),
+  }) : super(key: key);
+
+  /// joinTimeout for a match started from a chat invite.
+  static const Duration inviteJoinTimeout = Duration(seconds: 60);
 
   @override
   State<CarromMatchScreen> createState() => _CarromMatchScreenState();
@@ -39,8 +51,6 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
   bool _countdownDone = false;
   bool _showGo = false;
 
-  // If the match has not started by then, it is cancelled.
-  static const Duration _joinTimeout = Duration(seconds: 20);
   static const Duration _startTimeout = Duration(seconds: 15);
   Timer? _joinTimer;
   bool _navigated = false;
@@ -75,7 +85,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
     _initAnimations();
     _markJoined();
     _listenMatch();
-    _joinTimer = Timer(_joinTimeout, _onStartTimeout);
+    _joinTimer = Timer(widget.joinTimeout, _onStartTimeout);
   }
 
   Future<void> _markJoined() async {

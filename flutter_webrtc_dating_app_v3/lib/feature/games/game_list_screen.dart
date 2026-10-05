@@ -4,9 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../screens/shell/main_shell.dart';
 import 'carrom/carrom_lobby_screen.dart';
 import 'carrom/common/game_leaderboard_screen.dart';
 import 'carrom/services/carrom_stats_service.dart';
+import 'chat_games/chat_game_registry.dart';
+import 'chat_games/random_match_screen.dart';
+import 'chat_games/ui/game_ui.dart';
 import 'ludo/ludo_lobby_screen.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/haptics.dart';
@@ -49,6 +53,12 @@ class _GameListScreenState extends State<GameListScreen> {
     }
   }
 
+  /// "Invite a match from chats" on the random-match screen.
+  VoidCallback? get _openChats {
+    final shell = MainShell.maybeOf(context);
+    return shell == null ? null : () => shell.selectTab(MainShell.chatsTab);
+  }
+
   // Stats can change while a game screen is open, so reload on return.
   Future<void> _open(Widget screen) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
@@ -80,6 +90,14 @@ class _GameListScreenState extends State<GameListScreen> {
                 ),
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: Text(
+                'Play with someone new who is online right now. To play with '
+                'a match, open your chat and tap + → Games.',
+                style: TextStyle(color: AppColors.lavender, fontSize: 13.5),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -104,42 +122,25 @@ class _GameListScreenState extends State<GameListScreen> {
                     accent: AppColors.pinkLight,
                     onTap: () => _open(const CarromLobbyScreen()),
                   ),
-                  const SizedBox(height: 12),
-                  // Played with a match, so it starts from a chat.
-                  _GameCard(
-                    title: 'Chat games',
-                    players: '2 players',
-                    description:
-                        'Build Our Date, Rate It, Red Flag Green Flag, '
-                        'Telepathy, Tennis Duel and Thumb War.',
-                    icon: Icons.favorite_border,
-                    accent: AppColors.brandPink,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Open a chat, tap the attach button and choose '
-                          'Games.',
+                  // The chat games: here with a random player; with a
+                  // match they start from the chat's Games button.
+                  for (final g in ChatGames.spaceGames) ...[
+                    const SizedBox(height: 12),
+                    _GameCard(
+                      title: g.title,
+                      players: '2 players',
+                      description: g.tagline,
+                      emoji: g.emoji,
+                      icon: Icons.sports_esports_outlined,
+                      accent: GameTheme.of(g.name).a,
+                      onTap: () => _open(
+                        RandomMatchScreen(
+                          game: g.name,
+                          onOpenChats: _openChats,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Played live with a match, so it starts from a chat too.
-                  _GameCard(
-                    title: 'Chess',
-                    players: '2 players',
-                    description: 'Live chess, 30 seconds per move.',
-                    icon: Icons.grid_3x3,
-                    accent: AppColors.brandPurpleLight,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Open a chat, tap the attach button and choose '
-                          'Games → Chess.',
-                        ),
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -185,7 +186,7 @@ class _GameListScreenState extends State<GameListScreen> {
                   ),
                 ),
                 const Text(
-                  'Play with your matches',
+                  'Play with a match or someone new',
                   style: TextStyle(color: AppColors.lavender, fontSize: 14),
                 ),
               ],
@@ -338,6 +339,9 @@ class _GameCard extends StatefulWidget {
   final String? record;
   final String? description;
   final IconData icon;
+
+  /// Drawn instead of [icon] when set.
+  final String? emoji;
   final Color accent;
   final VoidCallback? onTap;
 
@@ -346,6 +350,7 @@ class _GameCard extends StatefulWidget {
     required this.players,
     this.record,
     this.description,
+    this.emoji,
     required this.icon,
     required this.accent,
     this.onTap,
@@ -422,7 +427,13 @@ class _GameCardState extends State<_GameCard> {
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: tileBorder),
                         ),
-                        child: Icon(icon, color: accent, size: 34),
+                        alignment: Alignment.center,
+                        child: widget.emoji != null
+                            ? Text(
+                                widget.emoji!,
+                                style: const TextStyle(fontSize: 32),
+                              )
+                            : Icon(icon, color: accent, size: 34),
                       ),
                       const SizedBox(width: 16),
                       Expanded(

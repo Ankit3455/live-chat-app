@@ -1,7 +1,8 @@
 // lib/feature/games/chat_games/chat_game_service.dart
 //
-// Firestore side of chat games: conversations/{convId}/games/{kind}.
-// firestore.rules (match /games/{kind}) checks every write.
+// Firestore side of chat games: conversations/{convId}/games/{kind}, or
+// game_rooms/{roomId}/games/{kind} for a random match (see GameSpace).
+// firestore.rules (match /games/{name}) checks every write.
 
 import 'dart:async';
 import 'dart:math';
@@ -16,6 +17,7 @@ import '../../../services/notification/onesignal_sender.dart';
 import 'build_our_date/date_cards.dart';
 import 'chat_game.dart';
 import 'chat_game_logic.dart';
+import 'game_space.dart';
 
 class ChatGameException implements Exception {
   final String message;
@@ -34,13 +36,10 @@ class ChatGameService {
 
   String get _me => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  DocumentReference<Map<String, dynamic>> _conv(String convId) =>
-      _db.collection('conversations').doc(convId);
-
   DocumentReference<Map<String, dynamic>> _game(
     String convId,
     ChatGameKind kind,
-  ) => _conv(convId).collection('games').doc(kind.name);
+  ) => GameSpace.game(convId, kind.name);
 
   /// Null while there is no game. A read error (e.g. the chat has no
   /// messages yet, so the rules can't see it) also gives null and ends the
@@ -137,6 +136,7 @@ class ChatGameService {
 
   /// The game rules read the conversation, so it has to exist before a game
   /// doc is written; if it doesn't, [invite] is sent first, which creates it.
+  /// A random-match room always exists and gets no invite.
   /// Returns the stored participants and whether the invite went out.
   Future<({List<String> participants, bool invited})> prepareConversation({
     required String convId,
@@ -146,12 +146,13 @@ class ChatGameService {
     if (_me.isEmpty || convId.isEmpty) {
       throw const ChatGameException('You are not logged in.');
     }
-    var convSnap = await _conv(convId).get();
+    final parent = GameSpace.parent(convId);
+    var convSnap = await parent.get();
     var invited = false;
-    if (!convSnap.exists) {
+    if (!convSnap.exists && !GameSpace.isRoom(convId)) {
       await sendGameMessage(convId, otherUserId, invite);
       invited = true;
-      convSnap = await _conv(convId).get();
+      convSnap = await parent.get();
     }
     final participants = (convSnap.data()?['participants'] as List?)
         ?.whereType<String>()
@@ -305,8 +306,10 @@ class ChatGameService {
     });
   }
 
-  /// Sends a plain text message (e.g. "Should we actually go?").
+  /// Sends a plain text message (e.g. "Should we actually go?"). Rooms have
+  /// no chat.
   Future<void> sendText(String convId, String otherUserId, String text) async {
+    if (GameSpace.isRoom(convId)) return;
     final id = await _chat.sendMessage(
       conversationId: convId,
       receiverId: otherUserId,
@@ -325,12 +328,14 @@ class ChatGameService {
     }
   }
 
-  /// Posts a game card (invite or result) in the chat and pushes it.
+  /// Posts a game card (invite or result) in the chat and pushes it. Games
+  /// in a random-match room have no chat, so nothing is sent.
   Future<void> sendGameMessage(
     String convId,
     String otherUserId,
     ChatGameMessage message,
   ) async {
+    if (GameSpace.isRoom(convId)) return;
     final id = await _chat.sendMessage(
       conversationId: convId,
       receiverId: otherUserId,

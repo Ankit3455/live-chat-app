@@ -1,6 +1,6 @@
 // lib/feature/games/chat_games/chess/chess_service.dart
 //
-// Firestore side of chess: conversations/{convId}/games/chess.
+// Firestore side of chess: {space}/games/chess (see GameSpace).
 // firestore.rules (match /games/chess) checks turn order and move format;
 // legality is checked here and again by the other phone's replay.
 
@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 
 import '../chat_game_logic.dart';
 import '../chat_game_service.dart';
+import '../game_space.dart';
 import 'chess_engine.dart';
 import 'chess_game.dart';
 
@@ -25,11 +26,8 @@ class ChessService {
 
   String get _me => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  DocumentReference<Map<String, dynamic>> _doc(String convId) => _db
-      .collection('conversations')
-      .doc(convId)
-      .collection('games')
-      .doc(ChessGame.gameName);
+  DocumentReference<Map<String, dynamic>> _doc(String convId) =>
+      GameSpace.game(convId, ChessGame.gameName);
 
   /// Null while there is no game. A read error (the chat has no messages
   /// yet) also gives null and ends the stream; call watch again after start.

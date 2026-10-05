@@ -1,6 +1,6 @@
 // lib/feature/games/chat_games/duel/duel_service.dart
 //
-// Firestore side of duels: conversations/{convId}/games/{rules.name}.
+// Firestore side of duels: {space}/games/{rules.name} (see GameSpace).
 // firestore.rules (match /games/{duel}) checks own picks, pick values and
 // the 30 s clock; the score comes from replaying the history.
 
@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 
 import '../chat_game_logic.dart';
 import '../chat_game_service.dart';
+import '../game_space.dart';
 import 'duel_game.dart';
 
 class DuelService {
@@ -25,11 +26,8 @@ class DuelService {
 
   String get _me => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  DocumentReference<Map<String, dynamic>> _doc(String convId) => _db
-      .collection('conversations')
-      .doc(convId)
-      .collection('games')
-      .doc(rules.name);
+  DocumentReference<Map<String, dynamic>> _doc(String convId) =>
+      GameSpace.game(convId, rules.name);
 
   DuelGame? _read(DocumentSnapshot<Map<String, dynamic>> s) =>
       DuelGame.fromMap(rules, ChatGameService.withDates(s.data()));

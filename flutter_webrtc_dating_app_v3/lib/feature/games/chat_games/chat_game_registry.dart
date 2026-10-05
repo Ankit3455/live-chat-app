@@ -1,7 +1,9 @@
 // lib/feature/games/chat_games/chat_game_registry.dart
 //
-// Every game that can be played in a chat: what the games sheet lists, which
-// screen opens, and the result line on the chat card.
+// Every 2-player game: what the chat's games sheet and the Games tab list,
+// which screen opens, and the result line on the chat card. From a chat a
+// game is played with that match (invite card); from the Games tab with a
+// random player (RandomMatchScreen, or the Ludo / Carrom lobbies).
 
 import 'package:flutter/widgets.dart';
 
@@ -35,7 +37,8 @@ class ChatGames {
     ThumbRules.instance,
   ];
 
-  static final List<ChatGameEntry> all = [
+  /// Games that live in a chat / room space ({space}/games/{name}).
+  static final List<ChatGameEntry> spaceGames = [
     for (final k in ChatGameKind.values)
       ChatGameEntry(k.name, k.emoji, k.title, k.tagline),
     const ChatGameEntry(
@@ -46,6 +49,29 @@ class ChatGames {
     ),
     for (final d in _duels) ChatGameEntry(d.name, d.emoji, d.title, d.tagline),
   ];
+
+  /// Ludo and Carrom are their own matches (ludo_matches / carrom_matches):
+  /// from a chat they go through MatchInviteService, from the Games tab
+  /// through their lobbies.
+  static const List<ChatGameEntry> matchGames = [
+    ChatGameEntry(
+      'ludo',
+      '🎲',
+      'Ludo',
+      'Race your 4 pawns home. The classic board game.',
+    ),
+    ChatGameEntry(
+      'carrom',
+      '🎯',
+      'Carrom',
+      'Flick the striker and pocket your coins first.',
+    ),
+  ];
+
+  static final List<ChatGameEntry> all = [...matchGames, ...spaceGames];
+
+  static bool isMatchGame(String name) =>
+      matchGames.any((g) => g.name == name);
 
   static ChatGameEntry? byName(Object? name) {
     for (final g in all) {
@@ -67,6 +93,7 @@ class ChatGames {
     required String otherUserId,
     required String otherName,
     UserModel? otherUser,
+    bool startOnOpen = false,
   }) {
     if (name == ChessGame.gameName) {
       return ChessScreen(
@@ -74,6 +101,7 @@ class ChatGames {
         otherUserId: otherUserId,
         otherName: otherName,
         otherUser: otherUser,
+        startOnOpen: startOnOpen,
       );
     }
     if (name == TennisRules.gameName) {
@@ -82,6 +110,7 @@ class ChatGames {
         otherUserId: otherUserId,
         otherName: otherName,
         otherUser: otherUser,
+        startOnOpen: startOnOpen,
       );
     }
     if (name == ThumbRules.gameName) {
@@ -89,6 +118,7 @@ class ChatGames {
         conversationId: conversationId,
         otherUserId: otherUserId,
         otherName: otherName,
+        startOnOpen: startOnOpen,
       );
     }
     return ChatGameScreen(
@@ -97,6 +127,7 @@ class ChatGames {
       otherUserId: otherUserId,
       otherName: otherName,
       otherUser: otherUser,
+      startOnOpen: startOnOpen,
     );
   }
 

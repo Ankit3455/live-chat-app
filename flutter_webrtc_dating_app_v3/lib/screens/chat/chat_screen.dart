@@ -37,11 +37,14 @@ import 'widgets/typing_bubble.dart';
 import 'widgets/voice_recording_sheet.dart';
 
 // Call Screens
+import '../../feature/games/carrom/carrom_match_screen.dart';
 import '../../feature/games/chat_games/chat_game_invites.dart';
 import '../../feature/games/chat_games/chat_game_registry.dart';
 import '../../feature/games/chat_games/chat_game_service.dart'
     show ChatGameException;
+import '../../feature/games/chat_games/match_invite_service.dart';
 import '../../feature/games/chat_games/widgets/chat_game_bubble.dart';
+import '../../feature/games/ludo/ludo_wrapper_screen.dart';
 import '../../feature/games/chat_games/widgets/game_picker_sheet.dart';
 import '../calls/audio_call_screen.dart';
 import '../calls/video_call_screen.dart';
@@ -1870,8 +1873,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final room = await ChatGameInvites.current(convId, game);
       if (!mounted) return;
-      if (room != null && room.isOpen) {
-        if (room.bothJoined) {
+      var open = room != null && room.isOpen;
+      final matchId = room?.matchId;
+      // Ludo / Carrom: an accepted invite stays open until its match ends.
+      if (open &&
+          room.bothJoined &&
+          matchId != null &&
+          await MatchInviteService.instance.matchEnded(game, matchId)) {
+        await MatchInviteService.instance.close(game, convId);
+        open = false;
+      }
+      if (!mounted) return;
+      if (open) {
+        if (room!.bothJoined) {
           _openGame(game);
         } else if (room.createdBy == _myUid) {
           _showSnackBar(
@@ -1902,7 +1916,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final convId = _conversationId;
     if (convId == null || !_canSend) return;
     try {
-      await ChatGameInvites.accept(game, convId);
+      await ChatGameInvites.accept(
+        game,
+        convId,
+        otherUserId: widget.otherUserId,
+        other: _otherUser,
+      );
       final room = await ChatGameInvites.current(convId, game);
       if (!mounted) return;
       if (room != null && room.isOpen && room.bothJoined) {
@@ -1933,10 +1952,49 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Ludo / Carrom from an accepted invite: opens its private match.
+  Future<void> _openMatch(String game) async {
+    final convId = _conversationId;
+    if (convId == null) return;
+    try {
+      final matchId =
+          _games?.rooms.value[game]?.matchId ??
+          (await ChatGameInvites.current(convId, game))?.matchId;
+      if (!mounted) return;
+      if (matchId == null) {
+        _showSnackBar('This game is not ready yet.');
+        return;
+      }
+      if (await MatchInviteService.instance.matchEnded(game, matchId)) {
+        await MatchInviteService.instance.close(game, convId);
+        _showSnackBar('This game has ended. Invite again to play another.');
+        return;
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => game == MatchInviteService.ludo
+              ? LudoWrapperScreen(matchId: matchId, fromChat: true)
+              : CarromMatchScreen(
+                  matchId: matchId,
+                  joinTimeout: CarromMatchScreen.inviteJoinTimeout,
+                ),
+        ),
+      );
+    } catch (e) {
+      _log('openMatch', e);
+      _showSnackBar("Couldn't open the game. Try again.");
+    }
+  }
+
   /// [game] is a game name from [ChatGames].
   void _openGame(String game) {
     final convId = _conversationId;
     if (convId == null || !_canSend || !mounted) return;
+    if (MatchInviteService.handles(game)) {
+      _openMatch(game);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatGames.screen(

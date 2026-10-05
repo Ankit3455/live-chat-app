@@ -140,6 +140,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
         for (final doc in snapshot.docs) {
           final data = doc.data();
           if (data['maxPlayers'] != _selectedPlayerCount) continue;
+          // Invited from a chat: not a lobby match.
+          if (data['private'] == true) continue;
           final players = Map<String, dynamic>.from(data['players'] ?? {});
           final info = players[user.uid];
           if (info is Map && info['status'] == 'active') {

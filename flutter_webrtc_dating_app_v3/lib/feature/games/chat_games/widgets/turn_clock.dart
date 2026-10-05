@@ -126,6 +126,9 @@ class JoinPanel extends StatelessWidget {
   final VoidCallback onJoin;
   final VoidCallback onCancel;
 
+  /// A random-match room has no chat to accept the invite in.
+  final bool inRoom;
+
   const JoinPanel({
     super.key,
     required this.theme,
@@ -135,6 +138,7 @@ class JoinPanel extends StatelessWidget {
     required this.busy,
     required this.onJoin,
     required this.onCancel,
+    this.inRoom = false,
   });
 
   @override
@@ -171,8 +175,10 @@ class JoinPanel extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             waitingForOther
-                ? 'The game starts when $otherName accepts the invite in '
-                      'your chat.'
+                ? (inRoom
+                      ? 'The game starts when $otherName joins.'
+                      : 'The game starts when $otherName accepts the invite '
+                            'in your chat.')
                 : 'Every turn has ${TurnClock.seconds} seconds. If time runs '
                       'out, the turn passes. Ready?',
             textAlign: TextAlign.center,

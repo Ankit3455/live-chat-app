@@ -298,6 +298,8 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     if (snap.docs.isEmpty) return null;
     final data = snap.docs.first.data();
     if (data['status'] != 'ready' && data['status'] != 'started') return null;
+    // Invited from a chat: not a lobby match.
+    if (data['private'] == true) return null;
     return snap.docs.first.reference;
   }
 

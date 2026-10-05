@@ -17,6 +17,7 @@ import '../ui/game_fx.dart';
 import '../ui/game_motion.dart';
 import '../ui/game_ui.dart';
 import '../ui/player_info.dart';
+import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
 import 'tennis_court.dart';
 import 'tennis_game.dart';
@@ -26,6 +27,9 @@ class TennisScreen extends StatefulWidget {
   final String conversationId;
   final String otherUserId;
   final String otherName;
+
+  /// Random-match room: this player made the room and starts the first game.
+  final bool startOnOpen;
   final UserModel? otherUser;
 
   const TennisScreen({
@@ -33,6 +37,7 @@ class TennisScreen extends StatefulWidget {
     required this.conversationId,
     required this.otherUserId,
     required this.otherName,
+    this.startOnOpen = false,
     this.otherUser,
   });
 
@@ -41,11 +46,14 @@ class TennisScreen extends StatefulWidget {
 }
 
 class _TennisScreenState extends State<TennisScreen>
-    with TurnClockTicker, MyProfile {
+    with TurnClockTicker, MyProfile, RoomMode {
   static const GameTheme _theme = GameTheme.tennis;
 
   final DuelService _service = DuelService(TennisRules.instance);
   late Stream<DuelGame?> _game = _service.watch(widget.conversationId);
+
+  @override
+  String get spaceId => widget.conversationId;
   bool _busy = false;
 
   /// My index in players (0 or 1), set on every build.
@@ -188,6 +196,20 @@ class _TennisScreenState extends State<TennisScreen>
             replay != null &&
             !replay.isOver;
         updateClock(running ? game.deadline : null, _timeout);
+        if (!waiting) {
+          roomStep(
+            hasGame: game != null,
+            bothJoined: game?.bothJoined ?? false,
+            needsMyJoin:
+                game != null &&
+                game.isPlaying &&
+                !game.joined.contains(myUid) &&
+                game.createdBy != myUid,
+            startOnOpen: widget.startOnOpen,
+            start: _start,
+            join: _join,
+          );
+        }
         if (replay != null) _sounds(replay);
 
         return Scaffold(
@@ -224,6 +246,10 @@ class _TennisScreenState extends State<TennisScreen>
   }
 
   Widget _body(DuelGame? game, TennisReplay? replay) {
+    if (roomSettingUp &&
+        (game == null || (game.isPlaying && !game.bothJoined))) {
+      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+    }
     if (game == null || replay == null || game.status == 'cancelled') {
       return GameIntro(
         theme: _theme,
@@ -262,6 +288,7 @@ class _TennisScreenState extends State<TennisScreen>
         onCancel: waitingForOther
             ? () => _resign(started: false)
             : () => Navigator.of(context).maybePop(),
+        inRoom: inRoom,
       );
     }
 
@@ -331,6 +358,14 @@ class _TennisScreenState extends State<TennisScreen>
                   won: iWon,
                   busy: _busy,
                   onPlayAgain: _start,
+                  extra: inRoom
+                      ? SayHiButton(
+                          theme: _theme,
+                          otherUserId: widget.otherUserId,
+                          otherName: widget.otherName,
+                          secondary: true,
+                        )
+                      : null,
                 )
               else
                 GlassPanel(
@@ -555,11 +590,15 @@ class _Over extends StatelessWidget {
   final bool busy;
   final VoidCallback onPlayAgain;
 
+  /// Shown under the button (e.g. "Say hi" in a random-match room).
+  final Widget? extra;
+
   const _Over({
     required this.text,
     required this.won,
     required this.busy,
     required this.onPlayAgain,
+    this.extra,
   });
 
   @override
@@ -587,6 +626,7 @@ class _Over extends StatelessWidget {
             ),
             delay: 500.ms,
           ),
+          if (extra != null) ...[const SizedBox(height: 12), extra!],
         ],
       ),
     );

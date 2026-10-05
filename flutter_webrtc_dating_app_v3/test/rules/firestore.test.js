@@ -1456,6 +1456,151 @@ describe('firestore.rules', () => {
     });
   });
 
+  describe('random-match rooms and queue', () => {
+    const live = () => Timestamp.fromMillis(Date.now() + 60000);
+    const entry = (uid, over = {}) => ({
+      uid,
+      game: 'rate',
+      displayName: uid,
+      avatar: '',
+      createdAt: serverTimestamp(),
+      expiresAt: live(),
+      ...over,
+    });
+    const seedEntry = async (uid, over = {}) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), `game_queue/${uid}`),
+          { ...entry(uid), createdAt: Timestamp.now(), ...over });
+      });
+    };
+    // alice claims bob's entry: room + claim (+ her own entry removed).
+    const claim = (roomId = 'r1', over = {}, claimOver = {}) => {
+      const fs = db('alice');
+      const batch = writeBatch(fs);
+      batch.set(doc(fs, `game_rooms/${roomId}`), {
+        participants: ['alice', 'bob'],
+        game: 'rate',
+        createdBy: 'alice',
+        createdAt: serverTimestamp(),
+        ...over,
+      });
+      batch.update(doc(fs, 'game_queue/bob'), { roomId, claimedBy: 'alice', ...claimOver });
+      return batch.commit();
+    };
+
+    it('queue entries are mine, short-lived and well formed', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), 'game_queue/alice'), entry('alice')));
+      await assertFails(setDoc(doc(db('alice'), 'game_queue/bob'), entry('bob')));
+      await assertFails(setDoc(doc(db('alice'), 'game_queue/alice'),
+        entry('alice', { expiresAt: Timestamp.fromMillis(Date.now() + 10 * 60000) })));
+      await assertFails(setDoc(doc(db('alice'), 'game_queue/alice'), entry('alice', { roomId: 'r9' })));
+      await assertSucceeds(getDocs(query(collection(db('bob'), 'game_queue'), where('game', '==', 'rate'))));
+    });
+
+    it('claiming a live entry creates the room in the same write', async () => {
+      await seedEntry('bob');
+      await assertSucceeds(claim());
+      await assertSucceeds(getDoc(doc(db('bob'), 'game_rooms/r1')));
+      await assertFails(getDoc(doc(db('carol'), 'game_rooms/r1')));
+    });
+
+    it('no room without a matching claim', async () => {
+      await seedEntry('bob');
+      await assertFails(setDoc(doc(db('alice'), 'game_rooms/r1'), {
+        participants: ['alice', 'bob'], game: 'rate', createdBy: 'alice', createdAt: serverTimestamp(),
+      }));
+      await assertFails(claim('r1', { game: 'chess' }), 'room game must match the entry');
+      await assertFails(claim('r1', {}, { roomId: 'r2' }), 'claim must name this room');
+      await seedEntry('bob', { expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+      await assertFails(claim(), 'expired entries cannot be claimed');
+    });
+
+    it('an entry is claimed once, and not across a block', async () => {
+      await seedEntry('bob', { roomId: 'r0', claimedBy: 'carol' });
+      await assertFails(claim());
+      await seedEntry('bob');
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'), { at: 1 });
+      });
+      await assertFails(claim());
+    });
+
+    it('rooms never change and hold only space games', async () => {
+      await seedEntry('bob');
+      await assertSucceeds(claim());
+      await assertFails(updateDoc(doc(db('alice'), 'game_rooms/r1'), { game: 'chess' }));
+      await assertFails(deleteDoc(doc(db('alice'), 'game_rooms/r1')));
+      const game = {
+        gameId: 'g1', players: ['alice', 'bob'], createdBy: 'alice', status: 'playing', round: 0,
+        deck: { r0: ['a'], r1: ['b'], r2: ['c'], r3: ['d'], r4: ['e'] },
+        picks: {}, joined: ['alice'], roundStartedAt: null,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      };
+      await assertSucceeds(setDoc(doc(db('alice'), 'game_rooms/r1/games/rate'), game));
+      await assertFails(getDoc(doc(db('carol'), 'game_rooms/r1/games/rate')));
+      await assertFails(setDoc(doc(db('alice'), 'game_rooms/r1/games/ludo'), {
+        gameId: 'g2', players: ['alice', 'bob'], createdBy: 'alice', status: 'playing',
+        joined: ['alice'], matchId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      }));
+    });
+  });
+
+  describe('ludo / carrom invites from a chat', () => {
+    const path = 'conversations/c1/games/carrom';
+    const invite = (over = {}) => ({
+      gameId: 'g1',
+      players: ['alice', 'bob'],
+      createdBy: 'alice',
+      status: 'playing',
+      joined: ['alice'],
+      matchId: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const match = (players = ['bob', 'alice']) => ({
+      players: Object.fromEntries(players.map((u) => [u, { displayName: u, avatar: '' }])),
+      playerUids: players,
+      status: 'ready',
+      private: true,
+      host: players[0],
+      turn: players[0],
+      joined: {},
+    });
+    const accept = (matchPlayers, over = {}) => {
+      const fs = db('bob');
+      const batch = writeBatch(fs);
+      batch.set(doc(fs, 'carrom_matches/m1'), match(matchPlayers));
+      batch.update(doc(fs, path),
+        { joined: ['alice', 'bob'], matchId: 'm1', updatedAt: serverTimestamp(), ...over });
+      return batch.commit();
+    };
+
+    it('a participant invites; the invite starts unaccepted', async () => {
+      await assertFails(setDoc(doc(db('alice'), path), invite({ matchId: 'm1' })));
+      await assertFails(setDoc(doc(db('alice'), path), invite({ joined: ['alice', 'bob'] })));
+      await assertFails(setDoc(doc(db('carol'), path), invite({ createdBy: 'carol' })));
+      await assertSucceeds(setDoc(doc(db('alice'), path), invite()));
+    });
+
+    it('accepting creates the private match for exactly the two players', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), path), invite()));
+      await assertFails(accept(['bob', 'carol']));
+      await assertFails(updateDoc(doc(db('bob'), path),
+        { joined: ['alice', 'bob'], matchId: 'nope', updatedAt: serverTimestamp() }));
+      await assertSucceeds(accept());
+    });
+
+    it('either player can decline / cancel; then a new invite can replace it', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), path), invite()));
+      await assertFails(updateDoc(doc(db('bob'), path),
+        { status: 'over', resignedBy: 'alice', updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db('bob'), path),
+        { status: 'over', resignedBy: 'bob', updatedAt: serverTimestamp() }));
+      await assertSucceeds(setDoc(doc(db('bob'), path), invite({ createdBy: 'bob', joined: ['bob'] })));
+    });
+  });
+
   it('unknown collections are denied', async () => {
     await assertFails(setDoc(doc(db('alice'), 'anything/x'), { a: 1 }));
     await assertFails(getDoc(doc(db('alice'), 'anything/x')));
