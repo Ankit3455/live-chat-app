@@ -158,10 +158,6 @@ class AvatarWhyCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Text(
-                  'from your answers',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                ),
               ],
             ),
           ),

@@ -188,7 +188,9 @@ class DiscoveryFeed {
     if (f.applyFilters && f.onlineOnly) {
       q = q.where('online', isEqualTo: true);
     }
-    if (_ordered) q = q.orderBy('lastSeen', descending: true);
+    // Old users docs may lack lastSeen, and orderBy drops docs without the
+    // field, so only the public feed is ordered by recent activity.
+    if (_ordered && usePublic) q = q.orderBy('lastSeen', descending: true);
     q = q.limit(pageSize);
     final cursor = _cursor;
     if (cursor != null) q = q.startAfterDocument(cursor);
@@ -210,7 +212,14 @@ class DiscoveryFeed {
     }
   }
 
+  /// public_profiles is written by each user's own app (no Cloud Functions on
+  /// the free plan), so it only fills up as users open the new version. Until
+  /// every existing user has one, read the sanitised users docs instead
+  /// (allowed by config/rules.legacyUsersRead). Flip to true after that.
+  static const bool _publicFeedEnabled = false;
+
   Future<bool> _isPublicReady() async {
+    if (!_publicFeedEnabled) return false;
     final cached = _publicReady;
     if (cached != null) return cached;
     try {

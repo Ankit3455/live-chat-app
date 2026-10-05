@@ -9,7 +9,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../services/avatar_traits.dart';
 import '../../../services/dicebear_avatar_service.dart';
 
 class AvatarLivePreview extends StatefulWidget {
@@ -19,16 +18,12 @@ class AvatarLivePreview extends StatefulWidget {
   /// Bumped by the parent on every answer change.
   final int revision;
 
-  /// The answer that just changed, e.g. "Reading", for the hint line.
-  final String answerLabel;
-
   final String uid;
 
   const AvatarLivePreview({
     super.key,
     required this.answers,
     required this.revision,
-    required this.answerLabel,
     required this.uid,
   });
 
@@ -41,14 +36,12 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
 
   Timer? _timer;
   String? _url;
-  Map<String, String>? _params;
   final List<String> _history = [];
-  String? _hint;
 
   @override
   void initState() {
     super.initState();
-    _refresh(withHint: false);
+    _refresh();
   }
 
   @override
@@ -56,7 +49,7 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.revision != widget.revision) {
       _timer?.cancel();
-      _timer = Timer(_debounce, () => _refresh(withHint: true));
+      _timer = Timer(_debounce, _refresh);
     }
   }
 
@@ -66,28 +59,19 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
     super.dispose();
   }
 
-  void _refresh({required bool withHint}) {
+  void _refresh() {
     if (!mounted) return;
     final next = DiceBearAvatarService.preview(
       widget.answers,
       uniqueKey: widget.uid,
     );
     if (next.url == _url) return;
-    final hint = withHint
-        ? AvatarTraits.changeHint(
-            before: _params,
-            after: next.params,
-            answerLabel: widget.answerLabel,
-          )
-        : null;
     setState(() {
       if (_url != null) {
         _history.insert(0, _url!);
         if (_history.length > 2) _history.removeLast();
       }
       _url = next.url;
-      _params = next.params;
-      if (hint != null) _hint = hint;
     });
   }
 
@@ -96,9 +80,7 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
     return Semantics(
       liveRegion: true,
       excludeSemantics: true,
-      label: _hint == null
-          ? 'Your avatar is taking shape'
-          : 'Your avatar is taking shape. $_hint',
+      label: 'Your avatar is taking shape',
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.all(14),
@@ -160,37 +142,6 @@ class _AvatarLivePreviewState extends State<AvatarLivePreview> {
                   ),
                 ),
               ],
-            ),
-            AnimatedSwitcher(
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 250),
-              child: _hint == null
-                  ? const SizedBox.shrink()
-                  : Container(
-                      key: ValueKey(_hint),
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.gold.withOpacity(0.35),
-                        ),
-                      ),
-                      child: Text(
-                        _hint!,
-                        style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
             ),
           ],
         ),

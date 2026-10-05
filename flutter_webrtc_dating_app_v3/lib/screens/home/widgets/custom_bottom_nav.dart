@@ -62,7 +62,10 @@ class CustomBottomNav extends StatelessWidget {
       // Cap label scaling; full labels stay in Semantics.
       child: MediaQuery.withClampedTextScaling(
         maxScaleFactor: 1.3,
-        child: Row(
+        // Without this the Centered items take the bar's max height and the
+        // bar fills the whole screen (bottomNavigationBar has no max).
+        child: IntrinsicHeight(
+          child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _NavItem(
@@ -95,6 +98,7 @@ class CustomBottomNav extends StatelessWidget {
               onTap: () => _select(3),
             ),
           ],
+          ),
         ),
       ),
     );

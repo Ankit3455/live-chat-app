@@ -36,7 +36,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   final String? _uid = FirebaseAuth.instance.currentUser?.uid;
   dynamic _dob;
   int _avatarRevision = 0;
-  String _lastAvatarAnswer = '';
 
   @override
   void initState() {
@@ -64,26 +63,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   void _onAnswerChanged(String field, dynamic answer) {
-    final previous = _answers[field];
     setState(() {
       _answers[field] = answer;
-      if (_avatarFields.contains(field)) {
-        _avatarRevision++;
-        _lastAvatarAnswer = _answerLabel(previous, answer);
-      }
+      if (_avatarFields.contains(field)) _avatarRevision++;
     });
-  }
-
-  // "Reading" for a newly picked interest, the option for single choices.
-  static String _answerLabel(dynamic previous, dynamic answer) {
-    if (answer is List) {
-      final before = previous is List ? previous : const [];
-      for (final item in answer) {
-        if (!before.contains(item)) return item.toString();
-      }
-      return '';
-    }
-    return answer?.toString() ?? '';
   }
 
   @override
@@ -252,7 +235,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     AvatarLivePreview(
                       uid: uid,
                       revision: _avatarRevision,
-                      answerLabel: _lastAvatarAnswer,
                       answers: {
                         ..._answers,
                         if (_dob != null) 'dateOfBirth': _dob,
