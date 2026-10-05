@@ -203,8 +203,8 @@ class HomeOnboarding {
     final stepOffset = hasBubbles ? 0 : -1;
 
     // Get screen dimensions for smart positioning
-    final screenHeight = MediaQuery.of(context).size.height;
-    final topPadding = MediaQuery.of(context).padding.top;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final topPadding = MediaQuery.paddingOf(context).top;
 
     // =========================================================================
     // Step 1: Online now strip - tooltip below it

@@ -151,6 +151,12 @@ class _CustomButtonState extends State<CustomButton>
   BorderRadius get _radius => BorderRadius.circular(_height / 2);
 
   Widget _buildPrimaryButton() {
+    // Own layer so the 28px blurred shadow isn't re-rasterised whenever
+    // something else on the screen repaints.
+    return RepaintBoundary(child: _primaryBody());
+  }
+
+  Widget _primaryBody() {
     return Container(
       width: widget.width ?? double.infinity,
       constraints: BoxConstraints(minHeight: _height),

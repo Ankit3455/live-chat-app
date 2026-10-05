@@ -95,8 +95,11 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
   }
 
   Future<void> _loadPrefs() async {
-    final prefs = await FilterPreferences.getInstance();
-    final discoveryEnabled = await _loadDiscoveryEnabled();
+    // Local prefs and the users/{uid} read run in parallel.
+    final (prefs, discoveryEnabled) = await (
+      FilterPreferences.getInstance(),
+      _loadDiscoveryEnabled(),
+    ).wait;
     if (!mounted) return;
     setState(() {
       _discoveryEnabled = discoveryEnabled;

@@ -304,7 +304,6 @@ class _ChatGameScreenState extends State<ChatGameScreen>
     final game = view.game;
     final myPicked = view.myPick != null;
     final otherPicked = game.picksFor(r).containsKey(widget.otherUserId);
-    final seconds = clockSecondsLeft;
 
     return TurnBanner(
       turnKey: r,
@@ -316,23 +315,25 @@ class _ChatGameScreenState extends State<ChatGameScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            VersusBar(
-              theme: _theme,
-              left: VersusSide(
-                name: 'You',
-                imageUrl: avatarUrlOf(me),
-                subtitle: myPicked ? 'Picked ✓' : 'Thinking…',
-                active: !myPicked,
-                secondsLeft: seconds,
+            clockBuilder(
+              (seconds) => VersusBar(
+                theme: _theme,
+                left: VersusSide(
+                  name: 'You',
+                  imageUrl: avatarUrlOf(me),
+                  subtitle: myPicked ? 'Picked ✓' : 'Thinking…',
+                  active: !myPicked,
+                  secondsLeft: seconds,
+                ),
+                right: VersusSide(
+                  name: widget.otherName,
+                  imageUrl: avatarUrlOf(widget.otherUser),
+                  subtitle: otherPicked ? 'Picked ✓' : 'Thinking…',
+                  active: !otherPicked,
+                  secondsLeft: seconds,
+                ),
+                center: _RoundDots(round: r, theme: _theme),
               ),
-              right: VersusSide(
-                name: widget.otherName,
-                imageUrl: avatarUrlOf(widget.otherUser),
-                subtitle: otherPicked ? 'Picked ✓' : 'Thinking…',
-                active: !otherPicked,
-                secondsLeft: seconds,
-              ),
-              center: _RoundDots(round: r, theme: _theme),
             ),
             if (r > 0) ...[const SizedBox(height: 12), _reveal(view, r - 1)],
             const SizedBox(height: 18),

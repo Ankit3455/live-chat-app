@@ -49,8 +49,7 @@ class _ChessScreenState extends State<ChessScreen>
   late Stream<ChessGame?> _game = _service.watch(widget.conversationId);
   bool _busy = false;
 
-  // The replay only changes when the move list does; the clock rebuilds the
-  // screen every second.
+  // The replay only changes when the move list does, not on every rebuild.
   String? _replayKey;
   ChessReplay? _replay;
   int _heardMoves = -1;
@@ -264,7 +263,6 @@ class _ChessScreenState extends State<ChessScreen>
         replay.illegalAt == null &&
         game.turn == myUid &&
         replay.position.whiteToMove == iAmWhite;
-    final seconds = clockSecondsLeft;
     final iWon = replay.whiteWon != null && replay.whiteWon == iAmWhite;
 
     return WinCelebration(
@@ -279,30 +277,35 @@ class _ChessScreenState extends State<ChessScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              VersusBar(
-                theme: _theme,
-                left: VersusSide(
-                  name: 'You',
-                  imageUrl: avatarUrlOf(me),
-                  subtitle: iAmWhite ? 'White' : 'Black',
-                  active: myTurn,
-                  secondsLeft: seconds,
-                ),
-                right: VersusSide(
-                  name: widget.otherName,
-                  imageUrl: avatarUrlOf(widget.otherUser),
-                  subtitle: iAmWhite ? 'Black' : 'White',
-                  active: !over && !myTurn,
-                  secondsLeft: seconds,
+              clockBuilder(
+                (seconds) => VersusBar(
+                  theme: _theme,
+                  left: VersusSide(
+                    name: 'You',
+                    imageUrl: avatarUrlOf(me),
+                    subtitle: iAmWhite ? 'White' : 'Black',
+                    active: myTurn,
+                    secondsLeft: seconds,
+                  ),
+                  right: VersusSide(
+                    name: widget.otherName,
+                    imageUrl: avatarUrlOf(widget.otherUser),
+                    subtitle: iAmWhite ? 'Black' : 'White',
+                    active: !over && !myTurn,
+                    secondsLeft: seconds,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              ChessBoard(
-                position: replay.position,
-                flipped: !iAmWhite,
-                interactive: myTurn && !_busy,
-                lastMove: replay.lastMove,
-                onMove: _move,
+              // 32 vector pieces: keep them out of other widgets' repaints.
+              RepaintBoundary(
+                child: ChessBoard(
+                  position: replay.position,
+                  flipped: !iAmWhite,
+                  interactive: myTurn && !_busy,
+                  lastMove: replay.lastMove,
+                  onMove: _move,
+                ),
               ),
               const SizedBox(height: 16),
               if (replay.illegalAt != null)

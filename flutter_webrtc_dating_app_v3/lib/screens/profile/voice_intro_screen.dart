@@ -456,25 +456,28 @@ class _VoiceIntroScreenState extends State<VoiceIntroScreen>
         alignment: Alignment.center,
         children: [
           if (recording)
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (context, _) {
-                final t = _pulse.value;
-                return Transform.scale(
-                  scale: 1 + 0.3 * t,
-                  child: Container(
-                    width: 112,
-                    height: 112,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.brandPink.withOpacity(0.45 * (1 - t)),
-                        width: 2,
+            // Own layer so the pulse doesn't repaint the button's shadow.
+            RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _pulse,
+                builder: (context, _) {
+                  final t = _pulse.value;
+                  return Transform.scale(
+                    scale: 1 + 0.3 * t,
+                    child: Container(
+                      width: 112,
+                      height: 112,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.brandPink.withOpacity(0.45 * (1 - t)),
+                          width: 2,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           button,
         ],

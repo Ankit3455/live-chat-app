@@ -12,7 +12,10 @@ import '../constants/app_dimens.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get darkTheme {
+  // Built once: each build creates dozens of GoogleFonts TextStyles.
+  static final ThemeData darkTheme = _buildDarkTheme();
+
+  static ThemeData _buildDarkTheme() {
     const scheme = ColorScheme.dark(
       primary: AppColors.brandPurple,
       onPrimary: AppColors.white,

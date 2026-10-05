@@ -19,36 +19,23 @@ class ShimmerChatList extends StatelessWidget {
           itemCount: count,
           separatorBuilder: (_, __) =>
               const Divider(height: 1, color: AppColors.border),
-          itemBuilder: (_, __) => ListTile(
-            leading: Shimmer.fromColors(
-              enabled: animate,
-              baseColor: AppColors.surfaceCard,
-              highlightColor: AppColors.surface2,
-              child: const CircleAvatar(
+          // One Shimmer per row instead of one per placeholder: each Shimmer
+          // runs its own controller and shader layer every frame.
+          itemBuilder: (_, __) => Shimmer.fromColors(
+            enabled: animate,
+            baseColor: AppColors.surfaceCard,
+            highlightColor: AppColors.surface2,
+            child: ListTile(
+              leading: const CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.white,
               ),
-            ),
-            title: Shimmer.fromColors(
-              enabled: animate,
-              baseColor: AppColors.surfaceCard,
-              highlightColor: AppColors.surface2,
-              child: Container(height: 12, width: 120, color: Colors.white),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 6.0),
-              child: Shimmer.fromColors(
-                enabled: animate,
-                baseColor: AppColors.surfaceCard,
-                highlightColor: AppColors.surface2,
+              title: Container(height: 12, width: 120, color: Colors.white),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 6.0),
                 child: Container(height: 10, width: 180, color: Colors.white),
               ),
-            ),
-            trailing: Shimmer.fromColors(
-              enabled: animate,
-              baseColor: AppColors.surfaceCard,
-              highlightColor: AppColors.surface2,
-              child: Container(
+              trailing: Container(
                 height: 18,
                 width: 36,
                 decoration: BoxDecoration(

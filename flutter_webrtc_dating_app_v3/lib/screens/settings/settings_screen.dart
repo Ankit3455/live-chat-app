@@ -446,7 +446,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
       canPop: !_busy,
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),

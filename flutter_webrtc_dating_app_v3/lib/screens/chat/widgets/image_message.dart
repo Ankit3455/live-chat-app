@@ -48,6 +48,11 @@ class _ImageMessageState extends State<ImageMessage> {
       return _buildUnavailable();
     }
 
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.65;
+    // Decode at the shown size, not the full camera resolution.
+    final decodeWidth =
+        (maxWidth * MediaQuery.devicePixelRatioOf(context)).round();
+
     return Semantics(
       button: true,
       label: hasCaption ? 'Photo: $caption' : 'Photo',
@@ -56,7 +61,7 @@ class _ImageMessageState extends State<ImageMessage> {
         onTap: widget.onTap ?? () => _showFullScreen(context, imageUrl),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.65,
+            maxWidth: maxWidth,
             maxHeight: 350,
           ),
           child: Container(
@@ -79,6 +84,10 @@ class _ImageMessageState extends State<ImageMessage> {
                         imageUrl: imageUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
+                        memCacheWidth: decodeWidth,
+                        // Default placeholder fade-out (1 s) outlasts the
+                        // image fade-in; end both together.
+                        fadeOutDuration: const Duration(milliseconds: 500),
                         placeholder: (context, url) => Shimmer.fromColors(
                           // No sweep under reduced motion.
                           enabled: !MediaQuery.disableAnimationsOf(context),

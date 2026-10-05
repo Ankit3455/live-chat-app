@@ -449,7 +449,7 @@ class _LoadingDotsState extends State<LoadingDots>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Only loop when motion is allowed.
-    if (MediaQuery.of(context).disableAnimations) {
+    if (MediaQuery.disableAnimationsOf(context)) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
       _controller.repeat();
@@ -476,7 +476,7 @@ class _LoadingDotsState extends State<LoadingDots>
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Semantics(
       label: 'Loading',
       child: reduceMotion
@@ -484,19 +484,21 @@ class _LoadingDotsState extends State<LoadingDots>
               mainAxisSize: MainAxisSize.min,
               children: [_dot(0.6), _dot(0.6), _dot(0.6)],
             )
-          : AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final t = _controller.value;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(3, (i) {
-                    final phase = (t - i / 3) % 1.0;
-                    final wave = 0.5 + 0.5 * math.cos(phase * 2 * math.pi);
-                    return _dot(0.25 + 0.65 * wave);
-                  }),
-                );
-              },
+          : RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final t = _controller.value;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(3, (i) {
+                      final phase = (t - i / 3) % 1.0;
+                      final wave = 0.5 + 0.5 * math.cos(phase * 2 * math.pi);
+                      return _dot(0.25 + 0.65 * wave);
+                    }),
+                  );
+                },
+              ),
             ),
     );
   }

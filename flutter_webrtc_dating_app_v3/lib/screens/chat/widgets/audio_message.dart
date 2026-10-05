@@ -21,7 +21,9 @@ class AudioMessage extends StatefulWidget {
 }
 
 class _AudioMessageState extends State<AudioMessage> {
-  final AudioPlayer _player = AudioPlayer();
+  // Created on first play: a native player per bubble would be set up and
+  // torn down for every voice note scrolled past.
+  AudioPlayer? _player;
 
   bool _isPlaying = false;
   bool _isLoading = false;
@@ -36,19 +38,21 @@ class _AudioMessageState extends State<AudioMessage> {
   @override
   void initState() {
     super.initState();
-    _initPlayer();
-  }
-
-  void _initPlayer() {
     // Duration from metadata
     final seconds = widget.message.mediaDuration ?? 0;
     _duration = Duration(seconds: seconds);
+  }
 
-    _positionSub = _player.onPositionChanged.listen((pos) {
+  AudioPlayer _ensurePlayer() {
+    final existing = _player;
+    if (existing != null) return existing;
+    final player = _player = AudioPlayer();
+
+    _positionSub = player.onPositionChanged.listen((pos) {
       if (mounted) setState(() => _position = pos);
     });
 
-    _stateSub = _player.onPlayerStateChanged.listen((state) {
+    _stateSub = player.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
           _isPlaying = state == PlayerState.playing;
@@ -57,13 +61,13 @@ class _AudioMessageState extends State<AudioMessage> {
       }
     });
 
-    _durationSub = _player.onDurationChanged.listen((dur) {
+    _durationSub = player.onDurationChanged.listen((dur) {
       if (mounted && dur.inSeconds > 0) {
         setState(() => _duration = dur);
       }
     });
 
-    _completeSub = _player.onPlayerComplete.listen((_) {
+    _completeSub = player.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {
           _isPlaying = false;
@@ -71,6 +75,7 @@ class _AudioMessageState extends State<AudioMessage> {
         });
       }
     });
+    return player;
   }
 
   @override
@@ -81,7 +86,8 @@ class _AudioMessageState extends State<AudioMessage> {
         oldWidget.message.mediaUrl != widget.message.mediaUrl;
     if (!changed) return;
     // A different (or deleted) recording: drop the old playback state.
-    unawaited(_player.stop());
+    final player = _player;
+    if (player != null) unawaited(player.stop());
     setState(() {
       _isPlaying = false;
       _isLoading = false;
@@ -96,7 +102,7 @@ class _AudioMessageState extends State<AudioMessage> {
     _stateSub?.cancel();
     _durationSub?.cancel();
     _completeSub?.cancel();
-    _player.dispose();
+    _player?.dispose();
     super.dispose();
   }
 
@@ -105,15 +111,16 @@ class _AudioMessageState extends State<AudioMessage> {
     if (!MediaUrlPolicy.isAllowed(url)) return;
 
     setState(() => _isLoading = true);
+    final player = _ensurePlayer();
 
     try {
       if (_isPlaying) {
-        await _player.pause();
+        await player.pause();
       } else {
         if (_position == Duration.zero) {
-          await _player.play(UrlSource(url!));
+          await player.play(UrlSource(url!));
         } else {
-          await _player.resume();
+          await player.resume();
         }
       }
     } catch (e) {

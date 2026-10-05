@@ -10,6 +10,19 @@ import '../core/constants/app_colors.dart';
     return url.contains('?') ? '$url&v=$v' : '$url?v=$v';
   }
 
+  /// Image URLs that failed to load this session (e.g. deleted photos that
+  /// return 404). Widgets show their fallback for these straight away instead
+  /// of requesting them again every time a list item is rebuilt.
+  class BrokenImageUrls {
+    BrokenImageUrls._();
+
+    static final Set<String> _urls = <String>{};
+
+    static bool contains(String url) => _urls.contains(url);
+
+    static void add(String url) => _urls.add(url);
+  }
+
   class UserAvatar extends StatelessWidget {
     final UserModel user;
     final double size;
@@ -54,7 +67,9 @@ import '../core/constants/app_colors.dart';
       final url = _bestUrl(user);
 
       Widget content;
-      if (url != null && (url.startsWith('http://') || url.startsWith('https://'))) {
+      if (url != null &&
+          (url.startsWith('http://') || url.startsWith('https://')) &&
+          !BrokenImageUrls.contains(url)) {
         content = ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
           child: CachedNetworkImage(
@@ -65,7 +80,10 @@ import '../core/constants/app_colors.dart';
             fit: BoxFit.cover,
             useOldImageOnUrlChange: true,
             placeholder: (_, __) => _skeleton(),
-            errorWidget: (_, __, ___) => _fallback(),
+            errorWidget: (_, __, ___) {
+              BrokenImageUrls.add(url);
+              return _fallback();
+            },
           ),
         );
       } else {

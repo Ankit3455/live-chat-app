@@ -25,7 +25,7 @@ class DiceWidget extends StatelessWidget {
             !provider.diceStarted;
 
         final diceColor = provider.currentPlayer.color;
-        final reduceMotion = MediaQuery.of(context).disableAnimations;
+        final reduceMotion = MediaQuery.disableAnimationsOf(context);
         final String label;
         if (provider.diceStarted) {
           label = 'Rolling dice';

@@ -290,6 +290,29 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
     final last = replay.lastClash;
     final looks = ThumbWar.accessoriesFor(replay.players);
     final iWon = replay.winner == me;
+    // Built here so a clock tick rebuilding the arena reuses them as is.
+    final topFighter = ThumbFighter(
+      name: widget.otherName,
+      accessory: looks[them],
+      hp: replay.hp[them],
+      roundsWon: replay.rounds[them],
+      top: true,
+      color: const Color(0xFF8B7BFF),
+      strikeKey: _strikeKeys[them],
+      hitKey: _hitKeys[them],
+      lastDamage: _lastDamage,
+    );
+    final bottomFighter = ThumbFighter(
+      name: 'You',
+      accessory: looks[me],
+      hp: replay.hp[me],
+      roundsWon: replay.rounds[me],
+      top: false,
+      color: _theme.b,
+      strikeKey: _strikeKeys[me],
+      hitKey: _hitKeys[me],
+      lastDamage: _lastDamage,
+    );
 
     return WinCelebration(
       won: over && iWon,
@@ -304,31 +327,13 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Arena(
-                round: replay.round,
-                over: over,
-                secondsLeft: clockSecondsLeft,
-                top: ThumbFighter(
-                  name: widget.otherName,
-                  accessory: looks[them],
-                  hp: replay.hp[them],
-                  roundsWon: replay.rounds[them],
-                  top: true,
-                  color: const Color(0xFF8B7BFF),
-                  strikeKey: _strikeKeys[them],
-                  hitKey: _hitKeys[them],
-                  lastDamage: _lastDamage,
-                ),
-                bottom: ThumbFighter(
-                  name: 'You',
-                  accessory: looks[me],
-                  hp: replay.hp[me],
-                  roundsWon: replay.rounds[me],
-                  top: false,
-                  color: _theme.b,
-                  strikeKey: _strikeKeys[me],
-                  hitKey: _hitKeys[me],
-                  lastDamage: _lastDamage,
+              clockBuilder(
+                (seconds) => _Arena(
+                  round: replay.round,
+                  over: over,
+                  secondsLeft: seconds,
+                  top: topFighter,
+                  bottom: bottomFighter,
                 ),
               ),
               const SizedBox(height: 14),

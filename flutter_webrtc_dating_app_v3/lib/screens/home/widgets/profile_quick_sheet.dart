@@ -10,6 +10,8 @@ import '../../../core/utils/compatibility_utils.dart';
 import '../../../models/user_model.dart';
 import '../../../services/audio_manager_service.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../widgets/user_avatar.dart' 
+    show BrokenImageUrls, cacheBustedUrl;
 import '../../astrology/widgets/compatibility_chip.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -64,7 +66,7 @@ class ProfileQuickSheet extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   _profileHeader(
-                    MediaQuery.of(context).disableAnimations,
+                    MediaQuery.disableAnimationsOf(context),
                   ),
 
                   if (onMessage != null) ...[
@@ -208,7 +210,9 @@ class ProfileQuickSheet extends StatelessWidget {
       fontSize: 22,
       fontWeight: FontWeight.w700,
     );
-    final hasPhoto = user.profileImage.isNotEmpty;
+    final photoUrl = cacheBustedUrl(user.profileImage, user.avatarVersion);
+    final hasPhoto =
+        photoUrl.isNotEmpty && !BrokenImageUrls.contains(photoUrl);
     final initial = user.username.isNotEmpty ? user.username[0].toUpperCase() : 'U';
 
     return Column(
@@ -220,12 +224,16 @@ class ProfileQuickSheet extends StatelessWidget {
             borderRadius: BorderRadius.circular(80),
             child: hasPhoto
                 ? CachedNetworkImage(
-              imageUrl: user.profileImage,
+              // Same URL as the grid card, so the cached photo is reused.
+              imageUrl: photoUrl,
               memCacheWidth: 330,
               width: 110,
               height: 110,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => _initialAvatar(initial),
+              errorWidget: (_, __, ___) {
+                BrokenImageUrls.add(photoUrl);
+                return _initialAvatar(initial);
+              },
             )
                 : _initialAvatar(initial),
           ),

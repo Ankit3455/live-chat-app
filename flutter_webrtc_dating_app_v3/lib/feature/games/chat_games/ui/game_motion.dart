@@ -121,29 +121,42 @@ class ResultHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final calm = calmMotion(context);
-    Widget rays = SizedBox(
-      width: 190,
-      height: 190,
-      child: CustomPaint(painter: _RaysPainter(theme, celebrate)),
+    // The rays are painted once into their own layer and only rotated per
+    // frame; the outer boundaries keep the loops from repainting the card.
+    Widget rays = RepaintBoundary(
+      child: SizedBox(
+        width: 190,
+        height: 190,
+        child: CustomPaint(painter: _RaysPainter(theme, celebrate)),
+      ),
     );
     if (!calm) {
-      rays = rays
-          .animate(onPlay: (c) => c.repeat())
-          .rotate(duration: 18.seconds, begin: 0, end: 1);
+      rays = RepaintBoundary(
+        child: rays
+            .animate(onPlay: (c) => c.repeat())
+            .rotate(duration: 18.seconds, begin: 0, end: 1),
+      );
     }
     Widget icon = Text(emoji, style: const TextStyle(fontSize: 72));
     if (!calm) {
-      icon = icon
-          .animate()
-          .scaleXY(
-            begin: 0.2,
-            end: 1,
-            duration: 700.ms,
-            curve: Curves.elasticOut,
-          )
-          .then()
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .moveY(begin: -3, end: 3, duration: 1500.ms, curve: Curves.easeInOut);
+      icon = RepaintBoundary(
+        child: RepaintBoundary(child: icon)
+            .animate()
+            .scaleXY(
+              begin: 0.2,
+              end: 1,
+              duration: 700.ms,
+              curve: Curves.elasticOut,
+            )
+            .then()
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .moveY(
+              begin: -3,
+              end: 3,
+              duration: 1500.ms,
+              curve: Curves.easeInOut,
+            ),
+      );
     }
     return Column(
       children: [
@@ -331,9 +344,11 @@ class PulseGlow extends StatelessWidget {
         Positioned.fill(
           child: calmMotion(context)
               ? halo
-              : halo
-                    .animate(onPlay: (c) => c.repeat(reverse: true))
-                    .fade(begin: 0.35, end: 1, duration: 900.ms),
+              : RepaintBoundary(
+                  child: RepaintBoundary(child: halo)
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .fade(begin: 0.35, end: 1, duration: 900.ms),
+                ),
         ),
         child,
       ],

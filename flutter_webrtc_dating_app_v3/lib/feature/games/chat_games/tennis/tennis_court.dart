@@ -97,8 +97,12 @@ class _TennisCourtState extends State<TennisCourt>
               final h = box.maxHeight;
               return Stack(
                 children: [
+                  // Static court; the pulsing lanes and the ball repaint
+                  // above it without redrawing the stripes and net.
                   const Positioned.fill(
-                    child: CustomPaint(painter: _CourtPainter()),
+                    child: RepaintBoundary(
+                      child: CustomPaint(painter: _CourtPainter()),
+                    ),
                   ),
                   Positioned(
                     left: 0,
@@ -159,14 +163,16 @@ class _TennisCourtState extends State<TennisCourt>
       ],
     );
     if (tappable && !calmMotion(context)) {
-      mark = mark
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .scaleXY(
-            begin: 0.94,
-            end: 1.06,
-            duration: 900.ms,
-            curve: Curves.easeInOut,
-          );
+      mark = RepaintBoundary(
+        child: RepaintBoundary(child: mark)
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .scaleXY(
+              begin: 0.94,
+              end: 1.06,
+              duration: 900.ms,
+              curve: Curves.easeInOut,
+            ),
+      );
     }
     return Semantics(
       button: tappable,

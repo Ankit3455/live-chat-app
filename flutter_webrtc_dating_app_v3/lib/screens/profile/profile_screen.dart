@@ -65,6 +65,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
+      // Start the completion score alongside the profile read.
+      final percentageFuture =
+          ProfileCompletionManager().getCompletionPercentage()
+            // Errors still surface at the await below.
+            ..ignore();
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -86,8 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _loadError = null;
       });
 
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
+      final percentage = await percentageFuture;
       if (!mounted) return;
       setState(() => _completionPercentage = percentage);
     } catch (e) {
@@ -533,7 +537,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final user = _currentUser;
     // Centre a 560dp column on tablets.
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final hPad = width > 600 ? (width - 560) / 2 : 20.0;
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -673,7 +677,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actionTooltip: 'Edit astrology profile',
         onAction: _openAstrology,
       ),
-      AstrologyCompatibilityCard(user: user, onTap: _openAstrology),
+      AstrologyCompatibilityCard(
+        user: user,
+        data: _profileData,
+        onTap: _openAstrology,
+      ),
       ProfileSectionTitle(
         title: 'Interests',
         actionLabel: 'Edit',

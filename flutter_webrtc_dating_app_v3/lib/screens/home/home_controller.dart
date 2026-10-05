@@ -91,14 +91,15 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     }
     WidgetsBinding.instance.addObserver(this);
     _feed = DiscoveryFeed(myUid: uid);
-    // Own profile first so the first page can apply distance.
+    // Own profile before the first page so it can apply distance; the saved
+    // filters load at the same time.
+    final filters = DiscoveryFilters.load();
     await _loadMeOnce(uid);
     _listenToMe(uid);
     _listenToHidden();
     unawaited(LocationService.instance.refreshIfPermitted());
-    _filters = await DiscoveryFilters.load();
-    await _reloadFeed();
-    await _checkProfileCompletion();
+    _filters = await filters;
+    await Future.wait([_reloadFeed(), _checkProfileCompletion()]);
   }
 
   @override
@@ -268,8 +269,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   /// Pull-to-refresh / retry.
   Future<void> refresh() async {
     _filters = await DiscoveryFilters.load();
-    await _reloadFeed();
-    await _checkProfileCompletion();
+    await Future.wait([_reloadFeed(), _checkProfileCompletion()]);
   }
 
   /// Filters changed (called after DiscoverySettings).

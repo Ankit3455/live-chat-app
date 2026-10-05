@@ -12,11 +12,15 @@ import '../ui/game_ui.dart';
 /// Ticks once a second while a 30 s clock runs, and calls the expiry action
 /// once the deadline has passed. The server checks the time again, so a
 /// phone with a fast clock just gets denied and retries a little later.
+///
+/// A tick doesn't rebuild the screen: wrap only the widgets that show the
+/// time in [clockBuilder].
 mixin TurnClockTicker<T extends StatefulWidget> on State<T> {
   static const Duration _grace = Duration(seconds: 1);
   static const Duration _retryAfter = Duration(seconds: 3);
 
   Timer? _ticker;
+  final ValueNotifier<int> _clockTick = ValueNotifier<int>(0);
   DateTime? _deadline;
   Future<void> Function()? _onExpired;
   bool _expiring = false;
@@ -31,6 +35,14 @@ mixin TurnClockTicker<T extends StatefulWidget> on State<T> {
     _onExpired = onExpired;
   }
 
+  /// Rebuilds [builder] with [clockSecondsLeft] on every tick.
+  Widget clockBuilder(Widget Function(int? secondsLeft) builder) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _clockTick,
+      builder: (context, _, __) => builder(clockSecondsLeft),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +52,7 @@ mixin TurnClockTicker<T extends StatefulWidget> on State<T> {
   void _tick() {
     final deadline = _deadline;
     if (!mounted || deadline == null) return;
-    setState(() {});
+    _clockTick.value++;
     final now = DateTime.now();
     if (_expiring ||
         now.isBefore(deadline.add(_grace)) ||
@@ -57,6 +69,7 @@ mixin TurnClockTicker<T extends StatefulWidget> on State<T> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _clockTick.dispose();
     super.dispose();
   }
 }
@@ -132,9 +145,15 @@ class JoinPanel extends StatelessWidget {
       child: Column(
         children: [
           if (waitingForOther && !MediaQuery.disableAnimationsOf(context))
-            orb
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scaleXY(end: 1.06, duration: 900.ms, curve: Curves.easeInOut)
+            RepaintBoundary(
+              child: RepaintBoundary(child: orb)
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .scaleXY(
+                    end: 1.06,
+                    duration: 900.ms,
+                    curve: Curves.easeInOut,
+                  ),
+            )
           else
             orb,
           const SizedBox(height: 26),

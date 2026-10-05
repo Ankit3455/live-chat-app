@@ -90,13 +90,19 @@ class _GripGaugeState extends State<GripGauge>
               : 'Grip $stopped out of 100',
           liveRegion: stopped != null,
           excludeSemantics: true,
-          child: SizedBox(
-            height: 132,
-            child: AnimatedBuilder(
-              animation: _c,
-              builder: (context, _) => CustomPaint(
-                painter: _GaugePainter(_c.value, widget.theme),
-                child: Align(alignment: const Alignment(0, 0.3), child: value),
+          // The needle repaints every frame; keep it in its own layer.
+          child: RepaintBoundary(
+            child: SizedBox(
+              height: 132,
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (context, _) => CustomPaint(
+                  painter: _GaugePainter(_c.value, widget.theme),
+                  child: Align(
+                    alignment: const Alignment(0, 0.3),
+                    child: value,
+                  ),
+                ),
               ),
             ),
           ),
@@ -229,7 +235,8 @@ class ThumbFighter extends StatelessWidget {
       ],
     );
     if (!calm) {
-      thumb = thumb
+      // Painted once, then only moved: the bob loops forever.
+      thumb = RepaintBoundary(child: thumb)
           .animate(onPlay: (c) => c.repeat(reverse: true))
           .moveY(
             begin: -3,
@@ -273,7 +280,7 @@ class ThumbFighter extends StatelessWidget {
               ),
             ),
           ),
-          thumb,
+          calm ? thumb : RepaintBoundary(child: thumb),
           if (hitKey > 0 && lastDamage > 0)
             Positioned(
               top: top ? null : 0,

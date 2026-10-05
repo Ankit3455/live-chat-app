@@ -35,15 +35,24 @@ class AuthRouter {
 
   /// Resolves the destination for the current user and makes it the root.
   static Future<void> routeCurrentUser(BuildContext context) async {
-    StartDestination destination;
+    final destination = await resolveDestination();
+    if (!context.mounted) return;
+    routeTo(context, destination);
+  }
+
+  /// The destination for the current user; never throws.
+  static Future<StartDestination> resolveDestination() async {
     try {
-      destination = await SessionService.instance.resolveStartDestination();
+      return await SessionService.instance.resolveStartDestination();
     } catch (_) {
-      destination = FirebaseAuth.instance.currentUser == null
+      return FirebaseAuth.instance.currentUser == null
           ? StartDestination.login
           : StartDestination.home;
     }
-    if (!context.mounted) return;
+  }
+
+  /// Makes the screen for [destination] the root.
+  static void routeTo(BuildContext context, StartDestination destination) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => screenFor(destination)),
       (_) => false,

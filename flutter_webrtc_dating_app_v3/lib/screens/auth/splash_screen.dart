@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../services/session_service.dart' show StartDestination;
 import 'auth_router.dart';
 import 'widgets/auth_widgets.dart';
 
@@ -16,6 +19,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   bool _navigated = false;
+  late final Future<StartDestination> _destination;
 
   @override
   void initState() {
@@ -36,7 +40,12 @@ class _SplashScreenState extends State<SplashScreen>
       end: 1.0,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
-    // Auto navigate after 2 seconds
+    // The destination (a Firestore read) resolves while the splash plays,
+    // instead of starting only after it.
+    _destination = FirebaseAuth.instance
+        .authStateChanges()
+        .first
+        .then((_) => AuthRouter.resolveDestination());
     Future.delayed(const Duration(seconds: 2), _checkAuthAndNavigate);
   }
 
@@ -45,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.didChangeDependencies();
     if (_controller.isAnimating || _controller.isCompleted) return;
     // Reduced motion: show the final frame.
-    if (MediaQuery.of(context).disableAnimations) {
+    if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = 1.0;
     } else {
       _controller.forward();
@@ -62,7 +71,9 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _checkAuthAndNavigate() async {
     if (_navigated || !mounted) return;
     _navigated = true;
-    await AuthRouter.routeCurrentUser(context);
+    final destination = await _destination;
+    if (!mounted) return;
+    AuthRouter.routeTo(context, destination);
   }
 
   @override

@@ -97,7 +97,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   UserModel? _otherUser;
   bool? _otherOnline;
-  bool _otherTyping = false;
+  final ValueNotifier<bool> _otherTyping = ValueNotifier(false);
   bool _isBlocked = false;
   StreamSubscription<bool>? _onlineSub;
   StreamSubscription<bool>? _typingSub;
@@ -222,6 +222,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _scrollController.dispose();
     _messageFocusNode.dispose();
     _convDataNotifier.dispose();
+    _otherTyping.dispose();
     super.dispose();
   }
 
@@ -287,14 +288,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // The header already shows the caller's copy; refresh it in the
       // background instead of blocking the chat on it.
       final profile = DiscoveryFeed.fetchProfile(other, myUid: me);
+      final convRead = known != null
+          ? Future.value(known)
+          : _readConversation(convRef.doc(convId));
+      final DocumentSnapshot<Map<String, dynamic>> snap;
       if (_otherUser == null) {
-        _otherUser = await profile;
+        // Both reads in parallel; the spinner shows until both are back.
+        final (user, conv) = await (profile, convRead).wait;
+        _otherUser = user;
+        snap = conv;
       } else {
         unawaited(profile.then((u) {
           if (mounted && u != null) setState(() => _otherUser = u);
         }));
+        snap = await convRead;
       }
-      final snap = known ?? await convRef.doc(convId).get();
       if (!mounted) return;
 
       _conversationId = convId;
@@ -325,6 +333,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         "Couldn't load this chat. Check your connection and try again.",
       );
     }
+  }
+
+  /// The chats list keeps conversations in the local cache, so read from
+  /// there first instead of waiting for a server round trip. The live
+  /// listener corrects anything stale (incl. a newer clear-chat cutoff).
+  Future<DocumentSnapshot<Map<String, dynamic>>> _readConversation(
+    DocumentReference<Map<String, dynamic>> ref,
+  ) async {
+    try {
+      final cached = await ref.get(const GetOptions(source: Source.cache));
+      if (cached.exists) return cached;
+    } catch (_) {
+      // Not cached yet.
+    }
+    return ref.get();
   }
 
   void _setInitError(String message) {
@@ -362,10 +385,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         .snapshots()
         .listen(_onConversation, onError: (Object e) => _log('conv', e));
 
+    // Only the indicator listens; the rest of the screen doesn't rebuild.
     _typingSub = _chatService.getTypingStatus(convId, other).listen((typing) {
-      if (mounted && typing != _otherTyping) {
-        setState(() => _otherTyping = typing);
-      }
+      if (mounted) _otherTyping.value = typing;
     });
 
     _blockedSub = SafetyService.instance.watchIsBlockedBetween(other).listen((
@@ -424,9 +446,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _conversation = snap.exists ? Conversation.fromFirestore(snap) : null;
   }
 
+  /// Everything [build] reads from the conversation doc. Keep in sync when
+  /// the screen starts showing another conversation field.
+  Object get _conversationView => (
+        exists: _conversation != null,
+        deleted: _isOtherDeleted,
+        muted: _conversation?.isMuted(_myUid) ?? false,
+        audio: _callAllowed(CallType.audio),
+        video: _callAllowed(CallType.video),
+      );
+
   void _onConversation(DocumentSnapshot<Map<String, dynamic>> snap) {
     if (!mounted) return;
-    setState(() => _applyConversation(snap));
+    // Typing heartbeats and read receipts rewrite this doc every few seconds;
+    // only rebuild the screen (and its message list) when what it shows changed.
+    final before = _conversationView;
+    _applyConversation(snap);
+    if (_conversationView != before) setState(() {});
     if (snap.exists) _watchGames();
 
     // Clear chat on this or another device: restart with the server cutoff.
@@ -1397,8 +1433,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildTypingIndicator() {
-    if (!_otherTyping || !_canSend) return const SizedBox.shrink();
-    return TypingBubble(name: _displayName);
+    return ValueListenableBuilder<bool>(
+      valueListenable: _otherTyping,
+      builder: (context, typing, _) {
+        if (!typing || !_canSend) return const SizedBox.shrink();
+        return TypingBubble(name: _displayName);
+      },
+    );
   }
 
   /// Reply / edit banner above the input.

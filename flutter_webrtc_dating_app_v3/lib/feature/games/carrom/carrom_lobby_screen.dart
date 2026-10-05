@@ -35,7 +35,6 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   late AnimationController _pulseController;
   late AnimationController _rotateController;
   late AnimationController _waveController;
-  late AnimationController _dotsController;
 
   // Animations
   late Animation<double> _pulseAnimation;
@@ -88,12 +87,6 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _waveController, curve: Curves.easeOut));
-
-    // Dots Animation (for loading dots)
-    _dotsController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
   }
 
   void _startAnimations() {
@@ -102,14 +95,12 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     _pulseController.repeat(reverse: true);
     _rotateController.repeat();
     _waveController.repeat();
-    _dotsController.repeat();
   }
 
   void _stopAnimations() {
     _pulseController.stop();
     _rotateController.stop();
     _waveController.stop();
-    _dotsController.stop();
   }
 
   @override
@@ -118,7 +109,6 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     _pulseController.dispose();
     _rotateController.dispose();
     _waveController.dispose();
-    _dotsController.dispose();
     _cleanupQueue();
     super.dispose();
   }
@@ -583,87 +573,93 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
         Semantics(
           label: 'Searching for an opponent',
           image: true,
-          child: SizedBox(
-            width: 220,
-            height: 220,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                ...List.generate(3, (index) {
-                  return AnimatedBuilder(
-                    animation: _waveAnimation,
-                    builder: (context, child) {
-                      final value = (_waveAnimation.value + index / 3) % 1.0;
-                      final size = 220 * (0.35 + 0.65 * value);
-                      return Container(
-                        width: size,
-                        height: size,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.pinkLight.withOpacity(
-                              0.5 * (1 - value),
+          // Rings, dashes and pulse loop while searching; repaint only them.
+          child: RepaintBoundary(
+            child: SizedBox(
+              width: 220,
+              height: 220,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ...List.generate(3, (index) {
+                    return AnimatedBuilder(
+                      animation: _waveAnimation,
+                      builder: (context, child) {
+                        final value = (_waveAnimation.value + index / 3) % 1.0;
+                        final size = 220 * (0.35 + 0.65 * value);
+                        return Container(
+                          width: size,
+                          height: size,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.pinkLight.withOpacity(
+                                0.5 * (1 - value),
+                              ),
+                              width: 1.5,
                             ),
-                            width: 1.5,
                           ),
-                        ),
+                        );
+                      },
+                    );
+                  }),
+                  AnimatedBuilder(
+                    animation: _rotateAnimation,
+                    builder: (context, child) {
+                      return Transform.rotate(
+                        angle: _rotateAnimation.value,
+                        child: child,
                       );
                     },
-                  );
-                }),
-                AnimatedBuilder(
-                  animation: _rotateAnimation,
-                  builder: (context, child) {
-                    return Transform.rotate(
-                      angle: _rotateAnimation.value,
-                      child: child,
-                    );
-                  },
-                  child: SizedBox(
-                    width: 150,
-                    height: 150,
-                    child: CustomPaint(
-                      painter: _DashedCirclePainter(
-                        color: AppColors.borderStrong,
-                        dashCount: 24,
+                    child: SizedBox(
+                      width: 150,
+                      height: 150,
+                      child: CustomPaint(
+                        painter: _DashedCirclePainter(
+                          color: AppColors.borderStrong,
+                          dashCount: 24,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) => Transform.scale(
-                    // Subtle breathing: 1.0 to ~1.05.
-                    scale: 1 + (_pulseAnimation.value - 1) * 0.3,
-                    child: child,
-                  ),
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.surface2,
-                      border: Border.all(color: AppColors.pinkLight, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.pinkLight.withOpacity(0.35),
-                          blurRadius: 40,
-                        ),
-                      ],
+                  AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) => Transform.scale(
+                      // Subtle breathing: 1.0 to ~1.05.
+                      scale: 1 + (_pulseAnimation.value - 1) * 0.3,
+                      child: child,
                     ),
-                    child: ClipOval(
-                      child: photo != null && photo.startsWith('http')
-                          ? CachedNetworkImage(
-                              imageUrl: photo,
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => fallback,
-                              errorWidget: (_, __, ___) => fallback,
-                            )
-                          : fallback,
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.surface2,
+                        border: Border.all(color: AppColors.pinkLight, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.pinkLight.withOpacity(0.35),
+                            blurRadius: 40,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: photo != null && photo.startsWith('http')
+                            ? CachedNetworkImage(
+                                imageUrl: photo,
+                                fit: BoxFit.cover,
+                                memCacheWidth: (96 *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                                placeholder: (_, __) => fallback,
+                                errorWidget: (_, __, ___) => fallback,
+                              )
+                            : fallback,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

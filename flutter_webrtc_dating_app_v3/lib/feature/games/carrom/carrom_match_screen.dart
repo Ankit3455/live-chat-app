@@ -369,8 +369,9 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       child: Scaffold(
         body: Stack(
           children: [
-            // Animated Background
-            _buildAnimatedBackground(),
+            // Animated Background, in its own layer so the content above
+            // isn't repainted with it every frame.
+            RepaintBoundary(child: _buildAnimatedBackground()),
 
             // Main Content
             SafeArea(
@@ -590,6 +591,17 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
         // Avatar with glow
         AnimatedBuilder(
           animation: _glowAnimation,
+          // Only the glow animates; the avatar is built once.
+          child: ClipOval(
+            child: avatar.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: avatar,
+                    memCacheWidth: 270,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _defaultAvatar(name, color),
+                  )
+                : _defaultAvatar(name, color),
+          ),
           builder: (context, child) {
             return Container(
               width: 90,
@@ -606,17 +618,7 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
                   ),
                 ],
               ),
-              child: ClipOval(
-                child: avatar.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: avatar,
-                        memCacheWidth: 270,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            _defaultAvatar(name, color),
-                      )
-                    : _defaultAvatar(name, color),
-              ),
+              child: child,
             );
           },
         ),

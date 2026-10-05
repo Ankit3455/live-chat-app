@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/presence_watch.dart';
+import 'package:availchat/widgets/user_avatar.dart'
+    show BrokenImageUrls, cacheBustedUrl;
 
 /// 60px avatar with presence dot and first name, for the "Online now" strip.
 class ProfileBubble extends StatelessWidget {
@@ -26,8 +28,7 @@ class ProfileBubble extends StatelessWidget {
   String? _avatarUrl() {
     final url = user.profileImage;
     if (url.isEmpty) return null;
-    final v = user.avatarVersion ?? 0;
-    return url.contains('?') ? '$url&v=$v' : '$url?v=$v';
+    return cacheBustedUrl(url, user.avatarVersion);
   }
 
   Widget _avatar() {
@@ -53,7 +54,7 @@ class ProfileBubble extends StatelessWidget {
 
     final url = _avatarUrl();
     return ClipOval(
-      child: url == null
+      child: url == null || BrokenImageUrls.contains(url)
           ? fallback
           : CachedNetworkImage(
               imageUrl: url,
@@ -61,7 +62,10 @@ class ProfileBubble extends StatelessWidget {
               fit: BoxFit.cover,
               placeholder: (_, __) =>
                   const ColoredBox(color: AppColors.surface2),
-              errorWidget: (_, __, ___) => fallback,
+              errorWidget: (_, __, ___) {
+                BrokenImageUrls.add(url);
+                return fallback;
+              },
             ),
     );
   }

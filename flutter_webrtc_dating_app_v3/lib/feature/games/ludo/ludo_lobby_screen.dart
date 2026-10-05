@@ -689,7 +689,7 @@ class _SearchPulseState extends State<_SearchPulse>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Reduced motion: decorative rings stay still.
-    if (MediaQuery.of(context).disableAnimations) {
+    if (MediaQuery.disableAnimationsOf(context)) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
       _controller.repeat();
@@ -721,58 +721,66 @@ class _SearchPulseState extends State<_SearchPulse>
     return Semantics(
       label: 'Searching for players',
       image: true,
-      child: SizedBox(
-        width: 220,
-        height: 220,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ...List.generate(3, (index) {
-              return AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  final value = (_controller.value + index / 3) % 1.0;
-                  final size = 220 * (0.35 + 0.65 * value);
-                  return Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.accent.withOpacity(0.5 * (1 - value)),
-                        width: 1.5,
+      // The rings loop forever: repaint them without the rest of the lobby.
+      child: RepaintBoundary(
+        child: SizedBox(
+          width: 220,
+          height: 220,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ...List.generate(3, (index) {
+                return AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    final value = (_controller.value + index / 3) % 1.0;
+                    final size = 220 * (0.35 + 0.65 * value);
+                    return Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: widget.accent.withOpacity(0.5 * (1 - value)),
+                          width: 1.5,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              );
-            }),
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.surface2,
-                border: Border.all(color: widget.accent, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.accent.withOpacity(0.35),
-                    blurRadius: 40,
+                    );
+                  },
+                );
+              }),
+              RepaintBoundary(
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surface2,
+                    border: Border.all(color: widget.accent, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.accent.withOpacity(0.35),
+                        blurRadius: 40,
+                      ),
+                    ],
                   ),
-                ],
+                  child: ClipOval(
+                    child: photo != null && photo.startsWith('http')
+                        ? CachedNetworkImage(
+                            imageUrl: photo,
+                            fit: BoxFit.cover,
+                            memCacheWidth:
+                                (96 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            placeholder: (_, __) => fallback,
+                            errorWidget: (_, __, ___) => fallback,
+                          )
+                        : fallback,
+                  ),
+                ),
               ),
-              child: ClipOval(
-                child: photo != null && photo.startsWith('http')
-                    ? CachedNetworkImage(
-                        imageUrl: photo,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => fallback,
-                        errorWidget: (_, __, ___) => fallback,
-                      )
-                    : fallback,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

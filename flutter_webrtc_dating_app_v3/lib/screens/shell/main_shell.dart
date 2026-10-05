@@ -86,7 +86,12 @@ class MainShellState extends State<MainShell> {
         backgroundColor: AppColors.appBackground,
         body: IndexedStack(
           index: index,
-          children: List.generate(4, _buildTab),
+          // Hidden tabs keep their state but not their animations: IndexedStack
+          // alone leaves their tickers running (frames scheduled while idle).
+          children: List.generate(
+            4,
+            (i) => TickerMode(enabled: i == index, child: _buildTab(i)),
+          ),
         ),
         bottomNavigationBar: SafeArea(
           top: false,

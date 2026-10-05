@@ -28,9 +28,13 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   }
 
   // Older blocks may have no name snapshot; look it up once per row.
+  // Cached per uid so rebuilds (e.g. unblock spinner) don't restart the
+  // FutureBuilder and flash the "User" placeholder.
   Future<String?> _nameFor(BlockedUser user) {
     final stored = user.displayName;
-    if (stored != null && stored.isNotEmpty) return Future.value(stored);
+    if (stored != null && stored.isNotEmpty) {
+      return _names.putIfAbsent(user.uid, () => Future.value(stored));
+    }
     return _names.putIfAbsent(user.uid, () async {
       final db = FirebaseFirestore.instance;
       for (final col in ['public_profiles', 'users']) {
@@ -179,6 +183,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Widget _tile(BlockedUser user) {
     return FutureBuilder<String?>(
       future: _nameFor(user),
+      initialData: user.displayName,
       builder: (context, snap) {
         final name = snap.data ?? 'User';
         final avatar = user.avatarUrl;

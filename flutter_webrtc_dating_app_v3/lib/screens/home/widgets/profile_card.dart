@@ -7,6 +7,8 @@ import 'package:availchat/core/utils/compatibility_utils.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/presence_watch.dart';
 import 'package:availchat/widgets/motion.dart';
+import 'package:availchat/widgets/user_avatar.dart'
+    show BrokenImageUrls, cacheBustedUrl;
 
 import 'profile_quick_sheet.dart';
 
@@ -79,8 +81,7 @@ class _ProfileCardState extends State<ProfileCard>
   String? _avatarUrl() {
     final url = widget.user.profileImage;
     if (url.isEmpty) return null;
-    final v = widget.user.avatarVersion ?? 0;
-    return url.contains('?') ? '$url&v=$v' : '$url?v=$v';
+    return cacheBustedUrl(url, widget.user.avatarVersion);
   }
 
   String? _place() {
@@ -120,13 +121,16 @@ class _ProfileCardState extends State<ProfileCard>
     );
 
     final url = _avatarUrl();
-    if (url == null) return fallback;
+    if (url == null || BrokenImageUrls.contains(url)) return fallback;
     return CachedNetworkImage(
       imageUrl: url,
       memCacheWidth: 600,
       fit: BoxFit.cover,
       placeholder: (_, __) => const ColoredBox(color: AppColors.surface2),
-      errorWidget: (_, __, ___) => fallback,
+      errorWidget: (_, __, ___) {
+        BrokenImageUrls.add(url);
+        return fallback;
+      },
     );
   }
 

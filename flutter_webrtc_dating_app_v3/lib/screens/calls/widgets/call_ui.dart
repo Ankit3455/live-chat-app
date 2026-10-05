@@ -12,6 +12,7 @@ import '../../../core/utils/haptics.dart';
 import '../../../models/call_model.dart';
 import '../../../services/call/call_service.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../widgets/user_avatar.dart' show BrokenImageUrls;
 
 /// Circular avatar from a URL, falling back to the name's initial.
 class CallAvatar extends StatelessWidget {
@@ -33,7 +34,9 @@ class CallAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl;
-    final hasImage = url != null && url.startsWith('http');
+    final hasImage = url != null &&
+        url.startsWith('http') &&
+        !BrokenImageUrls.contains(url);
     final initial = Text(
       name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?',
       style: TextStyle(
@@ -58,7 +61,10 @@ class CallAvatar extends StatelessWidget {
                 height: radius * 2,
                 fit: BoxFit.cover,
                 useOldImageOnUrlChange: true,
-                errorWidget: (_, __, ___) => Center(child: initial),
+                errorWidget: (_, __, ___) {
+                  BrokenImageUrls.add(url);
+                  return Center(child: initial);
+                },
               ),
             )
           : Center(child: initial),
@@ -132,19 +138,23 @@ class CallHalo extends StatelessWidget {
                 ),
               ),
             if (anim != null)
-              AnimatedBuilder(
-                animation: anim,
-                builder: (context, _) => Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    for (var i = 0; i < 3; i++)
-                      _ripple(
-                        (anim.value + i / 3) % 1,
-                        i == 1
-                            ? AppColors.brandPurpleLight.withOpacity(0.5)
-                            : AppColors.brandPink.withOpacity(0.55),
-                      ),
-                  ],
+              // Own layer: otherwise every ripple frame also repaints the
+              // glow and the avatar's 48px blurred shadow.
+              RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: anim,
+                  builder: (context, _) => Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      for (var i = 0; i < 3; i++)
+                        _ripple(
+                          (anim.value + i / 3) % 1,
+                          i == 1
+                              ? AppColors.brandPurpleLight.withOpacity(0.5)
+                              : AppColors.brandPink.withOpacity(0.55),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             Container(

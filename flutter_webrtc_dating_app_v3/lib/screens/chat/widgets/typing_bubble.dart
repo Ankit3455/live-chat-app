@@ -64,27 +64,30 @@ class _TypingBubbleState extends State<TypingBubble>
               bottomLeft: Radius.circular(6),
             ),
           ),
-          child: ExcludeSemantics(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(3, (i) {
-                  return Padding(
-                    padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
-                    child: Opacity(
-                      opacity: _opacity(i),
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: AppColors.lavender,
-                          shape: BoxShape.circle,
+          // The dots repaint every frame; keep that off the chat screen.
+          child: RepaintBoundary(
+            child: ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (i) {
+                    return Padding(
+                      padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
+                      child: Opacity(
+                        opacity: _opacity(i),
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: AppColors.lavender,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
           ),

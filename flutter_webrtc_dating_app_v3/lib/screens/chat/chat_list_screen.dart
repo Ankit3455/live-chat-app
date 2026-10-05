@@ -37,15 +37,64 @@ class _ChatListScreenState extends State<ChatListScreen>
   // Profile lookups cached per uid so rebuilds don't refetch.
   final Map<String, Future<UserModel?>> _users = {};
 
+  // Resolved profiles, so rebuilt rows show the name on their first frame.
+  final Map<String, UserModel?> _loadedUsers = {};
+
   // ---- selection state ----
   final Set<String> _selected = <String>{};
   bool _selectionMode = false;
 
-  Future<UserModel?> _userFor(String uid) =>
-      _users.putIfAbsent(uid, () => _chatService.getUserDetails(uid));
+  Future<UserModel?> _userFor(String uid) => _users.putIfAbsent(
+        uid,
+        () => _chatService.getUserDetails(uid).then((u) {
+          _loadedUsers[uid] = u;
+          return u;
+        }),
+      );
+
+  UserModel? _loadedUser(String uid) => _loadedUsers[uid];
+
+  /// Conversation docs also change for typing heartbeats (every few seconds
+  /// per typing user); skip lists that would render the same rows. Each
+  /// listener gets its own filter, so the stream can be listened to again
+  /// like the repository's.
+  Stream<List<Conversation>> _watchConversations() {
+    final myUid = _chatService.currentUserId;
+    return Stream<List<Conversation>>.multi((c) {
+      final sub = _chatService
+          .getConversations()
+          .distinct((a, b) => _sameRows(a, b, myUid))
+          .listen(c.add, onError: c.addError, onDone: c.close);
+      c.onCancel = sub.cancel;
+    });
+  }
+
+  /// Compares exactly what the list and its rows read from a conversation.
+  static bool _sameRows(List<Conversation> a, List<Conversation> b, String me) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final x = a[i];
+      final y = b[i];
+      if (identical(x, y)) continue;
+      final other = x.getOtherParticipantId(me);
+      if (x.id != y.id ||
+          other != y.getOtherParticipantId(me) ||
+          x.isVisibleTo(me) != y.isVisibleTo(me) ||
+          x.stateFor(me) != y.stateFor(me) ||
+          x.visibleUnreadFor(me) != y.visibleUnreadFor(me) ||
+          x.isClearedFor(me) != y.isClearedFor(me) ||
+          x.lastMessageTimeOrNew != y.lastMessageTimeOrNew ||
+          x.lastMessageText != y.lastMessageText ||
+          x.isMuted(me) != y.isMuted(me) ||
+          x.isDeletedUser(other) != y.isDeletedUser(other)) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   void _retry() {
-    setState(() => _conversations = _chatService.getConversations());
+    setState(() => _conversations = _watchConversations());
   }
 
   void _toggleSelect(String conversationId) {
@@ -115,7 +164,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
-    _conversations = _chatService.getConversations();
+    _conversations = _watchConversations();
   }
 
   @override
@@ -170,6 +219,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                 chat: _chatService,
                 myUid: myUid,
                 userFor: _userFor,
+                loadedUser: _loadedUser,
                 selectionMode: _selectionMode,
                 selected: _selected,
                 onToggleSelect: _toggleSelect,
@@ -183,6 +233,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                 chat: _chatService,
                 myUid: myUid,
                 userFor: _userFor,
+                loadedUser: _loadedUser,
                 selectionMode: _selectionMode,
                 selected: _selected,
                 onToggleSelect: _toggleSelect,
@@ -335,6 +386,7 @@ class _ConversationsList extends StatefulWidget {
   final ChatService chat;
   final String myUid;
   final Future<UserModel?> Function(String uid) userFor;
+  final UserModel? Function(String uid) loadedUser;
 
   final bool selectionMode;
   final Set<String> selected;
@@ -351,6 +403,7 @@ class _ConversationsList extends StatefulWidget {
     required this.chat,
     required this.myUid,
     required this.userFor,
+    required this.loadedUser,
     required this.selectionMode,
     required this.selected,
     required this.onToggleSelect,
@@ -416,16 +469,20 @@ class _ConversationsListState extends State<_ConversationsList> {
     return true;
   }
 
-  Widget _tile(Conversation conv) => _ConversationTile(
-        key: ValueKey(conv.id),
-        conv: conv,
-        chat: widget.chat,
-        myUid: widget.myUid,
-        user: widget.userFor(conv.getOtherParticipantId(widget.myUid)),
-        selectionMode: widget.selectionMode,
-        isSelected: widget.selected.contains(conv.id),
-        onToggleSelect: widget.onToggleSelect,
-      );
+  Widget _tile(Conversation conv) {
+    final otherId = conv.getOtherParticipantId(widget.myUid);
+    return _ConversationTile(
+      key: ValueKey(conv.id),
+      conv: conv,
+      chat: widget.chat,
+      myUid: widget.myUid,
+      user: widget.userFor(otherId),
+      initialUser: widget.loadedUser(otherId),
+      selectionMode: widget.selectionMode,
+      isSelected: widget.selected.contains(conv.id),
+      onToggleSelect: widget.onToggleSelect,
+    );
+  }
 
   Widget _removedRow(Conversation conv, Animation<double> animation) {
     final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
@@ -497,6 +554,7 @@ class _ConversationTile extends StatelessWidget {
   final ChatService chat;
   final String myUid;
   final Future<UserModel?> user;
+  final UserModel? initialUser;
 
   final bool selectionMode;
   final bool isSelected;
@@ -508,6 +566,7 @@ class _ConversationTile extends StatelessWidget {
     required this.chat,
     required this.myUid,
     required this.user,
+    this.initialUser,
     required this.selectionMode,
     required this.isSelected,
     required this.onToggleSelect,
@@ -526,12 +585,16 @@ class _ConversationTile extends StatelessWidget {
     return null;
   }
 
-  void _openChat(BuildContext context, String otherId) {
+  void _openChat(BuildContext context, String otherId, UserModel? other) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ChatScreen(otherUserId: otherId, conversationId: conv.id),
+        // The loaded profile lets the chat skip waiting on its own fetch.
+        builder: (_) => ChatScreen(
+          otherUserId: otherId,
+          conversationId: conv.id,
+          initialUser: other,
+        ),
       ),
     );
     unawaited(chat.markMessagesAsRead(conv.id, otherId));
@@ -602,6 +665,7 @@ class _ConversationTile extends StatelessWidget {
 
     return FutureBuilder<UserModel?>(
       future: user,
+      initialData: initialUser,
       builder: (context, snap) {
         final other = snap.data;
         final rawName = other?.username.trim() ?? '';
@@ -690,7 +754,7 @@ class _ConversationTile extends StatelessWidget {
                     onToggleSelect(conv.id);
                     return;
                   }
-                  _openChat(context, otherId);
+                  _openChat(context, otherId, other);
                 },
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 72),
@@ -857,10 +921,12 @@ class _ConversationTile extends StatelessWidget {
     AppColors.surface2,
   );
 
+  static final DateFormat _dayFormat = DateFormat('MMM d');
+
   String _formatTime(DateTime t) {
     final now = DateTime.now();
     final d = now.difference(t);
-    if (d.inDays > 7) return DateFormat('MMM d').format(t);
+    if (d.inDays > 7) return _dayFormat.format(t);
     if (d.inDays > 0) return '${d.inDays}d';
     if (d.inHours > 0) return '${d.inHours}h';
     if (d.inMinutes > 0) return '${d.inMinutes}m';

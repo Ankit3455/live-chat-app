@@ -175,9 +175,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final showActions = !_isSelf && _otherUid.isNotEmpty;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     // Centre a 560dp column on tablets.
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final hPad = width > 600 ? (width - 560) / 2 : 20.0;
 
     return Scaffold(
@@ -186,7 +186,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         children: [
           CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(child: _hero()),
+              // Own layer: the photo and scrim aren't repainted per scroll frame.
+              SliverToBoxAdapter(child: RepaintBoundary(child: _hero(width))),
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
                   hPad,
@@ -205,20 +206,23 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             top: 0,
             left: 0,
             right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    _circleButton(
-                      icon: Icons.arrow_back_rounded,
-                      tooltip: 'Back',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    const Spacer(),
-                    if (showActions) _moreMenu(),
-                  ],
+            child: RepaintBoundary(
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    children: [
+                      _circleButton(
+                        icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      const Spacer(),
+                      if (showActions) _moreMenu(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -228,7 +232,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: _stickyCta(bottomInset),
+              // Keeps the CTA's blurred shadow out of the scroll repaint.
+              child: RepaintBoundary(child: _stickyCta(bottomInset)),
             ),
         ],
       ),
@@ -301,8 +306,12 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
   // ---------- Hero ----------
 
-  Widget _hero() {
+  Widget _hero(double screenWidth) {
     final u = widget.user;
+    // Decode at the displayed width (capped at the previous 1080px).
+    final decodeWidth = (screenWidth * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(1, 1080);
     final url = _photoUrl;
     final age = u.age;
     final city = _clean(u.location);
@@ -341,7 +350,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     ? fallback
                     : CachedNetworkImage(
                         imageUrl: url,
-                        memCacheWidth: 1080,
+                        memCacheWidth: decodeWidth,
                         fit: BoxFit.cover,
                         placeholder: (_, __) =>
                             const ColoredBox(color: AppColors.surfaceCard),

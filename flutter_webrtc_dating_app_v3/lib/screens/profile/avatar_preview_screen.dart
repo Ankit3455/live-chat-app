@@ -457,8 +457,11 @@ class _AvatarCircle extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipOval(
-        child: ColoredBox(color: AppColors.surfaceCard, child: child),
+      // RepaintBoundary: the spinner inside doesn't redraw the 40px shadow.
+      child: RepaintBoundary(
+        child: ClipOval(
+          child: ColoredBox(color: AppColors.surfaceCard, child: child),
+        ),
       ),
     );
   }

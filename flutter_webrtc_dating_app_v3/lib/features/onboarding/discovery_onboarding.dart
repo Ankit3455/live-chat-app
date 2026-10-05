@@ -167,7 +167,7 @@ class DiscoveryOnboarding {
     final List<TargetFocus> targets = [];
     const int totalSteps = 8; // ⭐ Now 8 steps
 
-    final topPadding = MediaQuery.of(context).padding.top;
+    final topPadding = MediaQuery.paddingOf(context).top;
 
     // =========================================================================
     // Step 1: Discovery Toggle

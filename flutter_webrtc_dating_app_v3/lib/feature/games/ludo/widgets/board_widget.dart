@@ -19,7 +19,7 @@ class BoardWidget extends StatelessWidget {
     // landscape screens.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screen = MediaQuery.of(context).size;
+        final screen = MediaQuery.sizeOf(context);
         final maxW = constraints.hasBoundedWidth
             ? constraints.maxWidth
             : screen.width;

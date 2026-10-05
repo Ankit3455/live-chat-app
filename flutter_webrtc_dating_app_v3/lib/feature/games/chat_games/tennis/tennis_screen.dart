@@ -56,7 +56,7 @@ class _TennisScreenState extends State<TennisScreen>
   String? _replayKey;
   TennisReplay? _replay;
 
-  // The clock rebuilds every second; replay only when the history changes.
+  // Replay only when the history changes, not on every rebuild.
   TennisReplay _replayOf(DuelGame g) {
     final key = '${g.gameId}|${g.history.length}|${g.resignedBy}';
     if (key != _replayKey || _replay == null) {
@@ -291,13 +291,15 @@ class _TennisScreenState extends State<TennisScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Scoreboard(
-                replay: replay,
-                me: me,
-                otherName: widget.otherName,
-                myAvatar: avatarUrlOf(this.me),
-                otherAvatar: avatarUrlOf(widget.otherUser),
-                secondsLeft: over ? null : clockSecondsLeft,
+              clockBuilder(
+                (seconds) => _Scoreboard(
+                  replay: replay,
+                  me: me,
+                  otherName: widget.otherName,
+                  myAvatar: avatarUrlOf(this.me),
+                  otherAvatar: avatarUrlOf(widget.otherUser),
+                  secondsLeft: over ? null : seconds,
+                ),
               ),
               const SizedBox(height: 12),
               if (last != null) ...[

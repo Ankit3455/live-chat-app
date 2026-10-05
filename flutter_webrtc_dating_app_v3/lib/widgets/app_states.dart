@@ -227,8 +227,10 @@ class _AppIllustrationState extends State<AppIllustration>
       _twinkle
         ..stop()
         ..value = 0.5;
-    } else if (!_twinkle.isAnimating) {
-      _twinkle.repeat();
+    } else if (!_twinkle.isAnimating && !_twinkle.isCompleted) {
+      // A few cycles, then rest: looping forever kept the screen rendering
+      // frames while idle. Ends on a cycle boundary, so there is no jump.
+      _twinkle.repeat(count: 3);
     }
   }
 

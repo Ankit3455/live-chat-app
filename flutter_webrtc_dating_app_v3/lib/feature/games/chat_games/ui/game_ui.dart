@@ -5,7 +5,6 @@
 // intro hero. Everything respects reduced motion.
 
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -174,7 +173,8 @@ class _GameBackdropState extends State<GameBackdrop>
               ),
             ),
           ),
-          widget.child,
+          // Keeps the content's repaints off the backdrop and the app bar.
+          RepaintBoundary(child: widget.child),
         ],
       ),
     );
@@ -245,6 +245,10 @@ class _GlowPainter extends CustomPainter {
 }
 
 /// Frosted glass card.
+///
+/// No BackdropFilter: the only thing behind these cards is the soft
+/// [GameBackdrop] glow, which looks the same unblurred, and a blur over an
+/// animated backdrop would be re-run for every card on every frame.
 class GlassPanel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -263,26 +267,23 @@ class GlassPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.10),
-                Colors.white.withOpacity(0.04),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(
-              color: borderColor ?? Colors.white.withOpacity(0.12),
-            ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.10),
+              Colors.white.withOpacity(0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          child: child,
+          border: Border.all(
+            color: borderColor ?? Colors.white.withOpacity(0.12),
+          ),
         ),
+        child: child,
       ),
     );
   }
@@ -371,13 +372,15 @@ class GameButton extends StatelessWidget {
               ),
               child: secondary || !enabled || calmMotion(context)
                   ? content
-                  : content
-                        .animate(onPlay: (c) => c.repeat())
-                        .shimmer(
-                          delay: 1800.ms,
-                          duration: 1100.ms,
-                          color: Colors.white.withOpacity(0.55),
-                        ),
+                  : RepaintBoundary(
+                      child: content
+                          .animate(onPlay: (c) => c.repeat())
+                          .shimmer(
+                            delay: 1800.ms,
+                            duration: 1100.ms,
+                            color: Colors.white.withOpacity(0.55),
+                          ),
+                    ),
             ),
           ),
         ),
@@ -444,16 +447,19 @@ class PlayerBadge extends StatelessWidget {
               ),
             ),
           if (seconds != null)
-            SizedBox(
-              width: size + 10,
-              height: size + 10,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(end: seconds / TurnClock.seconds),
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 900),
-                builder: (context, v, _) =>
-                    CustomPaint(painter: _RingPainter(v, ringColor)),
+            // The ring animates most of every second; repaint only it.
+            RepaintBoundary(
+              child: SizedBox(
+                width: size + 10,
+                height: size + 10,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(end: seconds / TurnClock.seconds),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 900),
+                  builder: (context, v, _) =>
+                      CustomPaint(painter: _RingPainter(v, ringColor)),
+                ),
               ),
             ),
           Container(
@@ -472,6 +478,10 @@ class PlayerBadge extends StatelessWidget {
                   : Image.network(
                       url,
                       fit: BoxFit.cover,
+                      // Decode at badge size, not the full upload.
+                      cacheWidth:
+                          (size * MediaQuery.devicePixelRatioOf(context))
+                              .round(),
                       errorBuilder: (_, __, ___) => fallback,
                     ),
             ),
@@ -607,14 +617,16 @@ class VersusBar extends StatelessWidget {
       ),
     );
     if (calmMotion(context)) return vs;
-    return vs
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .scaleXY(
-          begin: 0.92,
-          end: 1.08,
-          duration: 1200.ms,
-          curve: Curves.easeInOut,
-        );
+    return RepaintBoundary(
+      child: RepaintBoundary(child: vs)
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .scaleXY(
+            begin: 0.92,
+            end: 1.08,
+            duration: 1200.ms,
+            curve: Curves.easeInOut,
+          ),
+    );
   }
 
   @override
@@ -651,20 +663,33 @@ class GameOrb extends StatelessWidget {
   Widget build(BuildContext context) {
     final calm = calmMotion(context);
     Widget emoji = Text(theme.emoji, style: TextStyle(fontSize: size * 0.44));
+    // Looping parts get their own layers: the inner boundary paints once,
+    // the outer one keeps the per-frame transform away from the orb.
     if (!calm) {
-      emoji = emoji
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .moveY(begin: -3, end: 4, duration: 1600.ms, curve: Curves.easeInOut);
+      emoji = RepaintBoundary(
+        child: RepaintBoundary(child: emoji)
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .moveY(
+              begin: -3,
+              end: 4,
+              duration: 1600.ms,
+              curve: Curves.easeInOut,
+            ),
+      );
     }
-    Widget ring = SizedBox(
-      width: size + 22,
-      height: size + 22,
-      child: CustomPaint(painter: _SweepRingPainter(theme)),
+    Widget ring = RepaintBoundary(
+      child: SizedBox(
+        width: size + 22,
+        height: size + 22,
+        child: CustomPaint(painter: _SweepRingPainter(theme)),
+      ),
     );
     if (!calm) {
-      ring = ring
-          .animate(onPlay: (c) => c.repeat())
-          .rotate(duration: 6.seconds, begin: 0, end: 1);
+      ring = RepaintBoundary(
+        child: ring
+            .animate(onPlay: (c) => c.repeat())
+            .rotate(duration: 6.seconds, begin: 0, end: 1),
+      );
     }
     return SizedBox(
       width: size + 40,

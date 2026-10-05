@@ -67,10 +67,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _bioController = TextEditingController(text: _user.bio ?? '');
     _professionController = TextEditingController(text: _user.profession ?? '');
     _locationController = TextEditingController(text: _user.location ?? '');
-    for (final c in _controllers) {
-      c.addListener(_onTextChanged);
-    }
+    // Typing only rebuilds the Save bar, not the whole form.
+    _textChanges = Listenable.merge(_controllers);
   }
+
+  late final Listenable _textChanges;
 
   List<TextEditingController> get _controllers => [
         _usernameController,
@@ -78,10 +79,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         _professionController,
         _locationController,
       ];
-
-  void _onTextChanged() {
-    if (mounted) setState(() {});
-  }
 
   @override
   void dispose() {
@@ -321,9 +318,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final changed = _hasChanges;
     // Centre a 560dp column on tablets.
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final hPad = width > 600 ? (width - 560) / 2 : 20.0;
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -333,7 +329,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         backgroundColor: AppColors.backgroundDeep,
         surfaceTintColor: Colors.transparent,
       ),
-      bottomNavigationBar: _stickySave(changed),
+      bottomNavigationBar: ListenableBuilder(
+        listenable: _textChanges,
+        builder: (_, __) => _stickySave(_hasChanges),
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: AppColors.brandPurple,
