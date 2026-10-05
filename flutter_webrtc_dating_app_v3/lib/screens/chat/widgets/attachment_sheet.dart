@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 
-enum AttachmentType { camera, gallery, audio }
+enum AttachmentType { camera, gallery, audio, game }
 
 class AttachmentSheet extends StatelessWidget {
   final Function(AttachmentType) onSelected;
@@ -80,6 +80,15 @@ class AttachmentSheet extends StatelessWidget {
                     iconColor: AppColors.gold,
                     onTap: () => pick(AttachmentType.audio),
                   ),
+                  const SizedBox(width: 12),
+                  _buildOption(
+                    icon: Icons.sports_esports_rounded,
+                    label: 'Games',
+                    semanticLabel: 'Play a game together',
+                    accent: AppColors.brandPink,
+                    iconColor: AppColors.brandPink,
+                    onTap: () => pick(AttachmentType.game),
+                  ),
                 ],
               ),
             ],
@@ -131,6 +140,7 @@ class AttachmentSheet extends StatelessWidget {
                   const SizedBox(height: 10),
                   Text(
                     label,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.white,
                       fontSize: 13,

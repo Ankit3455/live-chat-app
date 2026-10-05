@@ -11,6 +11,10 @@ enum MessageType {
   location,
   sticker,
   gif,
+
+  /// Chat game invite or result card (lib/feature/games/chat_games);
+  /// details in metadata.
+  game,
 }
 
 class ChatMessage {
@@ -242,6 +246,8 @@ class ChatMessage {
         return '🎭 Sticker';
       case MessageType.gif:
         return '🎬 GIF';
+      case MessageType.game:
+        return message.isNotEmpty ? message : '🎮 Game';
       case MessageType.text:
         return message;
     }

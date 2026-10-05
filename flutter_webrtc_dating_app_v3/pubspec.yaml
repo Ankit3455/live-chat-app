@@ -79,6 +79,12 @@ dependencies:
 
   # Game dependency:
   flame: ^1.34.0
+  # Chat games UI: animations, win confetti, chess piece vectors.
+  flutter_animate: ^4.5.2
+  confetti: ^0.8.0
+  chess_vectors_flutter: ^1.1.0
+  # Emoji panel in the chat composer.
+  emoji_picker_flutter: ^4.4.0
   flame_forge2d: ^0.19.2+2
   simple_ripple_animation: ^0.0.9
 

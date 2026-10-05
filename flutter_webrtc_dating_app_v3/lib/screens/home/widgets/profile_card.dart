@@ -5,6 +5,7 @@ import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/services/presence_watch.dart';
 import 'package:availchat/widgets/motion.dart';
 
 import 'profile_quick_sheet.dart';
@@ -149,7 +150,7 @@ class _ProfileCardState extends State<ProfileCard>
       if (age != null) '$age',
       if (place != null) place,
       if (score != null) '$score% compatible',
-      if (user.online) 'online',
+      if (PresenceWatch.instance.isOnline(user.uid)) 'online',
       if (hasVoice) 'has voice intro',
     ].join(', ');
 
@@ -203,7 +204,8 @@ class _ProfileCardState extends State<ProfileCard>
                             child: _CompatChip(score: score, user: user),
                           ),
                         const Spacer(),
-                        if (user.online) const _OnlineDot(),
+                        if (PresenceWatch.instance.isOnline(user.uid))
+                          const _OnlineDot(),
                       ],
                     ),
                   ),

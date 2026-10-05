@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'carrom/carrom_lobby_screen.dart';
 import 'carrom/common/game_leaderboard_screen.dart';
 import 'carrom/services/carrom_stats_service.dart';
-import 'love_physics/love_physics_game.dart' show LovePhysicsScreen;
 import 'ludo/ludo_lobby_screen.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/haptics.dart';
@@ -106,21 +105,40 @@ class _GameListScreenState extends State<GameListScreen> {
                     onTap: () => _open(const CarromLobbyScreen()),
                   ),
                   const SizedBox(height: 12),
+                  // Played with a match, so it starts from a chat.
                   _GameCard(
-                    title: 'Love Physics',
-                    players: 'Solo',
-                    description: 'Draw bridges to bring two hearts together.',
+                    title: 'Chat games',
+                    players: '2 players',
+                    description:
+                        'Build Our Date, Rate It, Red Flag Green Flag, '
+                        'Telepathy, Tennis Duel and Thumb War.',
                     icon: Icons.favorite_border,
-                    accent: AppColors.brandPink.withOpacity(0.8),
-                    onTap: () => _open(const LovePhysicsScreen()),
+                    accent: AppColors.brandPink,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Open a chat, tap the attach button and choose '
+                          'Games.',
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  // Not implemented yet: shown disabled, no tap action.
-                  const _GameCard(
+                  // Played live with a match, so it starts from a chat too.
+                  _GameCard(
                     title: 'Chess',
                     players: '2 players',
+                    description: 'Live chess, 30 seconds per move.',
                     icon: Icons.grid_3x3,
-                    accent: AppColors.textSubtle,
+                    accent: AppColors.brandPurpleLight,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Open a chat, tap the attach button and choose '
+                          'Games → Chess.',
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

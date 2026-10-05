@@ -1002,6 +1002,460 @@ describe('firestore.rules', () => {
     });
   });
 
+  describe('chat games: build our date', () => {
+    const gamePath = 'conversations/c1/games/date';
+    const deck = {
+      r0: ['vibe_chill', 'vibe_adventure', 'vibe_foodie', 'vibe_creative'],
+      r1: ['place_cafe', 'place_beach', 'place_rooftop', 'place_park'],
+      r2: ['food_street', 'food_pizza', 'food_chai', 'food_momos'],
+      r3: ['act_movie', 'act_walk', 'act_karaoke', 'act_pottery'],
+      r4: ['time_sunrise', 'time_afternoon', 'time_sunset', 'time_night'],
+    };
+    const newGame = (over = {}) => ({
+      gameId: 'g1',
+      players: ['alice', 'bob'],
+      createdBy: 'alice',
+      status: 'playing',
+      round: 0,
+      deck,
+      picks: {},
+      joined: ['alice'],
+      roundStartedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const seedGame = async (over = {}, clock = {}) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), gamePath),
+          {
+            ...newGame(over),
+            joined: ['alice', 'bob'],
+            roundStartedAt: Timestamp.now(),
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+            ...clock,
+          });
+      });
+    };
+    const pick = (uid, card, extra = {}) =>
+      updateDoc(doc(db(uid), gamePath), { [`picks.r0.${uid}`]: card, updatedAt: serverTimestamp(), ...extra });
+
+    it('a participant can start a game; a stranger cannot read or start one', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), gamePath), newGame()));
+      await assertSucceeds(getDoc(doc(db('bob'), gamePath)));
+      await assertFails(getDoc(doc(db('carol'), gamePath)));
+      await env.clearFirestore();
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations/c1'), { participants: ['alice', 'bob'], isGroup: false });
+      });
+      await assertFails(setDoc(doc(db('carol'), gamePath), newGame({ createdBy: 'carol' })));
+    });
+
+    it('a new game must be well formed', async () => {
+      const ref = doc(db('alice'), gamePath);
+      await assertFails(setDoc(ref, newGame({ round: 2 })));
+      await assertFails(setDoc(ref, newGame({ createdBy: 'bob' })));
+      await assertFails(setDoc(ref, newGame({ players: ['alice', 'carol'] })));
+      await assertFails(setDoc(ref, newGame({ picks: { r0: { alice: 'vibe_chill' } } })));
+      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r0: ['vibe_chill'] } })));
+      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r5: deck.r0 } })));
+      await assertFails(setDoc(ref, newGame({ extra: true })));
+      await assertFails(setDoc(doc(db('alice'), 'conversations/c1/games/chess'), newGame()));
+    });
+
+    it('players add only their own pick, once, from the round deck', async () => {
+      await seedGame();
+      await assertFails(updateDoc(doc(db('alice'), gamePath), { 'picks.r0.bob': 'vibe_chill', updatedAt: serverTimestamp() }));
+      await assertFails(pick('alice', 'place_cafe'));
+      await assertFails(pick('alice', 'vibe_chill', { round: 1 }));
+      await assertSucceeds(pick('alice', 'vibe_chill'));
+      await assertFails(pick('alice', 'vibe_foodie'));
+      await assertFails(pick('carol', 'vibe_chill'));
+    });
+
+    it('the pick that completes a round must move to the next round', async () => {
+      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } });
+      await assertFails(pick('bob', 'vibe_foodie'));
+      await assertFails(pick('bob', 'vibe_foodie', { round: 2 }));
+      await assertFails(pick('bob', 'vibe_foodie', { round: 1 }));
+      await assertSucceeds(pick('bob', 'vibe_foodie', { round: 1, roundStartedAt: serverTimestamp() }));
+    });
+
+    it('no picks once the game is finished or ended', async () => {
+      await seedGame({ round: 5 });
+      await assertFails(updateDoc(doc(db('alice'), gamePath),
+        { 'picks.r5.alice': 'vibe_chill', updatedAt: serverTimestamp() }));
+      await seedGame({ status: 'cancelled' });
+      await assertFails(pick('alice', 'vibe_chill'));
+    });
+
+    it('either player can end a running game, and start a new one afterwards', async () => {
+      await seedGame();
+      await assertFails(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })));
+      await assertFails(updateDoc(doc(db('carol'), gamePath), { status: 'cancelled', updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db('bob'), gamePath), { status: 'cancelled', updatedAt: serverTimestamp() }));
+      await assertSucceeds(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })));
+    });
+
+    it('blocked or deleted users cannot start or play', async () => {
+      await seedGame();
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'), { blockedAt: Timestamp.now() });
+      });
+      await assertFails(pick('alice', 'vibe_chill'));
+      await assertFails(pick('bob', 'vibe_chill'));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await deleteDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'));
+        await updateDoc(doc(ctx.firestore(), 'conversations/c1'), { 'participantData.bob.deleted': true });
+      });
+      await assertFails(pick('alice', 'vibe_chill'));
+    });
+
+    it('the invitee joins and starts the clock; no picks before that', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), gamePath), newGame()));
+      await assertFails(pick('alice', 'vibe_chill'));
+      await assertFails(updateDoc(doc(db('carol'), gamePath),
+        { joined: ['alice', 'carol'], roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(doc(db('bob'), gamePath),
+        { joined: ['alice', 'bob'], updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db('bob'), gamePath),
+        { joined: ['alice', 'bob'], roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertSucceeds(pick('alice', 'vibe_chill'));
+    });
+
+    it('a round can be timed out only after 30 seconds', async () => {
+      const timeout = (uid) => updateDoc(doc(db(uid), gamePath),
+        { round: 1, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } });
+      await assertFails(timeout('bob'));
+      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } },
+        { roundStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
+      await assertFails(timeout('carol'));
+      await assertFails(updateDoc(doc(db('bob'), gamePath),
+        { round: 2, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertSucceeds(timeout('bob'));
+    });
+
+    it('games cannot be deleted', async () => {
+      await seedGame();
+      await assertFails(deleteDoc(doc(db('alice'), gamePath)));
+    });
+
+    it('a game chat message is allowed', async () => {
+      await assertSucceeds(addDoc(collection(db('alice'), 'conversations/c1/messages'),
+        newMessage({ type: 'game', metadata: { game: 'date', stage: 'invite' } })));
+    });
+  });
+
+  describe('chat games: rate it and red flag, green flag', () => {
+    const oneEach = (prefix) => ({
+      r0: [`${prefix}0`], r1: [`${prefix}1`], r2: [`${prefix}2`], r3: [`${prefix}3`], r4: [`${prefix}4`],
+    });
+    const newGame = (deck, over = {}) => ({
+      gameId: 'g1',
+      players: ['alice', 'bob'],
+      createdBy: 'alice',
+      status: 'playing',
+      round: 0,
+      deck,
+      picks: {},
+      joined: ['alice'],
+      roundStartedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const seed = async (kind, deck) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), `conversations/c1/games/${kind}`),
+          {
+            ...newGame(deck),
+            joined: ['alice', 'bob'],
+            roundStartedAt: Timestamp.now(),
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+      });
+    };
+    const pick = (kind, uid, value) =>
+      updateDoc(doc(db(uid), `conversations/c1/games/${kind}`),
+        { [`picks.r0.${uid}`]: value, updatedAt: serverTimestamp() });
+
+    it('rate and flags games have one topic per round', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), 'conversations/c1/games/rate'), newGame(oneEach('t'))));
+      await assertSucceeds(setDoc(doc(db('alice'), 'conversations/c1/games/flags'), newGame(oneEach('s'))));
+      await env.clearFirestore();
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations/c1'), { participants: ['alice', 'bob'], isGroup: false });
+      });
+      await assertFails(setDoc(doc(db('alice'), 'conversations/c1/games/rate'),
+        newGame({ ...oneEach('t'), r0: ['t0', 'x'] })));
+    });
+
+    it('a rating must be a whole number from 1 to 10', async () => {
+      await seed('rate', oneEach('t'));
+      await assertFails(pick('rate', 'alice', 0));
+      await assertFails(pick('rate', 'alice', 11));
+      await assertFails(pick('rate', 'alice', 5.5));
+      await assertFails(pick('rate', 'alice', '7'));
+      await assertSucceeds(pick('rate', 'alice', 7));
+    });
+
+    it('telepathy rounds hold a prompt and 9 emojis; picks are 3 of them', async () => {
+      const emojis = ['😴', '☕', '🎬', '🍕', '🏞️', '📚', '🎮', '🛍️', '🧘'];
+      const round = ['sunday', ...emojis];
+      const deck = { r0: round, r1: round, r2: round, r3: round, r4: round };
+      await assertFails(setDoc(doc(db('alice'), 'conversations/c1/games/telepathy'),
+        newGame({ ...deck, r0: ['sunday', '😴'] })));
+      await seed('telepathy', deck);
+      await assertFails(pick('telepathy', 'alice', ['😴', '☕']));
+      await assertFails(pick('telepathy', 'alice', ['😴', '😴', '☕']));
+      await assertFails(pick('telepathy', 'alice', ['😴', '☕', '🚀']));
+      await assertFails(pick('telepathy', 'alice', ['😴', '☕', 'sunday']));
+      await assertFails(pick('telepathy', 'alice', '😴'));
+      await assertSucceeds(pick('telepathy', 'alice', ['😴', '☕', '🎬']));
+    });
+
+    it('a flag vote must be red or green', async () => {
+      await seed('flags', oneEach('s'));
+      await assertFails(pick('flags', 'alice', 'yellow'));
+      await assertFails(pick('flags', 'alice', 1));
+      await assertSucceeds(pick('flags', 'alice', 'green'));
+      await assertFails(pick('flags', 'alice', 'red'));
+    });
+  });
+
+  describe('chat games: chess', () => {
+    const path = 'conversations/c1/games/chess';
+    const newGame = (over = {}) => ({
+      gameId: 'g1',
+      players: ['bob', 'alice'], // bob is white
+      createdBy: 'alice',
+      status: 'playing',
+      moves: [],
+      joined: ['alice'],
+      turnStartedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const seed = async (over = {}) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), path), {
+          ...newGame(),
+          joined: ['alice', 'bob'],
+          turnStartedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          ...over,
+        });
+      });
+    };
+    const play = (uid, moves, extra = {}) => updateDoc(doc(db(uid), path),
+      { moves, turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp(), ...extra });
+
+    it('a participant starts a game with both players in some order', async () => {
+      await assertFails(setDoc(doc(db('alice'), path), newGame({ players: ['alice', 'carol'] })));
+      await assertFails(setDoc(doc(db('alice'), path), newGame({ moves: ['e2e4'] })));
+      await assertFails(setDoc(doc(db('alice'), path), newGame({ joined: ['alice', 'bob'] })));
+      await assertSucceeds(setDoc(doc(db('alice'), path), newGame()));
+      await assertFails(setDoc(doc(db('bob'), path), newGame({ createdBy: 'bob' })));
+    });
+
+    it('no moves until the second player joins', async () => {
+      await assertSucceeds(setDoc(doc(db('alice'), path), newGame()));
+      await assertFails(play('bob', ['e2e4']));
+      await assertSucceeds(updateDoc(doc(db('bob'), path),
+        { joined: ['alice', 'bob'], turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertSucceeds(play('bob', ['e2e4']));
+    });
+
+    it('only the player to move can move, one well-formed move at a time', async () => {
+      await seed();
+      await assertFails(play('alice', ['e7e5']));
+      await assertFails(play('bob', ['e2e4', 'e7e5']));
+      await assertFails(play('bob', ['e2e9']));
+      await assertFails(play('bob', ['0000']));
+      await assertFails(play('bob', ['e2e4'], { turnStartedAt: Timestamp.now() }));
+      await assertSucceeds(play('bob', ['e2e4']));
+      await assertFails(play('bob', ['e2e4', 'd2d4']));
+      await assertFails(play('alice', ['d2d4', 'e7e5']), 'earlier moves cannot change');
+      await assertSucceeds(play('alice', ['e2e4', 'e7e5']));
+      await assertFails(play('carol', ['e2e4', 'e7e5', 'g1f3']));
+    });
+
+    it('a timed-out turn passes only after 30 seconds, by either player', async () => {
+      await seed();
+      await assertFails(play('alice', ['0000']));
+      await seed({ turnStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
+      await assertFails(play('alice', ['e7e5']));
+      await assertFails(play('carol', ['0000']));
+      await assertSucceeds(play('alice', ['0000']));
+    });
+
+    it('resigning ends the game; a new game can replace it', async () => {
+      await seed();
+      await assertFails(updateDoc(doc(db('alice'), path),
+        { status: 'over', resignedBy: 'bob', updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db('alice'), path),
+        { status: 'over', resignedBy: 'alice', updatedAt: serverTimestamp() }));
+      await assertFails(play('bob', ['e2e4']));
+      await assertSucceeds(setDoc(doc(db('bob'), path), newGame({ createdBy: 'bob', joined: ['bob'] })));
+    });
+
+    it('a running game cannot be replaced or deleted', async () => {
+      await seed();
+      await assertFails(setDoc(doc(db('alice'), path), newGame()));
+      await assertFails(deleteDoc(doc(db('alice'), path)));
+    });
+
+    it('blocked players cannot move', async () => {
+      await seed();
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'users/alice/blocked/bob'), { blockedAt: Timestamp.now() });
+      });
+      await assertFails(play('bob', ['e2e4']));
+    });
+  });
+
+  describe('chat games: tennis duel', () => {
+    const path = 'conversations/c1/games/tennis';
+    const newGame = (over = {}) => ({
+      gameId: 'g1',
+      players: ['alice', 'bob'],
+      createdBy: 'alice',
+      status: 'playing',
+      picks: {},
+      history: [],
+      joined: ['alice'],
+      turnStartedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...over,
+    });
+    const seed = async (over = {}) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), path), {
+          ...newGame(),
+          joined: ['alice', 'bob'],
+          turnStartedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          ...over,
+        });
+      });
+    };
+    const firstPick = (uid, zone) => updateDoc(doc(db(uid), path),
+      { picks: { [uid]: zone }, updatedAt: serverTimestamp() });
+    const finish = (uid, history, extra = {}) => updateDoc(doc(db(uid), path),
+      { picks: {}, history, turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp(), ...extra });
+
+    it('a participant starts a match; it waits for the second player', async () => {
+      await assertFails(setDoc(doc(db('alice'), path), newGame({ history: [{ alice: 'L' }] })));
+      await assertSucceeds(setDoc(doc(db('alice'), path), newGame()));
+      await assertFails(firstPick('alice', 'L'));
+      await assertSucceeds(updateDoc(doc(db('bob'), path),
+        { joined: ['alice', 'bob'], turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertSucceeds(firstPick('alice', 'L'));
+    });
+
+    it('a pick is my own, once, and only L, C or R', async () => {
+      await seed();
+      await assertFails(firstPick('alice', 'X'));
+      await assertFails(updateDoc(doc(db('alice'), path), { picks: { bob: 'L' }, updatedAt: serverTimestamp() }));
+      await assertFails(firstPick('carol', 'L'));
+      await assertSucceeds(firstPick('alice', 'C'));
+      await assertFails(updateDoc(doc(db('alice'), path), { picks: { alice: 'R' }, updatedAt: serverTimestamp() }));
+    });
+
+    it('the second pick moves the shot onto the history unchanged', async () => {
+      await seed({ picks: { alice: 'L' } });
+      await assertFails(finish('bob', [{ alice: 'R', bob: 'L' }]), 'cannot change the other pick');
+      await assertFails(finish('bob', [{ alice: 'L', bob: 'Q' }]));
+      await assertFails(updateDoc(doc(db('bob'), path),
+        { picks: {}, history: [{ alice: 'L', bob: 'C' }], updatedAt: serverTimestamp() }), 'clock must restart');
+      await assertSucceeds(finish('bob', [{ alice: 'L', bob: 'C' }]));
+    });
+
+    it('earlier shots cannot be rewritten', async () => {
+      await seed({ history: [{ alice: 'L', bob: 'R' }], picks: { alice: 'C' } });
+      await assertFails(finish('bob', [{ alice: 'L', bob: 'L' }, { alice: 'C', bob: 'C' }]));
+      await assertSucceeds(finish('bob', [{ alice: 'L', bob: 'R' }, { alice: 'C', bob: 'C' }]));
+    });
+
+    it('a shot can be timed out only after 30 seconds, keeping the picks made', async () => {
+      await seed({ picks: { alice: 'L' } });
+      await assertFails(finish('alice', [{ alice: 'L' }]));
+      await seed({ picks: { alice: 'L' }, turnStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
+      await assertFails(finish('alice', [{ alice: 'L', bob: 'L' }]));
+      await assertFails(finish('carol', [{ alice: 'L' }]));
+      await assertSucceeds(finish('alice', [{ alice: 'L' }]));
+    });
+
+    it('resigning ends the match; a new match can then replace it', async () => {
+      await seed();
+      await assertFails(setDoc(doc(db('bob'), path), newGame({ createdBy: 'bob', joined: ['bob'] })));
+      await assertSucceeds(updateDoc(doc(db('bob'), path),
+        { status: 'over', resignedBy: 'bob', updatedAt: serverTimestamp() }));
+      await assertFails(firstPick('alice', 'L'));
+      await assertSucceeds(setDoc(doc(db('bob'), path), newGame({ createdBy: 'bob', joined: ['bob'] })));
+    });
+  });
+
+  describe('chat games: thumb war', () => {
+    const path = 'conversations/c1/games/thumb';
+    const seed = async (over = {}) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), path), {
+          gameId: 'g1',
+          players: ['alice', 'bob'],
+          createdBy: 'alice',
+          status: 'playing',
+          picks: {},
+          history: [],
+          joined: ['alice', 'bob'],
+          turnStartedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          ...over,
+        });
+      });
+    };
+    const firstPick = (uid, pick) => updateDoc(doc(db(uid), path),
+      { picks: { [uid]: pick }, updatedAt: serverTimestamp() });
+
+    it('a pick is a known move with a grip from 0 to 100', async () => {
+      await seed();
+      await assertFails(firstPick('alice', 'L'));
+      await assertFails(firstPick('alice', { m: 'kick', p: 50 }));
+      await assertFails(firstPick('alice', { m: 'pounce', p: 101 }));
+      await assertFails(firstPick('alice', { m: 'pounce', p: 50.5 }));
+      await assertFails(firstPick('alice', { m: 'pounce', p: 50, extra: 1 }));
+      await assertSucceeds(firstPick('alice', { m: 'pounce', p: 50 }));
+    });
+
+    it('the second pick finishes the clash; earlier picks stay', async () => {
+      await seed({ picks: { alice: { m: 'guard', p: 20 } } });
+      const finish = (history) => updateDoc(doc(db('bob'), path),
+        { picks: {}, history, turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      await assertFails(finish([{ alice: { m: 'feint', p: 20 }, bob: { m: 'pounce', p: 90 } }]));
+      await assertSucceeds(finish([{ alice: { m: 'guard', p: 20 }, bob: { m: 'pounce', p: 90 } }]));
+    });
+
+    it('tennis zones are not valid thumb picks and vice versa', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'conversations/c1/games/tennis'), {
+          gameId: 'g1', players: ['alice', 'bob'], createdBy: 'alice', status: 'playing',
+          picks: {}, history: [], joined: ['alice', 'bob'], turnStartedAt: Timestamp.now(),
+          createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+        });
+      });
+      await assertFails(updateDoc(doc(db('alice'), 'conversations/c1/games/tennis'),
+        { picks: { alice: { m: 'pounce', p: 50 } }, updatedAt: serverTimestamp() }));
+    });
+  });
+
   it('unknown collections are denied', async () => {
     await assertFails(setDoc(doc(db('alice'), 'anything/x'), { a: 1 }));
     await assertFails(getDoc(doc(db('alice'), 'anything/x')));

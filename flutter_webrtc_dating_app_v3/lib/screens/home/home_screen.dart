@@ -13,6 +13,7 @@ import 'package:availchat/models/user_model.dart';
 
 // Screens
 import 'package:availchat/screens/chat/chat_screen.dart';
+import 'package:availchat/services/presence_watch.dart';
 import 'package:availchat/screens/profile/profile_details_screen.dart';
 import 'package:availchat/screens/settings/discovery_settings_screen.dart';
 import 'package:availchat/screens/shell/main_shell.dart';
@@ -65,6 +66,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
     super.initState();
     _controller = HomeController();
     _controller.addListener(_onControllerUpdate);
+    PresenceWatch.instance.online.addListener(_onControllerUpdate);
+    HomeOnboarding.showing.addListener(_onControllerUpdate);
     _controller.initialize();
 
     HomeOnboarding.attach(_tourKeys, onReplay: _showTutorial);
@@ -87,6 +90,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
     _shellTab?.removeListener(_onShellTabChanged);
     HomeOnboarding.detach(_tourKeys);
     _controller.removeListener(_onControllerUpdate);
+    PresenceWatch.instance.online.removeListener(_onControllerUpdate);
+    HomeOnboarding.showing.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -99,6 +104,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   void _onShellTabChanged() => _maybeStartAutoTour();
 
+  /// Online list frozen while the home tour is showing.
+  List<UserModel>? _onlineDuringTour;
+
   bool get _isVisibleTab =>
       (_shellTab?.value ?? MainShell.discoverTab) == MainShell.discoverTab;
 
@@ -110,6 +118,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
   void _maybeStartAutoTour() {
     if (_autoTourRequested || !mounted || !_isVisibleTab) return;
     if (_controller.isLoading || _controller.displayedUsers.isEmpty) return;
+    // The profile banner can still appear and push the grid down; the tour
+    // would then spotlight the old position.
+    if (!_controller.profileChecked) return;
     _autoTourRequested = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -165,7 +176,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ChatScreen(otherUserId: user.uid!),
+        builder: (_) => ChatScreen(otherUserId: user.uid!, initialUser: user),
       ),
     );
   }
@@ -260,26 +271,30 @@ class _DiscoverTabState extends State<DiscoverTab> {
   Widget _buildBackground() {
     return Stack(
       children: [
+        // A still frame in its own layer: animating this full-screen Lottie
+        // repainted every frame (also while idle) and made scrolling jank on
+        // phones.
         Positioned.fill(
-          child: Lottie.asset(
-            'assets/animations/space.json',
-            fit: BoxFit.cover,
-            // Static frame when the OS asks for reduced motion.
-            animate: !MediaQuery.of(context).disableAnimations,
-            errorBuilder: (context, error, stackTrace) {
-              return const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.backgroundDeep,
-                      AppColors.backgroundDarkest,
-                    ],
+          child: RepaintBoundary(
+            child: Lottie.asset(
+              'assets/animations/space.json',
+              fit: BoxFit.cover,
+              animate: false,
+              errorBuilder: (context, error, stackTrace) {
+                return const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.backgroundDeep,
+                        AppColors.backgroundDarkest,
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         Positioned.fill(
@@ -390,7 +405,19 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
     if (_controller.isLoading) return [_buildSkeletonGrid(grid)];
 
-    final users = _controller.displayedUsers;
+    // Online state comes from RTDB presence; the users' `online` field goes
+    // stale when an app is killed.
+    final presence = PresenceWatch.instance;
+    final allUsers = _controller.displayedUsers;
+    var online = allUsers.where((u) => presence.isOnline(u.uid)).toList();
+    // Keep the "Online now" strip as it was while the tour is up, so the
+    // spotlighted widgets don't move under it.
+    if (HomeOnboarding.showing.value) {
+      online = _onlineDuringTour ??= online;
+    } else {
+      _onlineDuringTour = null;
+    }
+    final users = _controller.filters.onlineOnly ? online : allUsers;
     if (users.isEmpty) {
       return [
         SliverFillRemaining(
@@ -400,7 +427,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ];
     }
 
-    final online = users.where((u) => u.online).take(20).toList();
     return [
       if (_controller.showBanner)
         SliverToBoxAdapter(
@@ -419,7 +445,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
             online.length == 1 ? '1 person' : '${online.length} people',
           ),
         ),
-        SliverToBoxAdapter(child: _buildOnlineStrip(online)),
+        SliverToBoxAdapter(child: _buildOnlineStrip(online.take(20).toList())),
       ],
       SliverToBoxAdapter(
         child: _buildSectionTitle('For you', 'Recently active'),

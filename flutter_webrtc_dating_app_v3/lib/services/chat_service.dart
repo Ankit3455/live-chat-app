@@ -52,32 +52,50 @@ class ChatService {
   ///
   /// Order: deterministic id `sorted[0]_sorted[1]` if it exists, then a legacy
   /// random-id conversation for the same pair, otherwise the deterministic id.
-  Future<String> getOrCreateConversation(String otherUserId) async {
+  Future<String> getOrCreateConversation(String otherUserId) async =>
+      (await resolveConversation(otherUserId)).id;
+
+  /// Like [getOrCreateConversation], plus the conversation snapshot when one
+  /// was read (null if no conversation exists yet), so callers don't read it
+  /// again. The deterministic doc and the legacy lookup run in parallel.
+  Future<({String id, DocumentSnapshot<Map<String, dynamic>>? snap})>
+      resolveConversation(String otherUserId) async {
     final me = currentUserId;
-    if (me.isEmpty || otherUserId.isEmpty) return '';
+    if (me.isEmpty || otherUserId.isEmpty) return (id: '', snap: null);
 
     final id = Conversation.idFor(me, otherUserId);
+    final participants = [me, otherUserId]..sort();
 
-    try {
-      final snap = await _conversations.doc(id).get();
-      if (snap.exists) return id;
-    } catch (e) {
-      _log('getOrCreateConversation(get)', e);
+    Future<DocumentSnapshot<Map<String, dynamic>>?> direct() async {
+      try {
+        return await _conversations.doc(id).get();
+      } catch (e) {
+        _log('resolveConversation(get)', e);
+        return null;
+      }
     }
 
-    try {
-      final participants = [me, otherUserId]..sort();
-      final q = await _conversations
-          .where('participants', isEqualTo: participants)
-          .where('isGroup', isEqualTo: false)
-          .limit(1)
-          .get();
-      if (q.docs.isNotEmpty) return q.docs.first.id;
-    } catch (e) {
-      _log('getOrCreateConversation(legacy lookup)', e);
+    Future<QueryDocumentSnapshot<Map<String, dynamic>>?> legacy() async {
+      try {
+        final q = await _conversations
+            .where('participants', isEqualTo: participants)
+            .where('isGroup', isEqualTo: false)
+            .limit(1)
+            .get();
+        return q.docs.isEmpty ? null : q.docs.first;
+      } catch (e) {
+        _log('resolveConversation(legacy lookup)', e);
+        return null;
+      }
     }
 
-    return id;
+    final directFuture = direct();
+    final legacyFuture = legacy();
+    final snap = await directFuture;
+    if (snap != null && snap.exists) return (id: id, snap: snap);
+    final old = await legacyFuture;
+    if (old != null) return (id: old.id, snap: old);
+    return (id: id, snap: snap);
   }
 
   // --------------------------------------------

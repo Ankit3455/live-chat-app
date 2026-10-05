@@ -296,6 +296,13 @@ test('helpers', () => {
   assert.equal(offerSendsVideo(AUDIO_SDP), false);
   assert.equal(offerSendsVideo(VIDEO_SDP), true);
   assert.equal(pushBody({ type: 'image', message: 'hi' }, false), 'Photo');
+  assert.equal(pushBody({ type: 'game', message: 'secret', metadata: { game: 'rate', stage: 'invite' } }, true), "Let's play Rate It!");
+  assert.equal(pushBody({ type: 'game', metadata: { game: 'flags', stage: 'result' } }, false), 'Red Flag, Green Flag: results are in');
+  assert.equal(pushBody({ type: 'game', message: 'secret', metadata: { game: 'nope' } }, true), 'Game');
+  assert.equal(pushBody({ type: 'game', metadata: { game: 'telepathy', stage: 'invite' } }, false), "Let's play Telepathy!");
+  assert.equal(pushBody({ type: 'game', metadata: { game: 'chess', stage: 'result' } }, false), 'Chess: results are in');
+  assert.equal(pushBody({ type: 'game', metadata: { game: 'tennis', stage: 'invite' } }, false), "Let's play Tennis Duel!");
+  assert.equal(pushBody({ type: 'game', metadata: { game: 'thumb', stage: 'result' } }, false), 'Thumb War: results are in');
   assert.equal(pushBody({ type: 'text', message: ' hi ' }, true), 'hi');
   const d = decodeFields(encode({ a: [1, 'x'], b: { c: true }, t: new Date(0) }).mapValue.fields);
   assert.deepEqual(d.a, [1, 'x']);

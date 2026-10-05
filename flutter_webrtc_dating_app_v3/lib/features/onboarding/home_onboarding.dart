@@ -21,6 +21,10 @@ class HomeOnboarding {
 
   static TutorialCoachMark? _tutorialCoachMark;
   static bool _isShowing = false;
+
+  /// True while the tour overlay is up. The home screen keeps its layout
+  /// still meanwhile, because the spotlight positions are measured once.
+  static final ValueNotifier<bool> showing = ValueNotifier(false);
   static HomeTourKeys? _attachedKeys;
   static HomeTourKeys? _showingKeys;
   static VoidCallback? _attachedReplay;
@@ -142,6 +146,7 @@ class HomeOnboarding {
 
   static void _show(BuildContext context, HomeTourKeys keys) {
     _isShowing = true;
+    showing.value = true;
     _showingKeys = keys;
 
     HapticFeedback.mediumImpact();
@@ -596,6 +601,7 @@ class HomeOnboarding {
     _tutorialCoachMark = null;
     _showingKeys = null;
     _isShowing = false;
+    showing.value = false;
   }
 
   static Future<void> _onTourCompleted(BuildContext context) async {

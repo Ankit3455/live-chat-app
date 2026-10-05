@@ -45,6 +45,24 @@ const TYPE_LABELS = {
   gif: 'GIF',
 };
 
+// Built from metadata, never from the message text, so a crafted 'game'
+// message can't get past SHOW_MESSAGE_TEXT.
+const GAME_TITLES = {
+  date: 'Build Our Date',
+  rate: 'Rate It',
+  flags: 'Red Flag, Green Flag',
+  telepathy: 'Telepathy',
+  chess: 'Chess',
+  tennis: 'Tennis Duel',
+  thumb: 'Thumb War',
+};
+
+function gamePushBody(meta) {
+  const title = meta && typeof meta === 'object' ? GAME_TITLES[meta.game] : undefined;
+  if (!title) return 'Game';
+  return meta.stage === 'result' ? `${title}: results are in` : `Let's play ${title}!`;
+}
+
 function truncate(text, max = 120) {
   return text.length > max ? `${text.substring(0, max - 3)}...` : text;
 }
@@ -55,6 +73,7 @@ export function pushBody(msg, showText) {
   const type = String(msg.type || 'text');
   const text = String(msg.message || '').trim();
   if (type === 'call') return text || 'Missed call';
+  if (type === 'game') return gamePushBody(msg.metadata);
   const label = TYPE_LABELS[type];
   if (label) return showText && text && type !== 'audio' ? truncate(`${label}: ${text}`) : label;
   return showText && text ? truncate(text) : 'New message';

@@ -9,6 +9,7 @@ import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/services/discovery_feed_service.dart';
 import 'package:availchat/services/location_service.dart';
+import 'package:availchat/services/presence_watch.dart';
 import 'package:availchat/services/safety_service.dart';
 
 /// Home screen logic, kept out of the UI.
@@ -40,6 +41,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   int _profileCompletionPercentage = 100;
   bool _showBanner = false;
   bool _bannerDismissed = false;
+  bool _profileChecked = false;
 
   // ===========================================================================
   // Getters
@@ -59,6 +61,11 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   DiscoveryFilters get filters => _filters;
 
   int get profileCompletionPercentage => _profileCompletionPercentage;
+
+  /// True once the profile-completion check has finished, i.e. whether the
+  /// banner above the grid shows is settled. The home tour measures target
+  /// positions when it starts, so it waits for this.
+  bool get profileChecked => _profileChecked;
   bool get showBanner =>
       _showBanner && !_bannerDismissed && _profileCompletionPercentage < 100;
 
@@ -100,6 +107,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _meSubscription?.cancel();
     _hiddenSubscription?.cancel();
+    PresenceWatch.instance.clear();
     super.dispose();
   }
 
@@ -221,6 +229,9 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _publishUsers() {
     _displayedUsers = List.unmodifiable(_allUsers);
+    PresenceWatch.instance.watch(
+      _allUsers.map((u) => u.uid).whereType<String>(),
+    );
     _notify();
   }
 
@@ -236,10 +247,11 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
       if (_disposed) return;
       _profileCompletionPercentage = percentage;
       _showBanner = show;
-      _notify();
     } catch (e) {
       debugPrint('Error checking profile completion: $e');
     }
+    _profileChecked = true;
+    _notify();
   }
 
   Future<void> dismissBanner() async {

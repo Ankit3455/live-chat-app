@@ -111,7 +111,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (uid.isEmpty) return;
     unawaited(
       Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => ChatScreen(otherUserId: uid)),
+        MaterialPageRoute<void>(
+          builder: (_) => ChatScreen(otherUserId: uid, initialUser: widget.user),
+        ),
       ),
     );
   }

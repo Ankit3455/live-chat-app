@@ -1,16 +1,16 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 // Models
 import '../../models/call_model.dart';
 import '../../models/chat_message_model.dart';
 import '../../models/conversation_model.dart';
-import '../../models/public_profile.dart';
 import '../../models/user_model.dart';
 
 // Services
@@ -21,6 +21,7 @@ import '../../services/discovery_feed_service.dart';
 import '../../services/media/chat_media_service.dart';
 import '../../services/navigation/pending_intent.dart';
 import '../../services/notification/onesignal_sender.dart';
+import '../../services/presence_watch.dart';
 import '../../services/safety_service.dart';
 
 // UI Components
@@ -36,6 +37,8 @@ import 'widgets/typing_bubble.dart';
 import 'widgets/voice_recording_sheet.dart';
 
 // Call Screens
+import '../../feature/games/chat_games/chat_game_registry.dart';
+import '../../feature/games/chat_games/widgets/game_picker_sheet.dart';
 import '../calls/audio_call_screen.dart';
 import '../calls/video_call_screen.dart';
 
@@ -43,8 +46,16 @@ class ChatScreen extends StatefulWidget {
   final String otherUserId;
   final String? conversationId;
 
-  const ChatScreen({Key? key, required this.otherUserId, this.conversationId})
-      : super(key: key);
+  /// The other user's profile when the caller already has it; the header
+  /// shows it at once instead of waiting for a fetch.
+  final UserModel? initialUser;
+
+  const ChatScreen({
+    Key? key,
+    required this.otherUserId,
+    this.conversationId,
+    this.initialUser,
+  }) : super(key: key);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -84,11 +95,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool? _otherOnline;
   bool _otherTyping = false;
   bool _isBlocked = false;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _onlineSub;
+  StreamSubscription<bool>? _onlineSub;
   StreamSubscription<bool>? _typingSub;
   StreamSubscription<bool>? _blockedSub;
 
   bool _isSending = false;
+
+  /// Emoji panel open in place of the keyboard.
+  bool _showEmoji = false;
 
   /// Bumped on each send to spin the send button.
   int _sendPulse = 0;
@@ -152,7 +166,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _isForeground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _messageController.addListener(_onTypingChanged);
+    _messageFocusNode.addListener(_onInputFocus);
+    _otherUser = widget.initialUser;
     _initializeChat();
+  }
+
+  // Tapping the text field brings the keyboard back, so close the panel.
+  void _onInputFocus() {
+    if (_messageFocusNode.hasFocus && _showEmoji) {
+      setState(() => _showEmoji = false);
+    }
+  }
+
+  void _toggleEmoji() {
+    if (_showEmoji) {
+      setState(() => _showEmoji = false);
+      _messageFocusNode.requestFocus();
+    } else {
+      _messageFocusNode.unfocus();
+      setState(() => _showEmoji = true);
+    }
   }
 
   @override
@@ -165,6 +198,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _readDebounce?.cancel();
     _highlightTimer?.cancel();
     _messageController.removeListener(_onTypingChanged);
+    _messageFocusNode.removeListener(_onInputFocus);
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
@@ -215,22 +249,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     try {
       final given = widget.conversationId;
-      final convId = (given != null && given.isNotEmpty)
-          ? given
-          : await _chatService.getOrCreateConversation(other);
+      final convRef = FirebaseFirestore.instance.collection('conversations');
+      String convId;
+      DocumentSnapshot<Map<String, dynamic>>? known;
+      if (given != null && given.isNotEmpty) {
+        convId = given;
+      } else {
+        final resolved = await _chatService.resolveConversation(other);
+        convId = resolved.id;
+        known = resolved.snap;
+      }
       if (!mounted) return;
       if (convId.isEmpty) throw StateError('No conversation id');
 
-      final results = await Future.wait<Object?>([
-        FirebaseFirestore.instance
-            .collection('conversations')
-            .doc(convId)
-            .get(),
-        DiscoveryFeed.fetchProfile(other, myUid: me),
-      ]);
+      // The header already shows the caller's copy; refresh it in the
+      // background instead of blocking the chat on it.
+      final profile = DiscoveryFeed.fetchProfile(other, myUid: me);
+      if (_otherUser == null) {
+        _otherUser = await profile;
+      } else {
+        unawaited(profile.then((u) {
+          if (mounted && u != null) setState(() => _otherUser = u);
+        }));
+      }
+      final snap = known ?? await convRef.doc(convId).get();
       if (!mounted) return;
 
-      final snap = results[0] as DocumentSnapshot<Map<String, dynamic>>;
       _conversationId = convId;
       _route ??= ModalRoute.of(context);
       final route = _route;
@@ -239,10 +283,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
       _applyConversation(snap);
       _clearedBefore = _conversation?.clearedBeforeFor(me);
-      _otherUser = results[1] as UserModel?;
 
-      await _loadMoreMessages(initial: true);
-      if (!mounted) return;
+      // A conversation that doesn't exist yet has no messages to page in.
+      if (snap.exists) {
+        await _loadMoreMessages(initial: true);
+        if (!mounted) return;
+      } else {
+        _hasMore = false;
+      }
 
       _startLiveNewMessageListener();
       _subscribe(convId);
@@ -315,23 +363,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _watchOnline();
   }
 
-  /// Online dot from the public profile, or the users doc until the
-  /// public_profiles backfill has run.
-  Future<void> _watchOnline() async {
-    final db = FirebaseFirestore.instance;
-    final other = widget.otherUserId;
-    DocumentReference<Map<String, dynamic>> ref =
-        db.collection(PublicProfile.collection).doc(other);
-    try {
-      final snap = await ref.get();
-      if (!snap.exists) ref = db.collection('users').doc(other);
-    } catch (_) {
-      ref = db.collection('users').doc(other);
-    }
-    if (!mounted) return;
+  /// Online dot from RTDB presence (the Firestore `online` field goes
+  /// stale when an app is killed).
+  void _watchOnline() {
     _onlineSub?.cancel();
-    _onlineSub = ref.snapshots().listen((snap) {
-      final online = snap.data()?['online'] == true;
+    _onlineSub = PresenceWatch.instance
+        .watchOne(widget.otherUserId)
+        .listen((online) {
       if (mounted && online != _otherOnline) {
         setState(() => _otherOnline = online);
       }
@@ -801,19 +839,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     if (_initError != null) return _buildInitError();
 
+    // Short viewport (phone landscape): keep room for the messages.
+    final compact = MediaQuery.sizeOf(context).height < 480;
+
+    // Header and composer show at once; only the message list waits.
     if (_isLoading || _conversationId == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.backgroundDeep,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.brandPurpleMid),
+        appBar: _buildAppBar(),
+        body: Column(
+          children: [
+            const Expanded(
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.brandPurpleMid,
+                  ),
+                ),
+              ),
+            ),
+            _buildMessageInput(compact),
+          ],
         ),
       );
     }
 
     final editing = _editingMessage;
     final replyTo = _replyToMessage;
-    // Short viewport (phone landscape): keep room for the messages.
-    final compact = MediaQuery.sizeOf(context).height < 480;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDeep,
@@ -1246,6 +1301,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ? null
                           : _findLoaded(legacyReplyId),
                       onReplyTap: _scrollToMessage,
+                      onOpenGame: _canSend ? _openGame : null,
                       onReply: _canSend
                           ? () {
                               setState(() {
@@ -1412,84 +1468,152 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final attachDisabled = _isUploadingMedia || isEditing;
     const pillRadius = BorderRadius.all(Radius.circular(22));
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceRaised,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.add,
-                color:
-                    attachDisabled ? AppColors.textSubtle : AppColors.lavender,
-              ),
-              tooltip: 'Attach photo or voice note',
-              onPressed: attachDisabled ? null : _showAttachmentSheet,
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                focusNode: _messageFocusNode,
-                style: const TextStyle(color: AppColors.white, fontSize: 15),
-                cursorColor: AppColors.brandPurpleLight,
-                maxLines: compact ? 2 : 5,
-                minLines: 1,
-                maxLength: ChatMessage.maxLength,
-                buildCounter: (
-                  context, {
-                  required currentLength,
-                  required isFocused,
-                  maxLength,
-                }) {
-                  // Only show the counter close to the limit.
-                  if (currentLength < ChatMessage.maxLength - 200) {
-                    return null;
-                  }
-                  return Text(
-                    '$currentLength/${ChatMessage.maxLength}',
-                    style: const TextStyle(
-                      color: AppColors.lavender,
-                      fontSize: 11,
+    // Back closes the emoji panel before leaving the chat.
+    return PopScope(
+      canPop: !_showEmoji,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _showEmoji) setState(() => _showEmoji = false);
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceRaised,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.add,
+                      color:
+                          attachDisabled ? AppColors.textSubtle : AppColors.lavender,
                     ),
-                  );
-                },
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  hintText: 'Message $_displayName…',
-                  hintStyle: const TextStyle(color: AppColors.textSubtle),
-                  filled: true,
-                  fillColor: AppColors.surfaceCard,
-                  isDense: true,
-                  border: const OutlineInputBorder(
-                    borderRadius: pillRadius,
-                    borderSide: BorderSide(color: AppColors.border),
+                    tooltip: 'Attach photo or voice note',
+                    onPressed: attachDisabled ? null : _showAttachmentSheet,
                   ),
-                  enabledBorder: const OutlineInputBorder(
-                    borderRadius: pillRadius,
-                    borderSide: BorderSide(color: AppColors.border),
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      focusNode: _messageFocusNode,
+                      style: const TextStyle(color: AppColors.white, fontSize: 15),
+                      cursorColor: AppColors.brandPurpleLight,
+                      maxLines: compact ? 2 : 5,
+                      minLines: 1,
+                      maxLength: ChatMessage.maxLength,
+                      buildCounter: (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) {
+                        // Only show the counter close to the limit.
+                        if (currentLength < ChatMessage.maxLength - 200) {
+                          return null;
+                        }
+                        return Text(
+                          '$currentLength/${ChatMessage.maxLength}',
+                          style: const TextStyle(
+                            color: AppColors.lavender,
+                            fontSize: 11,
+                          ),
+                        );
+                      },
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: 'Message $_displayName…',
+                        prefixIcon: IconButton(
+                          icon: Icon(
+                            _showEmoji
+                                ? Icons.keyboard_alt_outlined
+                                : Icons.emoji_emotions_outlined,
+                            color: AppColors.lavender,
+                          ),
+                          tooltip: _showEmoji ? 'Show keyboard' : 'Emoji',
+                          onPressed: _toggleEmoji,
+                        ),
+                        hintStyle: const TextStyle(color: AppColors.textSubtle),
+                        filled: true,
+                        fillColor: AppColors.surfaceCard,
+                        isDense: true,
+                        border: const OutlineInputBorder(
+                          borderRadius: pillRadius,
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: const OutlineInputBorder(
+                          borderRadius: pillRadius,
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderRadius: pillRadius,
+                          borderSide: BorderSide(color: AppColors.brandPurpleMid),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 13,
+                        ),
+                      ),
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
                   ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderRadius: pillRadius,
-                    borderSide: BorderSide(color: AppColors.brandPurpleMid),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 13,
-                  ),
-                ),
-                onSubmitted: (_) => _sendMessage(),
+                  const SizedBox(width: 8),
+                  _buildComposerAction(isEditing),
+                ],
+              ),
+              if (_showEmoji) _buildEmojiPanel(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// WhatsApp-style emoji panel; inserts at the cursor in the message box.
+  Widget _buildEmojiPanel() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 8),
+      child: SizedBox(
+        height: 290,
+        child: EmojiPicker(
+          textEditingController: _messageController,
+          config: const Config(
+            height: 290,
+            checkPlatformCompatibility: true,
+            emojiViewConfig: EmojiViewConfig(
+              columns: 8,
+              emojiSizeMax: 28,
+              backgroundColor: AppColors.surfaceRaised,
+              noRecents: Text(
+                'No recent emojis yet',
+                style: TextStyle(color: AppColors.lavender, fontSize: 14),
               ),
             ),
-            const SizedBox(width: 8),
-            _buildComposerAction(isEditing),
-          ],
+            categoryViewConfig: CategoryViewConfig(
+              initCategory: Category.SMILEYS,
+              backgroundColor: AppColors.surfaceRaised,
+              indicatorColor: AppColors.brandPink,
+              iconColor: AppColors.textSubtle,
+              iconColorSelected: AppColors.brandPink,
+              backspaceColor: AppColors.brandPink,
+              dividerColor: AppColors.border,
+            ),
+            bottomActionBarConfig: BottomActionBarConfig(
+              backgroundColor: AppColors.surfaceRaised,
+              buttonColor: AppColors.surfaceRaised,
+              buttonIconColor: AppColors.lavender,
+            ),
+            searchViewConfig: SearchViewConfig(
+              backgroundColor: AppColors.surfaceRaised,
+              buttonIconColor: AppColors.lavender,
+              hintText: 'Search emoji',
+            ),
+          ),
         ),
       ),
     );
@@ -1647,7 +1771,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       case AttachmentType.audio:
         await _showVoiceRecordingSheet();
         break;
+      case AttachmentType.game:
+        final game = await showGamePickerSheet(context);
+        if (game != null) _openGame(game);
+        break;
     }
+  }
+
+  /// [game] is a game name from [ChatGames].
+  void _openGame(String game) {
+    final convId = _conversationId;
+    if (convId == null || !_canSend || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatGames.screen(
+          game,
+          conversationId: convId,
+          otherUserId: widget.otherUserId,
+          otherName: _displayName,
+          otherUser: _otherUser,
+        ),
+      ),
+    );
   }
 
   Future<void> _pickAndSendImage({required bool fromCamera}) async {

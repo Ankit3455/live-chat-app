@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../models/chat_message_model.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../feature/games/chat_games/widgets/chat_game_bubble.dart';
 import 'image_message.dart';
 import 'audio_message.dart';
 
@@ -21,6 +22,9 @@ class MessageBubble extends StatelessWidget {
   /// Tapping the quote; receives the original message id.
   final ValueChanged<String>? onReplyTap;
 
+  /// Opens a chat game (by game name) from a game message.
+  final ValueChanged<String>? onOpenGame;
+
   const MessageBubble({
     Key? key,
     required this.message,
@@ -31,6 +35,7 @@ class MessageBubble extends StatelessWidget {
     this.onDelete,
     this.repliedMessage,
     this.onReplyTap,
+    this.onOpenGame,
   }) : super(key: key);
 
   /// Call events are written by CallService with `metadata.callId`.
@@ -58,7 +63,7 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isCallEvent(message)) return _buildCallEvent();
 
-    final isMedia = _isMediaMessage() && !message.isDeleted;
+    final isMedia = _hasOwnFrame && !message.isDeleted;
 
     // One screen-reader node: sender, content, time and status.
     return MergeSemantics(
@@ -103,8 +108,20 @@ class MessageBubble extends StatelessWidget {
         message.type == MessageType.video;
   }
 
+  /// Messages that draw their own card, with time and ticks below it.
+  bool get _hasOwnFrame =>
+      _isMediaMessage() || message.type == MessageType.game;
+
   Widget _buildMessageContainer() {
     if (message.isDeleted) return _buildDeletedMessage();
+    if (message.type == MessageType.game) {
+      return ChatGameBubble(
+        message: message,
+        isMe: isMe,
+        otherUserName: otherUserName,
+        onOpen: onOpenGame,
+      );
+    }
     if (_isMediaMessage()) return _buildMediaMessage();
 
     return Container(

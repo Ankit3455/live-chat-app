@@ -151,7 +151,6 @@ class DiscoveryFeed {
       return false;
     }
     if (age < f.ageMin || age > f.ageMax) return false;
-    if (f.onlineOnly && !u.online) return false;
     // Unknown distance on either side does not hide the profile.
     if (f.distanceKm > 0 && distance != null && distance > f.distanceKm) {
       return false;
@@ -184,9 +183,6 @@ class DiscoveryFeed {
     // public_profiles stores gender lowercased; legacy users docs may not.
     if (usePublic && f.applyFilters && f.gender != 'everyone') {
       q = q.where('gender', isEqualTo: f.gender);
-    }
-    if (f.applyFilters && f.onlineOnly) {
-      q = q.where('online', isEqualTo: true);
     }
     // Old users docs may lack lastSeen, and orderBy drops docs without the
     // field, so only the public feed is ordered by recent activity.

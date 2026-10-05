@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/models/user_model.dart';
+import 'package:availchat/services/presence_watch.dart';
 
 /// 60px avatar with presence dot and first name, for the "Online now" strip.
 class ProfileBubble extends StatelessWidget {
@@ -67,7 +68,7 @@ class ProfileBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final online = user.online;
+    final online = PresenceWatch.instance.isOnline(user.uid);
     final firstName = user.username.trim().split(' ').first;
 
     return Semantics(

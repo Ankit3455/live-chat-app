@@ -529,7 +529,7 @@ service cloud.firestore {
           && request.resource.data.get('id', msgId) == msgId
           && request.resource.data.get('conversationId', convId) == convId
           && request.resource.data.get('type', 'text') in ['text', 'image', 'video', 'audio',
-              'file', 'location', 'sticker', 'gif', 'call']
+              'file', 'location', 'sticker', 'gif', 'call', 'game']
           && request.resource.data.get('status', 'sent') == 'sent'
           && request.resource.data.timestamp == request.time
           && request.resource.data.get('isDeleted', false) == false
@@ -566,6 +566,352 @@ service cloud.firestore {
               && (!('deliveredAt' in changedKeys()) || request.resource.data.deliveredAt == request.time))
           );
 
+        allow delete: if false;
+      }
+
+      // ---------- chat games (lib/feature/games/chat_games) ----------
+      // One game per pair and kind at games/{kind}. Picks are visible to both
+      // players in the data; the app hides them until both have picked.
+      // Every turn / round has a 30 s clock that starts when the second
+      // player joins; after it, either player may move the game on.
+      function gameConv() {
+        return get(/databases/$(database)/documents/conversations/$(convId)).data;
+      }
+
+      // Both players still in the chat, neither deleted nor blocked.
+      function gameOpen() {
+        let c = gameConv();
+        let me = request.auth.uid;
+        let other = otherOf(c.participants);
+        return c.participants.size() == 2
+          && me in c.participants
+          && !(other in c.get('deletedUsers', []))
+          && c.get('participantData', {}).get(other, {}).get('deleted', false) != true
+          && !hasBlocked(other, me)
+          && !hasBlocked(me, other);
+      }
+
+      // [clockKey] started more than 30 seconds ago (server time).
+      function clockExpired(clockKey) {
+        return resource.data.get(clockKey, null) is timestamp
+          && request.time > resource.data[clockKey] + duration.value(30, 's');
+      }
+
+      // The second player joins and starts the clock.
+      function gameJoinOk(clockKey) {
+        let before = resource.data;
+        let after = request.resource.data;
+        return before.status == 'playing'
+          && request.auth.uid in before.players
+          && !(request.auth.uid in before.joined)
+          && before.get(clockKey, null) == null
+          && changedKeys().hasOnly(['joined', clockKey, 'updatedAt'])
+          && after.joined.size() == 2
+          && after.joined.toSet() == before.players.toSet()
+          && after[clockKey] == request.time
+          && after.updatedAt == request.time;
+      }
+
+      match /games/{kind} {
+        function roundGame() {
+          return kind in ['date', 'rate', 'flags', 'telepathy'];
+        }
+
+        // date: 4 cards; rate / flags: 1 topic; telepathy: prompt + 9 emojis.
+        function gameRoundOk(deck, r) {
+          return deck[r] is list
+            && deck[r].size() == (kind == 'date' ? 4 : (kind == 'telepathy' ? 10 : 1));
+        }
+
+        // Telepathy: 3 different emojis from the round, never the prompt id.
+        function telepathyPickOk(v, choices) {
+          return v is list
+            && v.size() == 3
+            && v.toSet().size() == 3
+            && choices.hasAll(v)
+            && !v.hasAny([choices[0]]);
+        }
+
+        function gamePickValueOk(v, choices) {
+          return (kind == 'date' && v in choices)
+            || (kind == 'rate' && v is int && v >= 1 && v <= 10)
+            || (kind == 'flags' && v in ['red', 'green'])
+            || (kind == 'telepathy' && telepathyPickOk(v, choices));
+        }
+
+        function newGameOk() {
+          let d = request.resource.data;
+          return roundGame()
+            && d.keys().hasOnly(['gameId', 'players', 'createdBy', 'status', 'round', 'deck',
+                'picks', 'joined', 'roundStartedAt', 'createdAt', 'updatedAt'])
+            && d.players == gameConv().participants
+            && d.createdBy == request.auth.uid
+            && d.status == 'playing'
+            && d.round == 0
+            && d.picks == {}
+            && d.joined == [request.auth.uid]
+            && d.get('roundStartedAt', null) == null
+            && d.gameId is string
+            && d.gameId.size() > 0
+            && d.gameId.size() <= 40
+            && d.deck is map
+            && d.deck.keys().hasOnly(['r0', 'r1', 'r2', 'r3', 'r4'])
+            && d.deck.size() == 5
+            && gameRoundOk(d.deck, 'r0')
+            && gameRoundOk(d.deck, 'r1')
+            && gameRoundOk(d.deck, 'r2')
+            && gameRoundOk(d.deck, 'r3')
+            && gameRoundOk(d.deck, 'r4')
+            && d.createdAt == request.time
+            && d.updatedAt == request.time
+            && gameOpen();
+        }
+
+        // Adds only my pick for the current round, once. The pick that
+        // completes the round moves round forward by 1 and restarts the clock.
+        function gamePickOk() {
+          let before = resource.data;
+          let after = request.resource.data;
+          let me = request.auth.uid;
+          let r = 'r' + string(before.round);
+          let pb = before.picks.get(r, {});
+          let pa = after.picks.get(r, {});
+          return before.status == 'playing'
+            && before.round < 5
+            && me in before.players
+            && before.get('roundStartedAt', null) is timestamp
+            && changedKeys().hasOnly(['picks', 'round', 'roundStartedAt', 'updatedAt'])
+            && after.updatedAt == request.time
+            && after.picks.diff(before.picks).affectedKeys().hasOnly([r])
+            && pa.diff(pb).affectedKeys().hasOnly([me])
+            && !(me in pb)
+            && gamePickValueOk(pa.get(me, null), before.deck[r])
+            && ((after.round == before.round && pa.size() == 1
+                && after.roundStartedAt == before.roundStartedAt)
+              || (after.round == before.round + 1 && pa.size() == 2
+                && after.roundStartedAt == request.time))
+            && gameOpen();
+        }
+
+        // 30 s passed: the round ends with whatever picks there are.
+        function gameTimeoutOk() {
+          let before = resource.data;
+          let after = request.resource.data;
+          return before.status == 'playing'
+            && before.round < 5
+            && request.auth.uid in before.players
+            && clockExpired('roundStartedAt')
+            && changedKeys().hasOnly(['round', 'roundStartedAt', 'updatedAt'])
+            && after.round == before.round + 1
+            && after.roundStartedAt == request.time
+            && after.updatedAt == request.time;
+        }
+
+        function gameCancelOk() {
+          return resource.data.status == 'playing'
+            && resource.data.round < 5
+            && request.auth.uid in resource.data.players
+            && changedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.updatedAt == request.time;
+        }
+
+        allow read: if signedIn() && request.auth.uid in gameConv().participants;
+        allow create: if signedIn() && newGameOk();
+        // A finished or ended game is replaced by the next one.
+        allow update: if signedIn() && roundGame()
+          && (gamePickOk()
+            || gameTimeoutOk()
+            || gameJoinOk('roundStartedAt')
+            || gameCancelOk()
+            || ((resource.data.status == 'cancelled' || resource.data.round >= 5)
+              && newGameOk()));
+        allow delete: if false;
+      }
+
+      // Chess: only the move list is stored. The rules check turn order, the
+      // move format and the clock; both apps replay the moves to check
+      // legality. '0000' = the player to move ran out of time.
+      match /games/chess {
+        function chessNewGameOk() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['gameId', 'players', 'createdBy', 'status', 'moves',
+              'joined', 'turnStartedAt', 'createdAt', 'updatedAt'])
+            && d.players is list
+            && d.players.size() == 2
+            && d.players.toSet() == gameConv().participants.toSet()
+            && d.createdBy == request.auth.uid
+            && d.status == 'playing'
+            && d.moves == []
+            && d.joined == [request.auth.uid]
+            && d.get('turnStartedAt', null) == null
+            && d.gameId is string
+            && d.gameId.size() > 0
+            && d.gameId.size() <= 40
+            && d.createdAt == request.time
+            && d.updatedAt == request.time
+            && gameOpen();
+        }
+
+        // One more entry on the list, everything before it unchanged.
+        function chessAppendOk(pattern) {
+          let before = resource.data;
+          let after = request.resource.data;
+          let n = before.moves.size();
+          return before.status == 'playing'
+            && before.get('turnStartedAt', null) is timestamp
+            && n < 600
+            && changedKeys().hasOnly(['moves', 'status', 'turnStartedAt', 'updatedAt'])
+            && after.moves.size() == n + 1
+            && after.moves[0:n] == before.moves
+            && after.moves[n] is string
+            && after.moves[n].matches(pattern)
+            && after.status in ['playing', 'over']
+            && after.turnStartedAt == request.time
+            && after.updatedAt == request.time;
+        }
+
+        function chessMoveOk() {
+          return request.auth.uid == resource.data.players[resource.data.moves.size() % 2]
+            && chessAppendOk('^[a-h][1-8][a-h][1-8][qrbn]?$')
+            && gameOpen();
+        }
+
+        function chessTimeoutOk() {
+          return request.auth.uid in resource.data.players
+            && clockExpired('turnStartedAt')
+            && chessAppendOk('^0000$');
+        }
+
+        function chessResignOk() {
+          return resource.data.status == 'playing'
+            && request.auth.uid in resource.data.players
+            && changedKeys().hasOnly(['status', 'resignedBy', 'updatedAt'])
+            && request.resource.data.status == 'over'
+            && request.resource.data.resignedBy == request.auth.uid
+            && request.resource.data.updatedAt == request.time;
+        }
+
+        allow read: if signedIn() && request.auth.uid in gameConv().participants;
+        allow create: if signedIn() && chessNewGameOk();
+        allow update: if signedIn()
+          && (chessMoveOk()
+            || chessTimeoutOk()
+            || gameJoinOk('turnStartedAt')
+            || chessResignOk()
+            || (resource.data.status != 'playing' && chessNewGameOk()));
+        allow delete: if false;
+      }
+
+      // Duels (Tennis Duel, Thumb War): each shot both pick in secret. The
+      // second pick, or the 30 s timeout, moves the shot onto the history;
+      // both apps replay the history for the score.
+      match /games/{duel} {
+        function duelGame() {
+          return duel in ['tennis', 'thumb'];
+        }
+
+        // tennis: a zone; thumb: {m: move, p: grip 0..100}.
+        function duelPickOk(v) {
+          return (duel == 'tennis' && v in ['L', 'C', 'R'])
+            || (duel == 'thumb'
+              && v is map
+              && v.keys().hasOnly(['m', 'p'])
+              && v.size() == 2
+              && v.m in ['pounce', 'guard', 'feint']
+              && v.p is int
+              && v.p >= 0
+              && v.p <= 100);
+        }
+
+        function duelNewGameOk() {
+          let d = request.resource.data;
+          return duelGame()
+            && d.keys().hasOnly(['gameId', 'players', 'createdBy', 'status', 'picks',
+              'history', 'joined', 'turnStartedAt', 'createdAt', 'updatedAt'])
+            && d.players is list
+            && d.players.size() == 2
+            && d.players.toSet() == gameConv().participants.toSet()
+            && d.createdBy == request.auth.uid
+            && d.status == 'playing'
+            && d.picks == {}
+            && d.history == []
+            && d.joined == [request.auth.uid]
+            && d.get('turnStartedAt', null) == null
+            && d.gameId is string
+            && d.gameId.size() > 0
+            && d.gameId.size() <= 40
+            && d.createdAt == request.time
+            && d.updatedAt == request.time
+            && gameOpen();
+        }
+
+        // The shot in play becomes a history entry; the clock restarts.
+        function duelShotDoneOk(entryOk) {
+          let before = resource.data;
+          let after = request.resource.data;
+          let n = before.history.size();
+          return n < 400
+            && changedKeys().hasOnly(['picks', 'history', 'turnStartedAt', 'status', 'updatedAt'])
+            && after.picks == {}
+            && after.history.size() == n + 1
+            && after.history[0:n] == before.history
+            && entryOk
+            && after.turnStartedAt == request.time
+            && after.updatedAt == request.time
+            && after.status in ['playing', 'over'];
+        }
+
+        function duelPickWriteOk() {
+          let before = resource.data;
+          let after = request.resource.data;
+          let me = request.auth.uid;
+          let n = before.history.size();
+          return before.status == 'playing'
+            && me in before.players
+            && before.get('turnStartedAt', null) is timestamp
+            && !(me in before.picks)
+            && gameOpen()
+            && ((before.picks.size() == 0
+                && changedKeys().hasOnly(['picks', 'updatedAt'])
+                && after.updatedAt == request.time
+                && after.picks.keys().hasOnly([me])
+                && after.picks.size() == 1
+                && duelPickOk(after.picks[me]))
+              || (before.picks.size() == 1
+                && duelShotDoneOk(
+                  after.history[n] is map
+                  && after.history[n].size() == 2
+                  && after.history[n].diff(before.picks).affectedKeys().hasOnly([me])
+                  && duelPickOk(after.history[n][me]))));
+        }
+
+        function duelTimeoutOk() {
+          let before = resource.data;
+          let after = request.resource.data;
+          return before.status == 'playing'
+            && request.auth.uid in before.players
+            && clockExpired('turnStartedAt')
+            && duelShotDoneOk(after.history[before.history.size()] == before.picks);
+        }
+
+        function duelResignOk() {
+          return resource.data.status == 'playing'
+            && request.auth.uid in resource.data.players
+            && changedKeys().hasOnly(['status', 'resignedBy', 'updatedAt'])
+            && request.resource.data.status == 'over'
+            && request.resource.data.resignedBy == request.auth.uid
+            && request.resource.data.updatedAt == request.time;
+        }
+
+        allow read: if signedIn() && request.auth.uid in gameConv().participants;
+        allow create: if signedIn() && duelNewGameOk();
+        allow update: if signedIn() && duelGame()
+          && (duelPickWriteOk()
+            || duelTimeoutOk()
+            || gameJoinOk('turnStartedAt')
+            || duelResignOk()
+            || (resource.data.status != 'playing' && duelNewGameOk()));
         allow delete: if false;
       }
     }

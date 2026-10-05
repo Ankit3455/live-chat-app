@@ -29,7 +29,8 @@ Source: owner answers + owner's own notes ("all aplication implimaentation.txt",
 - DEST-045 Carrom: leaving = forfeit (opponent wins); rematch only if both agree.
 - DEST-050 TURN: keep config-driven ICE servers; owner provisions TURN (manual). Remove nothing that currently works.
 - DEST-076 Keep DiceBear avataaars; fix answer->avatar mapping only.
-- DEST-084 / DEST-128 / DEST-130: do NOT delete features (Love Physics, ProfileViewScreen, leaderboard/stats widgets, ML Kit translation). Wire up only if trivial and safe; otherwise leave and list as remaining.
+- DEST-084: Love Physics removed on 2026-10-05 at the owner's request.
+- DEST-128 / DEST-130: do NOT delete features (ProfileViewScreen, leaderboard/stats widgets, ML Kit translation). Wire up only if trivial and safe; otherwise leave and list as remaining.
 - DEST-096 Keep animations; only fix jank (dispose/RepaintBoundary), no redesign.
 - DEST-118 Delete chat = WhatsApp-style: history before the delete time stays hidden for that user if the conversation reopens.
 - DEST-124 Splash: keep current behaviour.

@@ -22,7 +22,7 @@ Legend: **Existing** = in the app today. **Proposed** = design change only, usin
 | Chats (tab) | Active / New conversations | Open chat | Chat |
 | Chat | Messaging, voice notes, calls, block/report | Send | Calls, Profile |
 | Calls (incoming/audio/video) | WebRTC calls | Accept / End | Chat |
-| Games (tab) | Ludo, Carrom, Love Physics | Play | Lobbies |
+| Games (tab) | Ludo, Carrom | Play | Lobbies |
 | My Profile (tab) | Own profile, completion | Edit / Settings | Edit profile, Astrology, Settings |
 | Settings / Discovery settings | Account, privacy, filters | Save & Apply | — |
 
