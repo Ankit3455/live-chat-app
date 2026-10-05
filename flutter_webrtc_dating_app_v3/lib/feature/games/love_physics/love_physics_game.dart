@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flame_forge2d/flame_forge2d.dart';
+import 'package:flame_forge2d/flame_forge2d.dart' hide Transform;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../widgets/custom_button.dart';
@@ -98,7 +98,10 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
           ),
         ],
       ),
+      // expand: the win overlay is the only non-positioned child and is
+      // zero-size until a match, which would shrink the game to nothing.
       body: Stack(
+        fit: StackFit.expand,
         children: [
           Positioned.fill(
             child: GestureDetector(
@@ -112,7 +115,7 @@ class _LovePhysicsScreenState extends State<LovePhysicsScreen> {
           const Positioned(
             left: 16,
             right: 16,
-            bottom: 16,
+            top: 16,
             child: IgnorePointer(
               child: Text(
                 'Draw ramps with your finger to bring the hearts together.',
@@ -191,6 +194,7 @@ class LovePhysicsGame extends Forge2DGame {
   final List<Vector2> _drawingPoints = [];
   final List<DrawnLineBody> _lines = [];
   late _DrawingPreview _preview;
+  bool _released = false;
 
   @override
   Future<void> onLoad() async {
@@ -239,6 +243,13 @@ class LovePhysicsGame extends Forge2DGame {
       final line = DrawnLineBody(points: List.of(_drawingPoints));
       _lines.add(line);
       world.add(line);
+      // The hearts hold still until the first ramp exists, otherwise they
+      // fall into the corners before the player can draw anything.
+      if (!_released) {
+        _released = true;
+        playerA.release();
+        playerB.release();
+      }
       // Keep the body count bounded; removing a BodyComponent destroys its body.
       if (_lines.length > _maxLines) {
         _lines.removeAt(0).removeFromParent();
@@ -348,7 +359,7 @@ class PlayerBody extends BodyComponent {
   @override
   Body createBody() {
     final bd = BodyDef()
-      ..type = BodyType.dynamic
+      ..type = BodyType.static
       ..position = initialPosition;
     final b = world.createBody(bd);
     final shape = CircleShape()..radius = radius;
@@ -356,8 +367,14 @@ class PlayerBody extends BodyComponent {
       ..density = 1.0
       ..friction = 0.3
       ..restitution = 0.2);
-    b.applyLinearImpulse(nudge);
     return b;
+  }
+
+  /// Lets gravity act on the heart. Called outside the physics step.
+  void release() {
+    if (!isLoaded) return;
+    body.setType(BodyType.dynamic);
+    body.applyLinearImpulse(nudge);
   }
 
   // Canvas is already in body-local space (meters).
