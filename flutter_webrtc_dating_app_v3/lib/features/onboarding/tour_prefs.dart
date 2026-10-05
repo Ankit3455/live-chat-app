@@ -178,25 +178,4 @@ class TourPrefs {
       debugPrint('❌ TourPrefs resetAll error: $e');
     }
   }
-
-  // ===========================================================================
-  // Debug Info
-  // ===========================================================================
-
-  static Future<Map<String, dynamic>> getDebugInfo() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return {
-        'uid': _uid ?? '(signed out)',
-        'home_completed': _readCompleted(prefs, _keyHomeTourCompleted),
-        'discovery_completed':
-            _readCompleted(prefs, _keyDiscoveryTourCompleted),
-        'firstOpen': prefs.getBool(_keyFirstAppOpen) ?? true,
-        'forceShow':
-            prefs.getBool(_userKey(_keyForceShowAfterSignup)) ?? false,
-      };
-    } catch (e) {
-      return {'error': e.toString()};
-    }
-  }
 }

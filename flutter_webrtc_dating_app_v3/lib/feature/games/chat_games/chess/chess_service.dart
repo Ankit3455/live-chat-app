@@ -47,24 +47,25 @@ class ChessService {
         );
   }
 
-  /// Starts a new game with random colours, or does nothing if one is
-  /// already running.
-  Future<void> start({
+  /// Starts a new game with random colours and invites the other player, or
+  /// does nothing if one is already running. Returns whether one was created.
+  Future<bool> start({
     required String convId,
     required String otherUserId,
   }) async {
     final me = _me;
-    final (:participants, :invited) = await _games.prepareConversation(
-      convId: convId,
-      otherUserId: otherUserId,
-      invite: ChessGame.invite(),
-    );
     final random = Random.secure();
-    final players = List.of(participants)..shuffle(random);
     final gameId = List.generate(
       20,
       (_) => random.nextInt(36).toRadixString(36),
     ).join();
+    final invite = ChatGameLogic.withGameId(ChessGame.invite(), gameId);
+    final (:participants, :invited) = await _games.prepareConversation(
+      convId: convId,
+      otherUserId: otherUserId,
+      invite: invite,
+    );
+    final players = List.of(participants)..shuffle(random);
 
     final ref = _doc(convId);
     final created = await _db.runTransaction<bool>((tx) async {
@@ -89,8 +90,9 @@ class ChessService {
     });
 
     if (created && !invited) {
-      await _games.sendGameMessage(convId, otherUserId, ChessGame.invite());
+      await _games.sendGameMessage(convId, otherUserId, invite);
     }
+    return created;
   }
 
   /// Plays [move] if it's my turn and legal. A move that ends the game also

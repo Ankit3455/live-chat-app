@@ -152,7 +152,8 @@ class JoinPanel extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             waitingForOther
-                ? 'The game starts when $otherName taps Play in your chat.'
+                ? 'The game starts when $otherName accepts the invite in '
+                      'your chat.'
                 : 'Every turn has ${TurnClock.seconds} seconds. If time runs '
                       'out, the turn passes. Ready?',
             textAlign: TextAlign.center,

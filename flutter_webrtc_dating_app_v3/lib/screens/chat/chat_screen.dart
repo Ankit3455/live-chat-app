@@ -37,7 +37,11 @@ import 'widgets/typing_bubble.dart';
 import 'widgets/voice_recording_sheet.dart';
 
 // Call Screens
+import '../../feature/games/chat_games/chat_game_invites.dart';
 import '../../feature/games/chat_games/chat_game_registry.dart';
+import '../../feature/games/chat_games/chat_game_service.dart'
+    show ChatGameException;
+import '../../feature/games/chat_games/widgets/chat_game_bubble.dart';
 import '../../feature/games/chat_games/widgets/game_picker_sheet.dart';
 import '../calls/audio_call_screen.dart';
 import '../calls/video_call_screen.dart';
@@ -146,6 +150,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool get _canSend =>
       _conversationId != null && !_isBlocked && !_isOtherDeleted;
 
+  /// Live state of this chat's games, for the invite cards.
+  GameRoomsWatcher? _games;
+  GameCardActions? _gameActions;
+
+  GameCardActions? get _cardActions {
+    final games = _games;
+    if (games == null || !_canSend) return null;
+    return _gameActions ??= GameCardActions(
+      rooms: games.rooms,
+      open: _openGame,
+      accept: _acceptGame,
+      close: _closeGame,
+    );
+  }
+
   String get _displayName =>
       _isOtherDeleted ? 'Deleted user' : (_otherUser?.username ?? 'User');
 
@@ -212,6 +231,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _onlineSub?.cancel();
     _typingSub?.cancel();
     _blockedSub?.cancel();
+    _games?.dispose();
+    _games = null;
+    _gameActions = null;
     _messagesLiveSub = null;
     _convSub = null;
     _onlineSub = null;
@@ -361,6 +383,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }, onError: (Object e) => _log('blocked', e));
 
     _watchOnline();
+    _watchGames();
+  }
+
+  /// Retried on every conversation change: the listens fail while the
+  /// conversation doesn't exist yet.
+  void _watchGames() {
+    final convId = _conversationId;
+    if (convId == null) return;
+    final games = _games ??= GameRoomsWatcher(
+      convId: convId,
+      onAccepted: _onGameAccepted,
+    );
+    games.watch(ChatGames.all.map((g) => g.name));
+  }
+
+  /// The other player accepted my invite: move me into the game room too,
+  /// unless I'm already somewhere else (e.g. in that room).
+  void _onGameAccepted(String game) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    _openGame(game);
   }
 
   /// Online dot from RTDB presence (the Firestore `online` field goes
@@ -385,6 +427,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _onConversation(DocumentSnapshot<Map<String, dynamic>> snap) {
     if (!mounted) return;
     setState(() => _applyConversation(snap));
+    if (snap.exists) _watchGames();
 
     // Clear chat on this or another device: restart with the server cutoff.
     final serverCutoff = _conversation?.clearedBeforeFor(_myUid);
@@ -1301,7 +1344,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ? null
                           : _findLoaded(legacyReplyId),
                       onReplyTap: _scrollToMessage,
-                      onOpenGame: _canSend ? _openGame : null,
+                      gameActions: _cardActions,
                       onReply: _canSend
                           ? () {
                               setState(() {
@@ -1773,8 +1816,79 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         break;
       case AttachmentType.game:
         final game = await showGamePickerSheet(context);
-        if (game != null) _openGame(game);
+        if (game != null) await _inviteToGame(game);
         break;
+    }
+  }
+
+  /// Picking a game posts an invite card; the room opens for both once the
+  /// other player accepts. [game] is a game name from [ChatGames].
+  Future<void> _inviteToGame(String game) async {
+    final convId = _conversationId;
+    if (convId == null || !_canSend) return;
+    try {
+      final room = await ChatGameInvites.current(convId, game);
+      if (!mounted) return;
+      if (room != null && room.isOpen) {
+        if (room.bothJoined) {
+          _openGame(game);
+        } else if (room.createdBy == _myUid) {
+          _showSnackBar(
+            'Invite already sent. Waiting for $_displayName to accept.',
+          );
+        } else {
+          await _acceptGame(game);
+        }
+        return;
+      }
+      final sent = await ChatGameInvites.send(
+        game,
+        convId: convId,
+        otherUserId: widget.otherUserId,
+        otherUser: _otherUser,
+      );
+      _watchGames();
+      if (!sent) _showSnackBar('This game is already waiting in your chat.');
+    } on ChatGameException catch (e) {
+      _showSnackBar(e.message);
+    } catch (e) {
+      _log('inviteToGame', e);
+      _showSnackBar("Couldn't send the invite. Try again.");
+    }
+  }
+
+  Future<void> _acceptGame(String game) async {
+    final convId = _conversationId;
+    if (convId == null || !_canSend) return;
+    try {
+      await ChatGameInvites.accept(game, convId);
+      final room = await ChatGameInvites.current(convId, game);
+      if (!mounted) return;
+      if (room != null && room.isOpen && room.bothJoined) {
+        _openGame(game);
+      } else {
+        _showSnackBar('This invite has ended.');
+      }
+    } catch (e) {
+      _log('acceptGame', e);
+      _showSnackBar("Couldn't join the game. Try again.");
+    }
+  }
+
+  Future<void> _closeGame(String game) async {
+    final convId = _conversationId;
+    if (convId == null) return;
+    try {
+      await ChatGameInvites.close(
+        game,
+        convId: convId,
+        otherUserId: widget.otherUserId,
+      );
+    } on ChatGameException catch (e) {
+      _showSnackBar(e.message);
+    } catch (e) {
+      _log('closeGame', e);
+      _showSnackBar("Couldn't update the invite. Try again.");
     }
   }
 

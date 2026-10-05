@@ -22,8 +22,8 @@ class MessageBubble extends StatelessWidget {
   /// Tapping the quote; receives the original message id.
   final ValueChanged<String>? onReplyTap;
 
-  /// Opens a chat game (by game name) from a game message.
-  final ValueChanged<String>? onOpenGame;
+  /// What a game card may do; null hides its buttons.
+  final GameCardActions? gameActions;
 
   const MessageBubble({
     Key? key,
@@ -35,7 +35,7 @@ class MessageBubble extends StatelessWidget {
     this.onDelete,
     this.repliedMessage,
     this.onReplyTap,
-    this.onOpenGame,
+    this.gameActions,
   }) : super(key: key);
 
   /// Call events are written by CallService with `metadata.callId`.
@@ -119,7 +119,7 @@ class MessageBubble extends StatelessWidget {
         message: message,
         isMe: isMe,
         otherUserName: otherUserName,
-        onOpen: onOpenGame,
+        actions: gameActions,
       );
     }
     if (_isMediaMessage()) return _buildMediaMessage();

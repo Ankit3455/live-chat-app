@@ -59,19 +59,26 @@ class ChatGameService {
         );
   }
 
-  /// Starts a new game, or does nothing if one is already running.
+  /// Starts a new game and invites the other player, or does nothing if one
+  /// is already running. Returns whether a game was created.
   /// [otherAnswers] holds the other player's interests/habits.
-  Future<void> start({
+  Future<bool> start({
     required String convId,
     required String otherUserId,
     required ChatGameKind kind,
     Map<String, dynamic> otherAnswers = const {},
   }) async {
     final me = _me;
+    final random = Random.secure();
+    final gameId = List.generate(
+      20,
+      (_) => _idChars[random.nextInt(_idChars.length)],
+    ).join();
+    final invite = ChatGameLogic.withGameId(ChatGameLogic.invite(kind), gameId);
     final (:participants, :invited) = await prepareConversation(
       convId: convId,
       otherUserId: otherUserId,
-      invite: ChatGameLogic.invite(kind),
+      invite: invite,
     );
 
     final tags = <String, Set<String>>{};
@@ -87,17 +94,12 @@ class ChatGameService {
       );
     }
 
-    final random = Random.secure();
     final deck = ChatGameLogic.buildDeck(
       kind,
       tagsA: tags[participants[0]] ?? const {},
       tagsB: tags[participants[1]] ?? const {},
       random: random,
     );
-    final gameId = List.generate(
-      20,
-      (_) => _idChars[random.nextInt(_idChars.length)],
-    ).join();
 
     final ref = _game(convId, kind);
     final created = await _db.runTransaction<bool>((tx) async {
@@ -128,8 +130,9 @@ class ChatGameService {
     });
 
     if (created && !invited) {
-      await sendGameMessage(convId, otherUserId, ChatGameLogic.invite(kind));
+      await sendGameMessage(convId, otherUserId, invite);
     }
+    return created;
   }
 
   /// The game rules read the conversation, so it has to exist before a game

@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../chat_game_logic.dart';
 import '../chat_game_service.dart';
 import 'duel_game.dart';
 
@@ -49,24 +50,26 @@ class DuelService {
         );
   }
 
-  /// Starts a new game (random player order: players[0] goes first), or
-  /// does nothing if one is already running.
-  Future<void> start({
+  /// Starts a new game (random player order: players[0] goes first) and
+  /// invites the other player, or does nothing if one is already running.
+  /// Returns whether one was created.
+  Future<bool> start({
     required String convId,
     required String otherUserId,
   }) async {
     final me = _me;
-    final (:participants, :invited) = await _games.prepareConversation(
-      convId: convId,
-      otherUserId: otherUserId,
-      invite: rules.invite(),
-    );
     final random = Random.secure();
-    final players = List.of(participants)..shuffle(random);
     final gameId = List.generate(
       20,
       (_) => random.nextInt(36).toRadixString(36),
     ).join();
+    final invite = ChatGameLogic.withGameId(rules.invite(), gameId);
+    final (:participants, :invited) = await _games.prepareConversation(
+      convId: convId,
+      otherUserId: otherUserId,
+      invite: invite,
+    );
+    final players = List.of(participants)..shuffle(random);
 
     final ref = _doc(convId);
     final created = await _db.runTransaction<bool>((tx) async {
@@ -90,8 +93,9 @@ class DuelService {
     });
 
     if (created && !invited) {
-      await _games.sendGameMessage(convId, otherUserId, rules.invite());
+      await _games.sendGameMessage(convId, otherUserId, invite);
     }
+    return created;
   }
 
   Future<void> join(String convId) async {

@@ -17,7 +17,6 @@ import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import '../settings/change_password_screen.dart';
 import '../../features/onboarding/home_onboarding.dart';
-import '../../features/onboarding/tour_prefs.dart';
 import 'blocked_users_screen.dart';
 import 'discovery_settings_screen.dart';
 import '../../core/constants/app_colors.dart';
@@ -188,13 +187,6 @@ class SettingsScreen extends StatelessWidget {
                       tone: _RowTone.neutral,
                       onTap: () => _resetTutorial(context),
                     ),
-                    _SettingsRow(
-                      icon: Icons.bug_report_outlined,
-                      title: 'Debug info',
-                      subtitle: 'View tour debug information',
-                      tone: _RowTone.neutral,
-                      onTap: () => _showDebugInfo(context),
-                    ),
                   ],
                 ),
               ],
@@ -304,89 +296,6 @@ class SettingsScreen extends StatelessWidget {
         ),
       );
     }
-  }
-
-  /// Show debug info
-  Future<void> _showDebugInfo(BuildContext context) async {
-    final info = await TourPrefs.getDebugInfo();
-
-    if (!context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.bug_report, color: AppColors.brandPurpleLight),
-            SizedBox(width: 12),
-            Flexible(child: Text('Tour debug info')),
-          ],
-        ),
-        content: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.backgroundDeep,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: info.entries.map((e) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        e.key,
-                        style: const TextStyle(color: AppColors.lavender),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandPurple.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${e.value}',
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await TourPrefs.resetAll();
-              messenger.showSnackBar(
-                const SnackBar(content: Text('All tour data cleared.')),
-              );
-            },
-            child: const Text(
-              'Clear all',
-              style: TextStyle(color: AppColors.warning),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   // ===========================================================================

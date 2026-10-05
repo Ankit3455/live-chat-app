@@ -159,6 +159,11 @@ class ChatGameLogic {
     return ChatGameMessage(text, {'game': kind.name, 'stage': inviteStage});
   }
 
+  /// [invite] tagged with the game it invites to, so the chat card can tell
+  /// a pending invite from an old one.
+  static ChatGameMessage withGameId(ChatGameMessage invite, String gameId) =>
+      ChatGameMessage(invite.text, {...invite.metadata, 'gameId': gameId});
+
   static ChatGameMessage result(ChatGame g) {
     const total = ChatGame.roundCount;
     switch (g.kind) {
