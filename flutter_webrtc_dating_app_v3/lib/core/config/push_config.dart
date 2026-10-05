@@ -7,7 +7,7 @@ class PushConfig {
   /// `https://destined-push.<your-subdomain>.workers.dev`.
   /// Empty = the worker is not used and the Cloud Functions callables are
   /// tried instead (they only work on the Blaze plan).
-  static const String workerUrl = '';
+  static const String workerUrl = 'https://destined-push.beanbliss.workers.dev';
 
   static bool get enabled => workerUrl.isNotEmpty;
 }
