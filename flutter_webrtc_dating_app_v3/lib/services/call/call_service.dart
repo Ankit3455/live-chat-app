@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 
+import 'beauty_filter.dart';
 import 'call_consent.dart';
 import 'call_intent_channel.dart';
 import 'video_filters.dart';
@@ -37,7 +38,9 @@ class CallPermissionDeniedException implements Exception {
 class CallService {
   static final CallService _instance = CallService._internal();
   factory CallService() => _instance;
-  CallService._internal();
+  CallService._internal() {
+    _webrtc.localStream$.listen(_onLocalStream);
+  }
 
   final WebRTCService _webrtc = WebRTCService();
   final SignalingService _signal = SignalingService();
@@ -94,6 +97,13 @@ class CallService {
   );
   ValueListenable<VideoFilter> get remoteFilterListenable => _remoteFilter;
   StreamSubscription<String?>? _filterSub;
+
+  // Beauty is baked into my outgoing video natively, so it needs no
+  // signaling. Re-applied whenever the local video track changes.
+  final ValueNotifier<double> _beautyLevel = ValueNotifier(BeautyFilter.off);
+  ValueListenable<double> get beautyLevelListenable => _beautyLevel;
+  bool _beautyLoaded = false;
+  String? _beautyTrackId;
 
   // UI toggles state
   bool _isMuted = false;
@@ -487,6 +497,7 @@ class CallService {
 
   Future<void> switchCamera() async {
     await _webrtc.switchCamera();
+    await _applyBeauty();
   }
 
   /// Enable/disable local video tracks (for VideoCallScreen camera icon)
@@ -522,6 +533,39 @@ class CallService {
     if (preferred != VideoFilter.normal) {
       await _safe(() => _signal.setVideoFilter(call.id, preferred.id));
     }
+  }
+
+  /// Smooths my outgoing video at [level] (0 = off) and remembers it.
+  Future<void> setBeautyLevel(double level) async {
+    _beautyLoaded = true;
+    _beautyLevel.value = level;
+    unawaited(BeautyFilter.saveLevel(level));
+    await _applyBeauty();
+  }
+
+  void _onLocalStream(MediaStream? stream) {
+    final tracks = stream?.getVideoTracks() ?? const <MediaStreamTrack>[];
+    final id = tracks.isEmpty ? null : tracks.first.id;
+    if (id == _beautyTrackId) return;
+    final old = _beautyTrackId;
+    _beautyTrackId = id;
+    if (old != null) unawaited(BeautyFilter.clear(old));
+    if (id != null) unawaited(_applyBeauty());
+  }
+
+  Future<void> _applyBeauty() async {
+    if (!BeautyFilter.isSupported) return;
+    if (!_beautyLoaded) {
+      final saved = await BeautyFilter.loadLevel();
+      if (!_beautyLoaded) {
+        _beautyLevel.value = saved;
+        _beautyLoaded = true;
+      }
+    }
+    final id = _beautyTrackId;
+    if (id == null) return;
+    // Level 0 detaches the native processor.
+    await BeautyFilter.setBeauty(id, _beautyLevel.value);
   }
 
   void _stopFilterSync() {

@@ -132,6 +132,8 @@ class MainActivity: FlutterActivity() {
         callChannel = channel
         liveCallChannel = channel
 
+        VideoBeautyChannel.register(flutterEngine.dartExecutor.binaryMessenger)
+
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AUDIO_CHANNEL)
