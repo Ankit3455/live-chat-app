@@ -1500,6 +1500,17 @@ describe('firestore.rules', () => {
       await assertSucceeds(getDocs(query(collection(db('bob'), 'game_queue'), where('game', '==', 'rate'))));
     });
 
+    it('the owner keeps a search alive by refreshing only its expiry', async () => {
+      await seedEntry('alice');
+      await assertSucceeds(updateDoc(doc(db('alice'), 'game_queue/alice'), { expiresAt: live() }));
+      await assertFails(updateDoc(doc(db('bob'), 'game_queue/alice'), { expiresAt: live() }));
+      await assertFails(updateDoc(doc(db('alice'), 'game_queue/alice'),
+        { expiresAt: Timestamp.fromMillis(Date.now() + 10 * 60000) }));
+      await seedEntry('alice', { roomId: 'r1', claimedBy: 'bob' });
+      await assertFails(updateDoc(doc(db('alice'), 'game_queue/alice'), { expiresAt: live() }),
+        'a claimed entry is not refreshed');
+    });
+
     it('claiming a live entry creates the room in the same write', async () => {
       await seedEntry('bob');
       await assertSucceeds(claim());

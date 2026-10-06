@@ -247,7 +247,12 @@ class _ChessScreenState extends State<ChessScreen>
   Widget _body(ChessGame? game, ChessReplay? replay) {
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
-      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+      return RoomWaiting(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherGone: roomOtherGone,
+        gameName: ChessGame.gameName,
+      );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
       return GameIntro(

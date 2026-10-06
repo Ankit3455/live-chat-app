@@ -1072,11 +1072,22 @@ service cloud.firestore {
             == [resource.data.uid, request.auth.uid].toSet();
       }
 
+      // While searching, the owner keeps a short expiry alive (heartbeat);
+      // an entry that was already claimed is left alone.
+      function gameQueueRefreshOk() {
+        return resource.data.uid == request.auth.uid
+          && !('roomId' in resource.data)
+          && changedKeys().hasOnly(['expiresAt'])
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt <= request.time + duration.value(120, 's');
+      }
+
       allow read: if signedIn();
       // set() replaces my stale entry (and an old claim) on a new search.
       allow create: if signedIn() && gameQueueEntryOk();
       allow update: if signedIn()
         && ((resource.data.uid == request.auth.uid && gameQueueEntryOk())
+          || gameQueueRefreshOk()
           || gameQueueClaimOk());
       allow delete: if signedIn()
         && (entryId == request.auth.uid || queueExpired());

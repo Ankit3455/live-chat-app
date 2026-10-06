@@ -248,7 +248,12 @@ class _TennisScreenState extends State<TennisScreen>
   Widget _body(DuelGame? game, TennisReplay? replay) {
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
-      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+      return RoomWaiting(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherGone: roomOtherGone,
+        gameName: TennisRules.gameName,
+      );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
       return GameIntro(

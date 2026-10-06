@@ -267,7 +267,12 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
   Widget _body(DuelGame? game, ThumbReplay? replay) {
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
-      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+      return RoomWaiting(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherGone: roomOtherGone,
+        gameName: ThumbRules.gameName,
+      );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
       return GameIntro(

@@ -284,7 +284,12 @@ class _ChatGameScreenState extends State<ChatGameScreen>
 
   Widget _body(ChatGame? game) {
     if (roomSettingUp && (game == null || (game.isActive && !game.bothJoined))) {
-      return RoomWaiting(theme: _theme, otherName: widget.otherName);
+      return RoomWaiting(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherGone: roomOtherGone,
+        gameName: _kind.name,
+      );
     }
     if (game == null || game.cancelled) {
       return GameIntro(

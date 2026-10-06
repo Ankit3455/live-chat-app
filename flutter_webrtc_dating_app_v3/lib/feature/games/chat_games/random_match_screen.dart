@@ -35,6 +35,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen> with MyProfile {
 
   _Phase _phase = _Phase.searching;
   bool _closed = false;
+  bool _matched = false;
   int _secondsLeft = RandomMatchService.searchTime.inSeconds;
   Timer? _countdown;
 
@@ -50,6 +51,11 @@ class _RandomMatchScreenState extends State<RandomMatchScreen> with MyProfile {
 
   @override
   void dispose() {
+    // Leaving while searching: drop the search now, not on the next loop
+    // turn, so nobody gets matched with someone who already left.
+    if (!_closed && _phase == _Phase.searching && !_matched) {
+      _service.cancelSearch();
+    }
     _closed = true;
     _countdown?.cancel();
     super.dispose();
@@ -84,6 +90,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen> with MyProfile {
       setState(() => _phase = _Phase.nobody);
       return;
     }
+    _matched = true;
     final other = await DiscoveryFeed.fetchProfile(
       match.otherUid,
       myUid: myUid,

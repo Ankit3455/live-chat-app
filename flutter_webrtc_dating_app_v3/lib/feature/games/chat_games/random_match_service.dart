@@ -35,7 +35,11 @@ class RandomMatchService {
   static final RandomMatchService instance = RandomMatchService._();
 
   static const Duration searchTime = Duration(seconds: 60);
-  static const Duration _entryTtl = Duration(seconds: 90);
+
+  /// Kept short and refreshed while searching, so a search that was
+  /// cancelled or killed stops being claimable within seconds.
+  static const Duration _entryTtl = Duration(seconds: 25);
+  static const Duration _heartbeatEvery = Duration(seconds: 8);
   static const Duration _recheckEvery = Duration(seconds: 3);
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -44,6 +48,17 @@ class RandomMatchService {
 
   CollectionReference<Map<String, dynamic>> get _queue =>
       _db.collection('game_queue');
+
+  /// Removes my search right away (cancel / leaving the screen).
+  Future<void> cancelSearch() async {
+    final me = _me;
+    if (me.isEmpty) return;
+    try {
+      await _queue.doc(me).delete();
+    } catch (e) {
+      _log('cancel', e);
+    }
+  }
 
   /// Searches for up to [searchTime]. Null when nobody was found or
   /// [cancelled] turned true.
@@ -66,6 +81,15 @@ class RandomMatchService {
       'avatar': avatar,
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': Timestamp.fromDate(DateTime.now().add(_entryTtl)),
+    });
+
+    final heartbeat = Timer.periodic(_heartbeatEvery, (_) {
+      if (cancelled()) return;
+      myRef
+          .update({
+            'expiresAt': Timestamp.fromDate(DateTime.now().add(_entryTtl)),
+          })
+          .catchError((Object e) => _log('heartbeat', e));
     });
 
     final claimed = Completer<RandomMatch>();
@@ -95,6 +119,7 @@ class RandomMatchService {
       if (claimed.isCompleted) return await claimed.future;
       return null;
     } finally {
+      heartbeat.cancel();
       await sub.cancel();
       // A claim deletes the claimer's entry; the claimed one tidies its own.
       unawaited(myRef.delete().catchError((Object e) => _log('leave', e)));
