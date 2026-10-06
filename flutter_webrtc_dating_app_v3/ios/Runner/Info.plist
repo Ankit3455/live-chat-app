@@ -25,11 +25,13 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- Google Sign-In: set GOOGLE_REVERSED_CLIENT_ID (REVERSED_CLIENT_ID from GoogleService-Info.plist) in ios/Flutter/*.xcconfig -->
+				<!-- Google Sign-In: set in ios/Flutter/GoogleSignIn.xcconfig -->
 				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>

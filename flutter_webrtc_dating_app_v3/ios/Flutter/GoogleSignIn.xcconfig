@@ -1,0 +1,4 @@
+// Google Sign-In on iOS: the iOS OAuth client of availchatproject
+// (iosClientId in lib/firebase_options.dart). Info.plist reads both values.
+GOOGLE_CLIENT_ID = 179987163172-laaui80vvrl8is3nhhl1l7h3fk34r5uh.apps.googleusercontent.com
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.179987163172-laaui80vvrl8is3nhhl1l7h3fk34r5uh
