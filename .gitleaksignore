@@ -17,7 +17,7 @@
 
 # working tree (gitleaks dir)
 flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:32
-flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:68
+flutter_webrtc_dating_app_v3/android/app/google-services.json:gcp-api-key:76
 flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:44
 flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:55
 flutter_webrtc_dating_app_v3/lib/firebase_options.dart:gcp-api-key:64
