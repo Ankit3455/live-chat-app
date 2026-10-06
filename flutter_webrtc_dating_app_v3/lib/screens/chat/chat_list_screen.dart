@@ -195,8 +195,12 @@ class _ChatListScreenState extends State<ChatListScreen>
               break;
           }
         }
-        final newUnread =
-            newList.where((c) => c.visibleUnreadFor(myUid) > 0).length;
+        // Pending messages across new chats (their pushes are silent, so
+        // this badge is how they get noticed).
+        final newUnread = newList.fold<int>(
+          0,
+          (sum, c) => sum + c.visibleUnreadFor(myUid),
+        );
 
         Widget body;
         if (snap.hasError && !snap.hasData) {
@@ -346,17 +350,21 @@ class _TabLabel extends StatelessWidget {
         Text(text),
         if (badge > 0) ...[
           const SizedBox(width: 6),
-          PopOnChange(value: badge, child: _CountBadge(count: badge)),
+          PopOnChange(
+            value: badge,
+            child: _CountBadge(count: badge, color: AppColors.red),
+          ),
         ],
       ],
     );
   }
 }
 
-/// Pink unread pill, used on the New tab and on rows.
+/// Unread pill: red on the New tab, pink on rows.
 class _CountBadge extends StatelessWidget {
   final int count;
-  const _CountBadge({required this.count});
+  final Color color;
+  const _CountBadge({required this.count, this.color = AppColors.brandPink});
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +372,7 @@ class _CountBadge extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 20),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.brandPink,
+        color: color,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(

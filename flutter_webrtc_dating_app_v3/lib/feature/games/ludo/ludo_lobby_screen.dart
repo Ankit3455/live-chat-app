@@ -25,8 +25,12 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   final _fs = FirebaseFirestore.instance;
 
   static const Duration _scanEvery = Duration(seconds: 3);
-  // Tolerates clock skew between this device and the match creator.
-  static const Duration _matchCreatedSlack = Duration(seconds: 30);
+  // Both times are server timestamps, so this only absorbs rounding.
+  static const Duration _matchCreatedSlack = Duration(seconds: 5);
+  // Used only when our queue entry's server time is unknown.
+  static const Duration _unknownQueueTimeWindow = Duration(minutes: 10);
+  static const String _searchFailedMessage =
+      "Couldn't search right now. Check your connection and try again.";
 
   bool _searching = false;
   String? _error;
@@ -40,8 +44,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   StreamSubscription? _queueListener;
   bool _navigated = false;
   bool _creating = false;
-  DateTime? _searchStartedAt;
   String? _resumeMatchId;
+  bool _enqueued = false;
+  DateTime? _queuedAt;
+  QuerySnapshot<Map<String, dynamic>>? _lastMatchSnap;
 
   // NEW: Player count selection
   int _selectedPlayerCount = 2;
@@ -72,13 +78,13 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     _queueListener = null;
   }
 
-  /// Matches created for this search only, newest first (indexed on
-  /// playerUids + state + createdAt), so old games are never re-read.
-  Query<Map<String, dynamic>> _newMatchesFor(String uid, DateTime since) => _fs
+  /// My running matches, newest first (indexed on playerUids + state +
+  /// createdAt). No createdAt bound here: comparing it with this device's
+  /// clock breaks under clock skew. [_checkNewMatches] drops old ones.
+  Query<Map<String, dynamic>> _newMatchesFor(String uid) => _fs
       .collection('ludo_matches')
       .where('playerUids', arrayContains: uid)
       .where('state', isEqualTo: 'playing')
-      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
       .orderBy('createdAt', descending: true)
       .limit(5);
 
@@ -106,8 +112,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
     _navigated = false;
     _creating = false;
+    _enqueued = false;
+    _queuedAt = null;
+    _lastMatchSnap = null;
     _playersFound = 1; // Self
-    _searchStartedAt = DateTime.now();
     setState(() {
       _searching = true;
       _error = null;
@@ -132,43 +140,34 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
       // A match created by another player claims (deletes) our queue entry,
       // so listen for matches we are part of before entering the queue.
-      final since = _searchStartedAt!.subtract(_matchCreatedSlack);
-      _matchListener = _newMatchesFor(user.uid, since).snapshots().listen((
-        snapshot,
-      ) {
-        if (_navigated) return;
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          if (data['maxPlayers'] != _selectedPlayerCount) continue;
-          // Invited from a chat: not a lobby match.
-          if (data['private'] == true) continue;
-          final players = Map<String, dynamic>.from(data['players'] ?? {});
-          final info = players[user.uid];
-          if (info is Map && info['status'] == 'active') {
-            debugPrint('✅ Match ready: ${doc.id}');
-            _navigateToGame(doc.id);
-            return;
-          }
-        }
-      }, onError: (e) => debugPrint('❌ Match listener error: $e'));
+      _matchListener = _newMatchesFor(user.uid).snapshots().listen((snapshot) {
+        _lastMatchSnap = snapshot;
+        _checkNewMatches(user.uid);
+      }, onError: (Object e) => _onSearchError('Match listener', e));
 
-      final queueRef = await _service.enqueue(
+      final entry = await _service.enqueue(
         user.uid,
         user.displayName ?? 'Player',
         user.photoURL,
         playerCount: _selectedPlayerCount,
       );
+      final queueRef = entry.ref;
       _myQueueDocId = queueRef.id;
       if (!_searching || _navigated) {
         _cleanupQueue();
         return;
       }
+      _queuedAt = entry.createdAt;
+      _enqueued = true;
       debugPrint('✅ Added to queue: ${queueRef.id}');
+      // A match may have arrived while we were still enqueuing.
+      _checkNewMatches(user.uid);
+      if (_navigated) return;
 
       // The host's transaction deletes our entry when it claims us.
       _queueListener = queueRef.snapshots().listen((snap) {
         if (!snap.exists) _onQueueEntryGone();
-      }, onError: (e) => debugPrint('❌ Queue listener error: $e'));
+      }, onError: (Object e) => _onSearchError('Queue listener', e));
 
       _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
         if (_navigated || !_searching) return;
@@ -189,6 +188,42 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       debugPrint('❌ Find match error: $e');
       _cancelSearch("Couldn't connect. Check your internet and try again.");
     }
+  }
+
+  /// Opens a match another player created from our queue entry. Matches
+  /// created before that entry (old games, the resumable one) are skipped.
+  void _checkNewMatches(String uid) {
+    final snapshot = _lastMatchSnap;
+    if (_navigated || !_searching || !_enqueued || snapshot == null) return;
+    final queuedAt = _queuedAt;
+    final notBefore = queuedAt != null
+        ? queuedAt.subtract(_matchCreatedSlack)
+        : LudoGameService.serverNow().subtract(_unknownQueueTimeWindow);
+    for (final doc in snapshot.docs) {
+      if (doc.id == _resumeMatchId) continue;
+      final data = doc.data();
+      if (data['maxPlayers'] != _selectedPlayerCount) continue;
+      // Invited from a chat: not a lobby match.
+      if (data['private'] == true) continue;
+      // Null only while our own write is pending, so it is new.
+      final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+      if (createdAt != null && createdAt.isBefore(notBefore)) continue;
+      final players = Map<String, dynamic>.from(data['players'] ?? {});
+      final info = players[uid];
+      if (info is Map && info['status'] == 'active') {
+        debugPrint('✅ Match ready: ${doc.id}');
+        _navigateToGame(doc.id);
+        return;
+      }
+    }
+  }
+
+  /// A failure that will repeat on every retry (offline, missing index,
+  /// permission): stop instead of looping until the search times out.
+  void _onSearchError(String where, Object e) {
+    debugPrint('❌ $where error: $e');
+    if (_navigated || !_searching) return;
+    _cancelSearch(_searchFailedMessage);
   }
 
   /// Our queue entry was claimed by another player's match: stop polling
@@ -246,8 +281,17 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
       _myQueueDocId = null; // claimed inside the transaction
       _navigateToGame(matchRef.id);
+    } on StateError catch (e) {
+      // Another player claimed one of the entries first: retry next scan.
+      debugPrint('⚠️ Create/Join match: $e');
+    } on FirebaseException catch (e) {
+      if (e.code == 'aborted') {
+        // Transaction contention with another host: retry next scan.
+        debugPrint('⚠️ Create/Join match aborted: $e');
+      } else {
+        _onSearchError('Create/Join match', e);
+      }
     } catch (e) {
-      // Usually another player claimed one of the entries first.
       debugPrint('❌ Create/Join match error: $e');
     } finally {
       _creating = false;

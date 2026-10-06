@@ -72,18 +72,43 @@ class NotificationChannels {
   }
 
   /// Asks for notification permission (iOS, Android 13+) at most once per
-  /// install. Call after sign-in, when the user has reached the app.
+  /// install. Call after sign-in, when the user has reached the app. The
+  /// prompt only counts as asked once it has completed, so a failed attempt
+  /// is retried on the next launch/resume.
   static Future<void> requestPermissionOnce() async {
     if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_permissionAskedKey) ?? false) return;
-      await prefs.setBool(_permissionAskedKey, true);
       if (!OneSignal.Notifications.permission) {
-        await OneSignal.Notifications.requestPermission(false);
+        final granted = await OneSignal.Notifications.requestPermission(false);
+        if (kDebugMode) debugPrint('Notification permission granted: $granted');
       }
+      await prefs.setBool(_permissionAskedKey, true);
     } catch (e) {
       if (kDebugMode) debugPrint('Notification permission error: $e');
+    }
+  }
+
+  /// Whether this device may show notifications.
+  static bool get permissionGranted =>
+      !kIsWeb && OneSignal.Notifications.permission;
+
+  /// For a Settings "Enable notifications" action when [permissionGranted]
+  /// is false: shows the system prompt if Android/iOS still allows it,
+  /// otherwise opens the app's notification settings. Returns whether
+  /// permission is granted afterwards.
+  static Future<bool> requestPermissionFromSettings() async {
+    if (kIsWeb) return false;
+    try {
+      if (OneSignal.Notifications.permission) return true;
+      final granted = await OneSignal.Notifications.requestPermission(true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_permissionAskedKey, true);
+      return granted;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Notification permission error: $e');
+      return false;
     }
   }
 

@@ -79,12 +79,36 @@ function readable(v) {
   return v !== FORBIDDEN;
 }
 
+// New-style keys (os_v2_...) use `Key` auth on api.onesignal.com; legacy
+// keys keep `Basic` on the v1 endpoint.
+export function oneSignalEndpoint(apiKey) {
+  const key = String(apiKey || '').trim();
+  if (key.startsWith('os_v2_')) {
+    return { url: 'https://api.onesignal.com/notifications?c=push', authorization: `Key ${key}` };
+  }
+  return { url: 'https://onesignal.com/api/v1/notifications', authorization: `Basic ${key}` };
+}
+
+// OneSignal errors are a list of messages or a map like
+// {invalid_aliases: {external_id: [...]}}. Only messages and map keys are
+// kept, never the ids.
+function oneSignalErrorSummary(errors) {
+  if (!errors) return '';
+  if (Array.isArray(errors)) return errors.map(String).join('; ').slice(0, 200);
+  if (typeof errors === 'object') return Object.keys(errors).join(', ').slice(0, 200);
+  return String(errors).slice(0, 200);
+}
+
+// Resolves to {status: 'sent'} or {status: 'no-subscribers', reason}. OneSignal
+// answers 200 even when nobody can receive the push (no subscribed device for
+// the external id), with an empty id and an `errors` field.
 async function sendToOneSignal(env, payload) {
-  const res = await fetch('https://onesignal.com/api/v1/notifications', {
+  const { url, authorization } = oneSignalEndpoint(env.ONESIGNAL_REST_API_KEY);
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      Authorization: `Basic ${env.ONESIGNAL_REST_API_KEY}`,
+      Authorization: authorization,
     },
     body: JSON.stringify({
       app_id: env.ONESIGNAL_APP_ID || DEFAULT_ONESIGNAL_APP_ID,
@@ -92,10 +116,30 @@ async function sendToOneSignal(env, payload) {
       ...payload,
     }),
   });
+  let body = null;
+  try {
+    body = await res.json();
+  } catch (_) {
+    // Non-JSON body: judged by status alone.
+  }
+  const reason = oneSignalErrorSummary(body && body.errors);
   if (!res.ok) {
-    console.error(`OneSignal error ${res.status}`);
+    console.error(`OneSignal error ${res.status}${reason ? `: ${reason}` : ''}`);
     throw new HttpError(502, 'push-failed');
   }
+  const noRecipients = !body || !body.id || body.recipients === 0;
+  if (noRecipients) {
+    console.warn(`OneSignal: no recipients${reason ? `: ${reason}` : ''}`);
+    return { status: 'no-subscribers', reason: reason || 'no-recipients' };
+  }
+  if (reason) console.warn(`OneSignal partial errors: ${reason}`);
+  return { status: 'sent' };
+}
+
+// Handler result for a OneSignal outcome; `ok: false` overrides the
+// entry point's `ok: true` so the app logs why nothing was delivered.
+function deliveryResult(outcome) {
+  return outcome.status === 'sent' ? { status: 'sent' } : { ok: false, ...outcome };
 }
 
 // Name shown on the push: public_profiles first, then the caller's own users doc.
@@ -195,7 +239,7 @@ async function handleChatPush(ctx, env, data) {
     const sender = await profileOf(ctx, senderId);
     if (type === 'call') {
       const isVideo = meta.callType === 'video';
-      await sendToOneSignal(env, {
+      const outcome = await sendToOneSignal(env, {
         include_aliases: { external_id: [receiverId] },
         headings: { en: sender.name },
         contents: { en: `Missed ${isVideo ? 'video' : 'audio'} call` },
@@ -212,22 +256,22 @@ async function handleChatPush(ctx, env, data) {
           conversationId,
         },
       });
-      return { status: 'sent' };
+      return deliveryResult(outcome);
     }
 
-    const silent = stateFor(conv, receiverId) !== 'active';
-    await sendToOneSignal(env, {
+    const quiet = stateFor(conv, receiverId) !== 'active';
+    const outcome = await sendToOneSignal(env, {
       include_aliases: { external_id: [receiverId] },
       headings: { en: sender.name },
       contents: { en: pushBody(msg, String(env.SHOW_MESSAGE_TEXT).toLowerCase() === 'true') },
       existing_android_channel_id: chatChannel(conv, receiverId),
-      priority: silent ? 5 : 10,
-      ...(silent ? { ios_interruption_level: 'passive' } : {}),
+      priority: quiet ? 5 : 10,
+      ...(quiet ? { ios_interruption_level: 'passive' } : {}),
       collapse_id: `chat_${conversationId}`.slice(0, 64),
       thread_id: conversationId,
       data: { type: 'new_message', conversationId, messageId, senderId, receiverId, messageType: type },
     });
-    return { status: 'sent' };
+    return deliveryResult(outcome);
   } catch (err) {
     releaseClaim(key);
     throw err;
@@ -311,10 +355,11 @@ async function handleCallPush(ctx, env, data) {
   const key = `call_${callId}`;
   if (!claimOnce(key)) return { status: 'duplicate' };
 
+  let outcome;
   try {
     const caller = await profileOf(ctx, uid);
     const inboxAvatar = inboxReadable && typeof inbox.callerAvatar === 'string' ? inbox.callerAvatar : null;
-    await sendToOneSignal(env, {
+    outcome = await sendToOneSignal(env, {
       include_aliases: { external_id: [receiverId] },
       headings: { en: `Incoming ${isVideo ? 'Video' : 'Voice'} Call` },
       contents: { en: `${caller.name} is calling...` },
@@ -338,7 +383,7 @@ async function handleCallPush(ctx, env, data) {
     releaseClaim(key);
     throw err;
   }
-  return { status: 'sent' };
+  return deliveryResult(outcome);
 }
 
 // ---------- entry point ----------

@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:availchat/screens/auth/login_screen.dart';
 import '../../core/config/app_links.dart';
 import '../../services/account_deletion_service.dart';
+import '../../services/notification/notification_channels.dart';
 import '../../services/safety_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/app_states.dart';
@@ -870,6 +871,15 @@ class _NotificationSettingsTilesState
   bool? _messagesEnabled;
   bool _saving = false;
 
+  /// The phone may show notifications (Android 13+ / iOS ask first).
+  bool _permission = NotificationChannels.permissionGranted;
+
+  Future<void> _allowNotifications() async {
+    Haptics.selection();
+    final granted = await NotificationChannels.requestPermissionFromSettings();
+    if (mounted) setState(() => _permission = granted);
+  }
+
   DocumentReference<Map<String, dynamic>>? get _ref {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return uid == null
@@ -973,6 +983,13 @@ class _NotificationSettingsTilesState
     final pushOn = _pushEnabled ?? true;
     return _SettingsGroup(
       children: [
+        if (!kIsWeb && !_permission)
+          _SettingsRow(
+            icon: Icons.notifications_off_outlined,
+            title: 'Notifications are off',
+            subtitle: "Allow them so you don't miss messages and calls",
+            onTap: _allowNotifications,
+          ),
         _switch(
           icon: Icons.notifications_none,
           title: 'Push notifications',

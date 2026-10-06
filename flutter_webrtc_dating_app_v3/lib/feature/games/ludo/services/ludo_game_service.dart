@@ -20,14 +20,31 @@ class LudoMoveResult {
   const LudoMoveResult(this.toStep, this.captured, this.gameFinished);
 }
 
+/// A queue entry written by [LudoGameService.enqueue]. [createdAt] is the
+/// server time it was written, or null if it could not be read back.
+class LudoQueueEntry {
+  final DocumentReference<Map<String, dynamic>> ref;
+  final DateTime? createdAt;
+  const LudoQueueEntry(this.ref, this.createdAt);
+}
+
 class LudoGameService {
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
   /// How long a backgrounded / disconnected player may stay away.
-  static const Duration awayGrace = Duration(seconds: 60);
+  static const Duration awayGrace = Duration(seconds: 30);
+
+  /// Turns in a row a player may time out before being marked away.
+  static const int maxMissedTurns = 3;
   static const Duration queueTtl = Duration(minutes: 2);
   static const Duration queueHeartbeatMaxAge = Duration(seconds: 45);
   static const int chatMaxLength = 300;
+
+  /// Server clock minus this device's clock, measured on the last [enqueue].
+  /// Server timestamps must be compared with [serverNow], not DateTime.now().
+  static Duration serverOffset = Duration.zero;
+
+  static DateTime serverNow() => DateTime.now().add(serverOffset);
 
   CollectionReference<Map<String, dynamic>> get _matches =>
       _fs.collection('ludo_matches');
@@ -42,13 +59,21 @@ class LudoGameService {
   DocumentReference<Map<String, dynamic>> queueRef(String uid) =>
       _queue.doc(uid);
 
-  Future<DocumentReference<Map<String, dynamic>>> enqueue(
+  Future<LudoQueueEntry> enqueue(
       String uid,
       String displayName,
       String? avatar,
       {int playerCount = 2}
       ) async {
     final doc = queueRef(uid);
+    // set() on a leftover entry is an update, which the rules reject when
+    // playerCount differs (e.g. an old 4P entry blocking a 2P search).
+    try {
+      await doc.delete();
+    } on FirebaseException catch (e) {
+      debugPrint('⚠️ Old queue entry not removed: $e');
+    }
+    final before = DateTime.now();
     await doc.set({
       'uid': uid,
       'displayName': displayName,
@@ -56,9 +81,30 @@ class LudoGameService {
       'playerCount': playerCount,
       'createdAt': FieldValue.serverTimestamp(),
       'heartbeatAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(queueTtl)),
+      'expiresAt': Timestamp.fromDate(serverNow().add(queueTtl)),
     });
-    return doc;
+    final after = DateTime.now();
+
+    DateTime? createdAt;
+    try {
+      final snap = await doc.get(const GetOptions(source: Source.server));
+      final ts = snap.data()?['createdAt'];
+      if (ts is Timestamp) {
+        createdAt = ts.toDate();
+        final previous = serverOffset;
+        serverOffset =
+            createdAt.difference(before.add(after.difference(before) ~/ 2));
+        if ((serverOffset - previous).abs() > const Duration(seconds: 5)) {
+          await doc.update({
+            'expiresAt': Timestamp.fromDate(serverNow().add(queueTtl)),
+          });
+        }
+      }
+    } catch (e) {
+      // Already claimed by another player, or offline: keep the old offset.
+      debugPrint('⚠️ Queue entry read-back failed: $e');
+    }
+    return LudoQueueEntry(doc, createdAt);
   }
 
   /// Keeps the queue entry fresh. Returns false if it no longer exists
@@ -67,7 +113,7 @@ class LudoGameService {
     try {
       await queueRef(uid).update({
         'heartbeatAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(DateTime.now().add(queueTtl)),
+        'expiresAt': Timestamp.fromDate(serverNow().add(queueTtl)),
       });
       return true;
     } on FirebaseException catch (e) {
@@ -92,8 +138,9 @@ class LudoGameService {
     } catch (_) {}
   }
 
-  static bool _isFreshQueueEntry(Map<String, dynamic> data) {
-    final now = DateTime.now();
+  @visibleForTesting
+  static bool isFreshQueueEntry(Map<String, dynamic> data) {
+    final now = serverNow();
     final expiresAt = data['expiresAt'];
     final heartbeatAt = data['heartbeatAt'];
     if (expiresAt is! Timestamp || expiresAt.toDate().isBefore(now)) {
@@ -121,7 +168,7 @@ class LudoGameService {
       final data = doc.data();
       final docUid = data['uid']?.toString() ?? '';
       if (docUid.isEmpty || seen.contains(docUid)) continue;
-      if (!_isFreshQueueEntry(data)) continue;
+      if (!isFreshQueueEntry(data)) continue;
       seen.add(docUid);
       opponents.add(doc);
       if (opponents.length >= count) break;
@@ -159,7 +206,7 @@ class LudoGameService {
         if (data == null ||
             data['uid'] != expectedUids[i] ||
             data['playerCount'] != playerCount ||
-            !_isFreshQueueEntry(data)) {
+            !isFreshQueueEntry(data)) {
           throw StateError('Queue entry already claimed');
         }
       }
@@ -330,6 +377,33 @@ class LudoGameService {
     return colors;
   }
 
+  static String? _uidOfColor(Map<String, dynamic> data, String color) {
+    for (final e in _players(data).entries) {
+      final info = e.value;
+      if (info is Map && info['color'] == color) return e.key;
+    }
+    return null;
+  }
+
+  /// Clears the timed-out-turn counter once the player acts again.
+  static Map<String, dynamic> _resetMissed(
+    Map<String, dynamic> data,
+    String color,
+  ) {
+    final uid = _uidOfColor(data, color);
+    if (uid == null) return const {};
+    final info = _players(data)[uid];
+    final missed = info is Map ? (info['missed'] as num?)?.toInt() ?? 0 : 0;
+    return missed == 0 ? const {} : {'players.$uid.missed': 0};
+  }
+
+  static Map<String, dynamic> _awayFields(String uid) => {
+        'players.$uid.status': 'away',
+        'players.$uid.awaySince': FieldValue.serverTimestamp(),
+        'forfeitDeadline': Timestamp.fromDate(serverNow().add(awayGrace)),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
   static List<String> _winners(Map<String, dynamic> data) =>
       List<String>.from(data['winners'] ?? const []);
 
@@ -403,6 +477,7 @@ class LudoGameService {
         final updates = <String, dynamic>{
           'dice': dice,
           'updatedAt': FieldValue.serverTimestamp(),
+          ..._resetMissed(data, color),
           if (legal.isEmpty) ..._passTurn(data) else 'rolled': true,
         };
         tx.update(ref, updates);
@@ -470,6 +545,7 @@ class LudoGameService {
             'ts': FieldValue.serverTimestamp(),
           },
           'updatedAt': FieldValue.serverTimestamp(),
+          ..._resetMissed(data, color),
         };
         caps.forEach((victim, indices) {
           final steps = allSteps[victim]!;
@@ -511,7 +587,8 @@ class LudoGameService {
   }
 
   /// Skips the current turn after its deadline. Any participant may call
-  /// this; the turnSeq guard makes concurrent calls harmless.
+  /// this; the turnSeq guard makes concurrent calls harmless. Counts the
+  /// miss and marks the player away after [maxMissedTurns] in a row.
   Future<bool> advanceTurn({
     required String matchId,
     required String expectedColor,
@@ -524,10 +601,20 @@ class LudoGameService {
         if (data == null || !_isTurnOf(data, expectedColor, expectedSeq)) {
           return false;
         }
-        tx.update(ref, {
+        final updates = <String, dynamic>{
           ..._passTurn(data),
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        };
+        final uid = _uidOfColor(data, expectedColor);
+        final info = uid == null ? null : _players(data)[uid];
+        if (uid != null && info is Map) {
+          final missed = ((info['missed'] as num?)?.toInt() ?? 0) + 1;
+          updates['players.$uid.missed'] = missed;
+          if (missed >= maxMissedTurns && info['status'] == 'active') {
+            updates.addAll(_awayFields(uid));
+          }
+        }
+        tx.update(ref, updates);
         return true;
       });
     } catch (e) {
@@ -581,23 +668,29 @@ class LudoGameService {
     required String matchId,
     required String odId,
   }) async {
+    await markAway(matchId: matchId, odId: odId);
+  }
+
+  /// Starts the away grace period for [odId] if still active. Used for the
+  /// player itself and by a peer who saw them go offline. Returns true if
+  /// this call marked them away.
+  Future<bool> markAway({
+    required String matchId,
+    required String odId,
+  }) async {
     final ref = _matches.doc(matchId);
     try {
-      await _fs.runTransaction((tx) async {
+      return await _fs.runTransaction<bool>((tx) async {
         final data = (await tx.get(ref)).data();
-        if (data == null || data['state'] != 'playing') return;
+        if (data == null || data['state'] != 'playing') return false;
         final info = _players(data)[odId];
-        if (info is! Map || info['status'] != 'active') return;
-        tx.update(ref, {
-          'players.$odId.status': 'away',
-          'players.$odId.awaySince': FieldValue.serverTimestamp(),
-          'forfeitDeadline':
-              Timestamp.fromDate(DateTime.now().add(awayGrace)),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        if (info is! Map || info['status'] != 'active') return false;
+        tx.update(ref, _awayFields(odId));
+        return true;
       });
     } catch (e) {
-      debugPrint('❌ playerAway error: $e');
+      debugPrint('❌ markAway error: $e');
+      return false;
     }
   }
 
@@ -632,6 +725,7 @@ class LudoGameService {
           'players.$odId.status': 'active',
           'players.$odId.awaySince': null,
           'players.$odId.skipped': false,
+          'players.$odId.missed': 0,
           'activeColors': ordered,
           'activePlayers': ordered.length,
           if (!othersAway) 'forfeitDeadline': null,
@@ -746,7 +840,7 @@ class LudoGameService {
   Future<String?> findResumableMatch(String uid) async {
     try {
       final snap = await _myPlayingMatches(uid).get();
-      final cutoff = DateTime.now().subtract(const Duration(hours: 3));
+      final cutoff = serverNow().subtract(const Duration(hours: 3));
       DateTime? best;
       String? bestId;
       for (final doc in snap.docs) {

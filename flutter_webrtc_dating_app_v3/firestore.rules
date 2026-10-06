@@ -605,11 +605,35 @@ service cloud.firestore {
     // Picks are visible to both players in the data; the app hides them until
     // both have picked. Every turn / round has a 30 s clock that starts when
     // the second player joins; after it, either player may move the game on.
+    // Leaving writes leftBy (self); after 60 s the other player may claim it.
 
     // [clockKey] started more than 30 seconds ago (server time).
     function gameClockExpired(clockKey) {
       return resource.data.get(clockKey, null) is timestamp
         && request.time > resource.data[clockKey] + duration.value(30, 's');
+    }
+
+    // [clockKey] started more than 60 seconds ago: the player who should have
+    // acted is gone (the clock is kept moving by the overdue player's own app).
+    function gameStale(clockKey) {
+      return resource.data.get(clockKey, null) is timestamp
+        && request.time > resource.data[clockKey] + duration.value(60, 's');
+    }
+
+    // A player ends a running game because the OTHER player left: stale clock.
+    function gameLeftClaimOk(clockKey, endStatus) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let me = request.auth.uid;
+      return before.status == 'playing'
+        && me in before.players
+        && before.get('joined', []).size() == 2
+        && gameStale(clockKey)
+        && changedKeys().hasOnly(['status', 'leftBy', 'updatedAt'])
+        && after.status == endStatus
+        && after.leftBy in before.players
+        && after.leftBy != me
+        && after.updatedAt == request.time;
     }
 
     // The second player joins and starts the clock.
@@ -632,12 +656,14 @@ service cloud.firestore {
     }
 
     // Chess, duels and match invites: a player ends the game (or invite).
+    // leftBy (optional, self only): they resigned by leaving the game.
     function gameResignOk() {
       return resource.data.status == 'playing'
         && request.auth.uid in resource.data.players
-        && changedKeys().hasOnly(['status', 'resignedBy', 'updatedAt'])
+        && changedKeys().hasOnly(['status', 'resignedBy', 'leftBy', 'updatedAt'])
         && request.resource.data.status == 'over'
         && request.resource.data.resignedBy == request.auth.uid
+        && request.resource.data.get('leftBy', request.auth.uid) == request.auth.uid
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -738,8 +764,9 @@ service cloud.firestore {
       return resource.data.status == 'playing'
         && resource.data.round < 5
         && request.auth.uid in resource.data.players
-        && changedKeys().hasOnly(['status', 'updatedAt'])
+        && changedKeys().hasOnly(['status', 'leftBy', 'updatedAt'])
         && request.resource.data.status == 'cancelled'
+        && request.resource.data.get('leftBy', request.auth.uid) == request.auth.uid
         && request.resource.data.updatedAt == request.time;
     }
 
@@ -750,6 +777,7 @@ service cloud.firestore {
           || roundTimeoutOk()
           || gameJoinOk('roundStartedAt')
           || roundCancelOk()
+          || (resource.data.round < 5 && gameLeftClaimOk('roundStartedAt', 'cancelled'))
           || ((resource.data.status == 'cancelled' || resource.data.round >= 5)
             && roundNewGameOk(name, parts, open)));
     }
@@ -803,6 +831,7 @@ service cloud.firestore {
           && chessAppendOk('^0000$'))
         || gameJoinOk('turnStartedAt')
         || gameResignOk()
+        || gameLeftClaimOk('turnStartedAt', 'over')
         || (resource.data.status != 'playing' && chessNewGameOk(parts, open));
     }
 
@@ -901,6 +930,7 @@ service cloud.firestore {
           || duelTimeoutOk()
           || gameJoinOk('turnStartedAt')
           || gameResignOk()
+          || gameLeftClaimOk('turnStartedAt', 'over')
           || (resource.data.status != 'playing' && duelNewGameOk(name, parts, open)));
     }
 

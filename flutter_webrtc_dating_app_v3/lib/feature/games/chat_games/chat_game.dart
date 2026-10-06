@@ -36,6 +36,10 @@ class TurnClock {
 
   static const int seconds = 30;
 
+  /// After this long without the overdue player acting, the other player
+  /// may end the game as left (firestore.rules gameStale).
+  static const int staleSeconds = 60;
+
   /// Seconds left before [deadline], never negative; null if no clock.
   static int? secondsLeft(DateTime? deadline, DateTime now) {
     if (deadline == null) return null;
@@ -69,6 +73,9 @@ class ChatGame {
   /// When the current round's 30 seconds started; null until both joined.
   final DateTime? roundStartedAt;
 
+  /// Who left (or was away too long); set when that ended the game.
+  final String? leftBy;
+
   const ChatGame({
     required this.kind,
     required this.gameId,
@@ -80,6 +87,7 @@ class ChatGame {
     required this.picks,
     this.joined = const [],
     this.roundStartedAt,
+    this.leftBy,
   });
 
   bool get bothJoined => players.every(joined.contains);
@@ -141,6 +149,7 @@ class ChatGame {
           .whereType<String>()
           .toList(),
       roundStartedAt: data['roundStartedAt'] as DateTime?,
+      leftBy: data['leftBy'] as String?,
     );
   }
 }

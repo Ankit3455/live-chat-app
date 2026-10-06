@@ -17,6 +17,7 @@ import '../duel/duel_service.dart';
 import '../ui/game_fx.dart';
 import '../ui/game_motion.dart';
 import '../ui/game_ui.dart';
+import '../widgets/game_leave.dart';
 import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
 import 'thumb_rules.dart';
@@ -43,7 +44,8 @@ class ThumbScreen extends StatefulWidget {
   State<ThumbScreen> createState() => _ThumbScreenState();
 }
 
-class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMode {
+class _ThumbScreenState extends State<ThumbScreen>
+    with TurnClockTicker, RoomMode, GameLeave {
   static const GameTheme _theme = GameTheme.thumb;
 
   final DuelService _service = DuelService(ThumbRules.instance);
@@ -159,6 +161,17 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
     otherUserId: widget.otherUserId,
   );
 
+  Future<void> _claimLeft() => _service.claimLeft(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+  );
+
+  Future<void> _leave() => _service.resign(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+    left: true,
+  );
+
   Future<void> _resign({required bool started}) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -214,7 +227,17 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
             game.bothJoined &&
             replay != null &&
             !replay.isOver;
-        updateClock(running ? game.deadline : null, _timeout);
+        updateClock(
+          running ? game.deadline : null,
+          _timeout,
+          isMineOverdue: game == null || !game.picks.containsKey(_myUid),
+          onStale: _claimLeft,
+        );
+        updateLeave(
+          endsGame: game != null && game.isPlaying && (running || inRoom),
+          ask: running,
+          leave: _leave,
+        );
         if (!waiting) {
           roomStep(
             hasGame: game != null,
@@ -231,30 +254,34 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
         }
         if (replay != null) _onClashes(replay);
 
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: gameAppBar(
-            context,
-            title: ThumbRules.displayTitle,
-            actions: [
-              if (running)
-                IconButton(
-                  icon: const Icon(Icons.flag_outlined),
-                  tooltip: 'Give up',
-                  onPressed: _busy ? null : () => _resign(started: true),
-                ),
-            ],
-          ),
-          body: GameBackdrop(
-            theme: _theme,
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: waiting
-                      ? const Center(child: CircularProgressIndicator())
-                      : _body(game, replay),
+        return leaveScope(
+          otherName: widget.otherName,
+          leaveMessage: '${widget.otherName} wins if you leave.',
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            appBar: gameAppBar(
+              context,
+              title: ThumbRules.displayTitle,
+              actions: [
+                if (running)
+                  IconButton(
+                    icon: const Icon(Icons.flag_outlined),
+                    tooltip: 'Give up',
+                    onPressed: _busy ? null : () => _resign(started: true),
+                  ),
+              ],
+            ),
+            body: GameBackdrop(
+              theme: _theme,
+              child: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : _body(game, replay),
+                  ),
                 ),
               ),
             ),
@@ -265,6 +292,19 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
   }
 
   Widget _body(DuelGame? game, ThumbReplay? replay) {
+    final leftBy = game?.leftBy;
+    if (game != null && !game.isPlaying && leftBy != null && leftBy != _myUid) {
+      return LeftPanel(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherUserId: widget.otherUserId,
+        competitive: true,
+        inRoom: inRoom,
+        gameName: ThumbRules.gameName,
+        busy: _busy,
+        onPlayAgain: _start,
+      );
+    }
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
       return RoomWaiting(
@@ -272,6 +312,7 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
         otherName: widget.otherName,
         otherGone: roomOtherGone,
         gameName: ThumbRules.gameName,
+        onLeave: leaveAndPop,
       );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
@@ -368,6 +409,11 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
                   bottom: bottomFighter,
                 ),
               ),
+              if (!over)
+                awayBanner(
+                  otherUserId: widget.otherUserId,
+                  otherName: widget.otherName,
+                ),
               const SizedBox(height: 14),
               RevealToast(
                 key: ValueKey('clash${replay.clashes.length}'),
@@ -379,7 +425,7 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
               const SizedBox(height: 18),
               if (over)
                 _Over(
-                  text: _outcome(replay, me),
+                  text: _outcome(replay, me, left: game.leftBy != null),
                   won: iWon,
                   busy: _busy,
                   onPlayAgain: _start,
@@ -494,9 +540,12 @@ class _ThumbScreenState extends State<ThumbScreen> with TurnClockTicker, RoomMod
         : "$other's $b beat your $a. -${c.damage} HP${tail()}";
   }
 
-  String _outcome(ThumbReplay r, int me) {
+  String _outcome(ThumbReplay r, int me, {bool left = false}) {
     final w = r.winner;
     if (w == null) return 'Thumb War ended.';
+    if (r.byResignation && left) {
+      return w == me ? '${widget.otherName} left the game!' : 'You left.';
+    }
     if (r.byResignation) {
       return w == me ? '${widget.otherName} gave up!' : 'You gave up.';
     }

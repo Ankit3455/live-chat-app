@@ -26,7 +26,12 @@ class ChessGame {
   /// 'playing', 'over' or 'cancelled'.
   final String status;
   final List<String> moves;
+
+  /// Who resigned; a player who left (leftBy) counts as resigned.
   final String? resignedBy;
+
+  /// Who left the game (or was away too long).
+  final String? leftBy;
 
   /// Players who opened the game. The clock starts once both joined.
   final List<String> joined;
@@ -41,6 +46,7 @@ class ChessGame {
     required this.status,
     required this.moves,
     required this.resignedBy,
+    this.leftBy,
     this.joined = const [],
     this.turnStartedAt,
   });
@@ -79,7 +85,8 @@ class ChessGame {
       moves: ((data['moves'] as List?) ?? const [])
           .whereType<String>()
           .toList(),
-      resignedBy: data['resignedBy'] as String?,
+      resignedBy: data['resignedBy'] as String? ?? data['leftBy'] as String?,
+      leftBy: data['leftBy'] as String?,
       joined: ((data['joined'] as List?) ?? const [])
           .whereType<String>()
           .toList(),
@@ -94,14 +101,18 @@ class ChessGame {
     {'game': gameName, 'stage': ChatGameLogic.inviteStage},
   );
 
-  /// [winner] is a uid, or null for a draw.
-  static ChatGameMessage result(ChessEnd end, String? winner) =>
-      ChatGameMessage('♟️ Chess: ${endText(end)}', {
-        'game': gameName,
-        'stage': ChatGameLogic.resultStage,
-        'reason': end.name,
-        if (winner != null) 'winner': winner,
-      });
+  /// [winner] is a uid, or null for a draw. [left]: the loser left.
+  static ChatGameMessage result(
+    ChessEnd end,
+    String? winner, {
+    bool left = false,
+  }) => ChatGameMessage('♟️ Chess: ${left ? 'left the game' : endText(end)}', {
+    'game': gameName,
+    'stage': ChatGameLogic.resultStage,
+    'reason': end.name,
+    if (winner != null) 'winner': winner,
+    if (left) 'left': true,
+  });
 
   static String endText(ChessEnd end) {
     switch (end) {
@@ -129,12 +140,18 @@ class ChessGame {
     required String otherName,
     required ChessEnd end,
     required String? winner,
+    bool left = false,
   }) {
     if (winner == null) {
       final t = endText(end);
       return t[0].toUpperCase() + t.substring(1);
     }
     final iWon = winner == viewer;
+    if (left) {
+      return iWon
+          ? '$otherName left the game. You win! 🎉'
+          : 'You left the game.';
+    }
     if (end == ChessEnd.resignation) {
       return iWon ? '$otherName resigned. You win! 🎉' : 'You resigned.';
     }

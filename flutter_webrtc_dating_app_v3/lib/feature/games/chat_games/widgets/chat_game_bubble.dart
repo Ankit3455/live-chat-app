@@ -153,6 +153,15 @@ class ChatGameBubble extends StatelessWidget {
             ],
           );
         }
+        final leftBy = room.leftBy;
+        if (leftBy != null) {
+          return _GameCard(
+            title: title,
+            body: leftBy == myUid
+                ? 'You left the game.'
+                : '$otherUserName left the game.',
+          );
+        }
         if (room.bothJoined) {
           return _GameCard(title: title, body: 'This game has ended.');
         }

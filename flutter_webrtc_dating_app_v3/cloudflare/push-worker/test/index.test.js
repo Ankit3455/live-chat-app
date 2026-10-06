@@ -3,7 +3,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import worker from '../src/index.js';
+import worker, { oneSignalEndpoint } from '../src/index.js';
 import { resetJwksCache, decodeFields } from '../src/firebase.js';
 import { resetState } from '../src/limits.js';
 import { offerSendsVideo, pushBody } from '../src/rules.js';
@@ -65,6 +65,9 @@ let rtdb; // rtdb path -> value | 'FORBIDDEN'
 let sent; // OneSignal payloads
 let rtdbPatches;
 let oneSignalStatus;
+let oneSignalBody;
+let oneSignalRequests; // {url, authorization}
+let warnings;
 
 function defaultConv() {
   return {
@@ -82,6 +85,9 @@ beforeEach(() => {
   sent = [];
   rtdbPatches = [];
   oneSignalStatus = 200;
+  oneSignalBody = { id: 'x' };
+  oneSignalRequests = [];
+  warnings = [];
   docs = {
     [`conversations/${CONV_ID}`]: defaultConv(),
     [`conversations/${CONV_ID}/messages/m1`]: {
@@ -105,10 +111,10 @@ globalThis.fetch = async (input, init = {}) => {
       headers: { 'cache-control': 'public, max-age=19000' },
     });
   }
-  if (url === 'https://onesignal.com/api/v1/notifications') {
-    assert.equal(init.headers.Authorization, 'Basic rest-key');
+  if (url === 'https://onesignal.com/api/v1/notifications' || url === 'https://api.onesignal.com/notifications?c=push') {
+    oneSignalRequests.push({ url, authorization: init.headers.Authorization });
     sent.push(JSON.parse(init.body));
-    return new Response('{"id":"x"}', { status: oneSignalStatus });
+    return new Response(JSON.stringify(oneSignalBody), { status: oneSignalStatus });
   }
   if (url.endsWith(':runQuery')) return new Response('[{}]');
   if (url.startsWith(FS_PREFIX)) {
@@ -133,14 +139,16 @@ globalThis.fetch = async (input, init = {}) => {
   throw new Error(`unexpected fetch ${url}`);
 };
 
-async function call(path, body, { token, headers = {} } = {}) {
+console.warn = (...args) => warnings.push(args.join(' '));
+
+async function call(path, body, { token, headers = {}, env = ENV } = {}) {
   const t = token === undefined ? await makeToken() : token;
   const req = new Request(`https://destined-push.example.workers.dev${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(t ? { authorization: `Bearer ${t}` } : {}), ...headers },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
-  const res = await worker.fetch(req, ENV);
+  const res = await worker.fetch(req, env);
   return { status: res.status, body: await res.json() };
 }
 
@@ -181,6 +189,10 @@ test('chat push: sends to the receiver without message text', async () => {
   assert.equal(p.headings.en, 'Alice');
   assert.equal(p.contents.en, 'New message');
   assert.equal(p.data.type, 'new_message');
+  assert.deepEqual(oneSignalRequests[0], {
+    url: 'https://onesignal.com/api/v1/notifications',
+    authorization: 'Basic rest-key',
+  });
 });
 
 test('chat push: second call for the same message is a duplicate', async () => {
@@ -190,7 +202,7 @@ test('chat push: second call for the same message is a duplicate', async () => {
   assert.equal(sent.length, 1);
 });
 
-test('chat push: silent channel when the receiver has not replied', async () => {
+test('chat push: new-chat channel when the receiver has not replied', async () => {
   docs[`conversations/${CONV_ID}`].participantData.bob = {};
   await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' });
   assert.equal(sent[0].existing_android_channel_id, 'onesignal_new_chat_channel');
@@ -233,6 +245,43 @@ test('chat push: OneSignal failure returns 502 and allows a retry', async () => 
   assert.equal((await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' })).status, 502);
   oneSignalStatus = 200;
   assert.equal((await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' })).body.status, 'sent');
+});
+
+test('chat push: 200 without recipients is reported as no-subscribers', async () => {
+  oneSignalBody = { id: '', errors: ['All included players are not subscribed'] };
+  const r = await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' });
+  assert.deepEqual(r, {
+    status: 200,
+    body: { ok: false, status: 'no-subscribers', reason: 'All included players are not subscribed' },
+  });
+  assert.match(warnings.join('\n'), /no recipients: All included players are not subscribed/);
+});
+
+test('chat push: invalid aliases are reported without the ids', async () => {
+  oneSignalBody = { id: '', errors: { invalid_aliases: { external_id: [BOB] } } };
+  const r = await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' });
+  assert.deepEqual(r.body, { ok: false, status: 'no-subscribers', reason: 'invalid_aliases' });
+  assert.doesNotMatch(warnings.join('\n'), new RegExp(BOB));
+});
+
+test('chat push: zero recipients and partial errors', async () => {
+  oneSignalBody = { id: 'n1', recipients: 0 };
+  assert.equal((await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' })).body.status, 'no-subscribers');
+  resetState();
+  oneSignalBody = { id: 'n2', errors: { invalid_aliases: { external_id: ['old'] } } };
+  const r = await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' });
+  assert.deepEqual(r.body, { ok: true, status: 'sent' });
+  assert.match(warnings.join('\n'), /partial errors: invalid_aliases/);
+});
+
+test('chat push: os_v2_ keys use Key auth on api.onesignal.com', async () => {
+  const env = { ...ENV, ONESIGNAL_REST_API_KEY: 'os_v2_app_abc' };
+  const r = await call('/chat-push', { conversationId: CONV_ID, messageId: 'm1' }, { env });
+  assert.equal(r.body.status, 'sent');
+  assert.deepEqual(oneSignalRequests[0], {
+    url: 'https://api.onesignal.com/notifications?c=push',
+    authorization: 'Key os_v2_app_abc',
+  });
 });
 
 // ---------- call ----------
@@ -284,6 +333,14 @@ test('call push: refuses and ends the call when not allowed', async () => {
   assert.equal(sent.length, 0);
 });
 
+test('call push: no subscribers is reported', async () => {
+  oneSignalBody = { id: '', errors: ['All included players are not subscribed'] };
+  const r = await call('/call-push', { receiverId: BOB, callId: 'alice_c1' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ok, false);
+  assert.equal(r.body.status, 'no-subscribers');
+});
+
 test('call push: per-uid rate limit', async () => {
   let last;
   for (let i = 0; i < 11; i++) last = await call('/call-push', { receiverId: BOB, callId: `alice_x${i}` });
@@ -293,6 +350,8 @@ test('call push: per-uid rate limit', async () => {
 // ---------- pure helpers ----------
 
 test('helpers', () => {
+  assert.deepEqual(oneSignalEndpoint(' os_v2_x '), { url: 'https://api.onesignal.com/notifications?c=push', authorization: 'Key os_v2_x' });
+  assert.deepEqual(oneSignalEndpoint('legacy'), { url: 'https://onesignal.com/api/v1/notifications', authorization: 'Basic legacy' });
   assert.equal(offerSendsVideo(AUDIO_SDP), false);
   assert.equal(offerSendsVideo(VIDEO_SDP), true);
   assert.equal(pushBody({ type: 'image', message: 'hi' }, false), 'Photo');

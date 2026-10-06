@@ -70,8 +70,7 @@ class ChatGames {
 
   static final List<ChatGameEntry> all = [...matchGames, ...spaceGames];
 
-  static bool isMatchGame(String name) =>
-      matchGames.any((g) => g.name == name);
+  static bool isMatchGame(String name) => matchGames.any((g) => g.name == name);
 
   static ChatGameEntry? byName(Object? name) {
     for (final g in all) {
@@ -146,6 +145,7 @@ class ChatGames {
         otherName: otherName,
         end: end,
         winner: meta['winner'] as String?,
+        left: meta['left'] == true,
       );
     }
     final duel = _duel(name);

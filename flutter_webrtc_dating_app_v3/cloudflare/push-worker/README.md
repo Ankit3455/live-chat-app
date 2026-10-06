@@ -59,6 +59,9 @@ You need Node.js 18 or newer (`node --version`).
    ```
 
    If Wrangler says the worker doesn't exist yet, answer **yes** to create it.
+   Both key styles work: new keys starting with `os_v2_` are sent as
+   `Authorization: Key ...` to `api.onesignal.com`, legacy keys as
+   `Authorization: Basic ...` to `onesignal.com/api/v1`.
 
 5. Deploy:
 
@@ -102,7 +105,11 @@ Both: `POST`, `Content-Type: application/json`, body at most 4 KB,
 
 Responses: `200 {"ok":true,"status":"sent"}` (other statuses such as
 `muted`, `blocked`, `duplicate`, `stale`, `disabled` mean "nothing sent, on
-purpose"), or an error: `400` bad input, `401` bad/expired token, `403` not
+purpose"). `200 {"ok":false,"status":"no-subscribers","reason":"..."}` means
+OneSignal accepted the request but had no subscribed device for the receiver
+(e.g. "All included players are not subscribed", `invalid_aliases`): the
+receiver never logged in on a device with push allowed, or opted out. Or an
+error: `400` bad input, `401` bad/expired token, `403` not
 allowed, `404` unknown path, `405` not POST, `412` call no longer ringing,
 `413` body too big, `415` not JSON, `429` too many requests, `502` OneSignal
 or Firebase failed.
@@ -119,8 +126,10 @@ Chat push:
 - message must be at most 10 minutes old (replays of old messages do nothing);
 - skipped when the receiver deleted their account, muted the chat, or either
   user blocked the other;
-- silent channel `onesignal_new_chat_channel` (low priority, iOS passive) when
-  the receiver hasn't replied yet; `onesignal_chat_channel` otherwise.
+- channel `onesignal_new_chat_channel` (silent, low importance; lower
+  priority, iOS passive) when the receiver hasn't replied yet;
+  `onesignal_chat_channel` (high, heads-up) otherwise. The app creates both
+  channels.
 
 Call push:
 - `callId` starts with `<caller uid>_`, receiver isn't the caller;

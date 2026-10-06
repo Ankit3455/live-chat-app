@@ -55,6 +55,16 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _joinTimer?.cancel();
+    // Closed without Leave (e.g. route removed): start the away grace so the
+    // others aren't left waiting on a player who is gone.
+    if (!_hasLeft &&
+        !_provider.matchMissing &&
+        _provider.gameState != LudoGameState.finish) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        unawaited(_gameService.playerAway(matchId: widget.matchId, odId: uid));
+      }
+    }
     _provider.dispose();
     super.dispose();
   }
@@ -418,32 +428,48 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
       valueListenable: provider.secondTick,
       builder: (context, _, __) {
         final away = provider.awayOpponents;
-        if (away.isEmpty) return const SizedBox.shrink();
+        final localAway = provider.localAway;
+        if (away.isEmpty && !localAway) return const SizedBox.shrink();
         final twoPlayer = provider.maxPlayers <= 2;
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Column(
-            children: away.map((p) {
-              final String text;
-              if (p.skipped) {
-                text =
-                    '${p.name} is away. Their turns are skipped until they return.';
-              } else if (twoPlayer) {
-                text =
-                    "${p.name} is away. You win if they're not back in ${p.secondsLeft}s.";
-              } else {
-                text =
-                    '${p.name} is away. Their turns are skipped in ${p.secondsLeft}s.';
-              }
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: AppBanner(
-                  message: text,
-                  tone: AppBannerTone.warning,
-                  icon: Icons.person_off_outlined,
+            children: [
+              if (localAway)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: AppBanner(
+                    message: twoPlayer
+                        ? "You're marked away. Tap I'm back or you'll forfeit."
+                        : "You're marked away. Tap I'm back to keep playing.",
+                    tone: AppBannerTone.warning,
+                    icon: Icons.person_off_outlined,
+                    actionLabel: "I'm back",
+                    onAction: provider.reconnectLocal,
+                  ),
                 ),
-              );
-            }).toList(),
+              ...away.map((p) {
+                final String text;
+                if (p.skipped) {
+                  text =
+                      '${p.name} is away. Their turns are skipped until they return.';
+                } else if (twoPlayer) {
+                  text =
+                      "${p.name} is away. You win if they're not back in ${p.secondsLeft}s.";
+                } else {
+                  text =
+                      '${p.name} is away. Their turns are skipped in ${p.secondsLeft}s.';
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: AppBanner(
+                    message: text,
+                    tone: AppBannerTone.warning,
+                    icon: Icons.person_off_outlined,
+                  ),
+                );
+              }),
+            ],
           ),
         );
       },
@@ -673,7 +699,7 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
       // Local player WON
       title = 'You won!';
       subtitle = reason == 'forfeit'
-          ? 'Your opponent left the match.'
+          ? _forfeitWinText(provider.departedNames)
           : 'Nice one, you got all your tokens home first.';
       icon = Icons.emoji_events_outlined;
       iconColor = AppColors.pinkLight;
@@ -774,6 +800,12 @@ class _LudoWrapperScreenState extends State<LudoWrapperScreen>
         ),
       ),
     );
+  }
+
+  String _forfeitWinText(List<String> names) {
+    if (names.isEmpty) return 'Your opponent left the game — you win.';
+    if (names.length == 1) return '${names.first} left the game — you win.';
+    return 'Everyone else left the game — you win.';
   }
 
   String _colorName(String? color) {

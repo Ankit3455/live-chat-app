@@ -92,17 +92,23 @@ class RoomWaiting extends StatelessWidget {
   /// Game name from ChatGames, for "Find another player".
   final String? gameName;
 
+  /// The Leave buttons; closes the game for both (GameLeave.leaveAndPop).
+  /// Defaults to just going back.
+  final VoidCallback? onLeave;
+
   const RoomWaiting({
     super.key,
     required this.theme,
     required this.otherName,
     this.otherGone = false,
     this.gameName,
+    this.onLeave,
   });
 
   @override
   Widget build(BuildContext context) {
     final game = gameName;
+    final leave = onLeave ?? () => Navigator.of(context).maybePop();
     if (otherGone && game != null) {
       return Center(
         child: Padding(
@@ -133,7 +139,7 @@ class RoomWaiting extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: leave,
                 child: const Text(
                   'Leave',
                   style: TextStyle(color: Colors.white70),
@@ -165,7 +171,7 @@ class RoomWaiting extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             TextButton(
-              onPressed: () => Navigator.of(context).maybePop(),
+              onPressed: leave,
               child: const Text(
                 'Leave',
                 style: TextStyle(color: Colors.white70),

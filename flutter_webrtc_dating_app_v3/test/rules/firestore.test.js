@@ -1459,6 +1459,116 @@ describe('firestore.rules', () => {
     });
   });
 
+  describe('chat games: leaving a game', () => {
+    const ago = (ms) => Timestamp.fromMillis(Date.now() - ms);
+    const seedAt = async (path, data) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), path), {
+          gameId: 'g1',
+          players: ['alice', 'bob'],
+          createdBy: 'alice',
+          status: 'playing',
+          joined: ['alice', 'bob'],
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          ...data,
+        });
+      });
+    };
+    const chessPath = 'conversations/c1/games/chess';
+    const tennisPath = 'conversations/c1/games/tennis';
+    const datePath = 'conversations/c1/games/date';
+    const seedChess = (over = {}) => seedAt(chessPath,
+      { players: ['bob', 'alice'], moves: ['e2e4'], turnStartedAt: Timestamp.now(), ...over });
+    const seedTennis = (over = {}) => seedAt(tennisPath,
+      { picks: { alice: 'L' }, history: [], turnStartedAt: Timestamp.now(), ...over });
+    const seedDate = (over = {}) => seedAt(datePath, {
+      round: 1,
+      deck: { r0: ['a', 'b', 'c', 'd'], r1: ['a', 'b', 'c', 'd'], r2: ['a', 'b', 'c', 'd'],
+        r3: ['a', 'b', 'c', 'd'], r4: ['a', 'b', 'c', 'd'] },
+      picks: { r1: { alice: 'a' } },
+      roundStartedAt: Timestamp.now(),
+      ...over,
+    });
+    const claim = (uid, path, status, leftBy) => updateDoc(doc(db(uid), path),
+      { status, leftBy, updatedAt: serverTimestamp() });
+
+    it('a player can claim the other left once the clock is 60 s old', async () => {
+      await seedChess({ turnStartedAt: ago(61000) });
+      await assertSucceeds(claim('bob', chessPath, 'over', 'alice'));
+      await seedTennis({ turnStartedAt: ago(61000) });
+      await assertSucceeds(claim('alice', tennisPath, 'over', 'bob'));
+      await seedDate({ roundStartedAt: ago(61000) });
+      await assertSucceeds(claim('alice', datePath, 'cancelled', 'bob'));
+    });
+
+    it('no left claim before 60 s', async () => {
+      await seedChess({ turnStartedAt: ago(40000) });
+      await assertFails(claim('bob', chessPath, 'over', 'alice'));
+      await seedTennis({ turnStartedAt: ago(40000) });
+      await assertFails(claim('alice', tennisPath, 'over', 'bob'));
+      await seedDate({ roundStartedAt: ago(40000) });
+      await assertFails(claim('alice', datePath, 'cancelled', 'bob'));
+    });
+
+    it('a left claim names the other player, with the right end status', async () => {
+      await seedChess({ turnStartedAt: ago(61000) });
+      await assertFails(claim('bob', chessPath, 'over', 'bob'));
+      await assertFails(claim('bob', chessPath, 'over', 'carol'));
+      await assertFails(claim('bob', chessPath, 'cancelled', 'alice'));
+      await assertFails(updateDoc(doc(db('bob'), chessPath),
+        { status: 'over', leftBy: 'alice', resignedBy: 'alice', updatedAt: serverTimestamp() }));
+      await seedDate({ roundStartedAt: ago(61000) });
+      await assertFails(claim('alice', datePath, 'cancelled', 'alice'));
+      await assertFails(claim('alice', datePath, 'over', 'bob'));
+    });
+
+    it('a non-player cannot claim anyone left', async () => {
+      await seedChess({ turnStartedAt: ago(61000) });
+      await assertFails(claim('carol', chessPath, 'over', 'alice'));
+      await seedDate({ roundStartedAt: ago(61000) });
+      await assertFails(claim('carol', datePath, 'cancelled', 'bob'));
+    });
+
+    it('no left claim once the game is over or finished', async () => {
+      await seedChess({ status: 'over', turnStartedAt: ago(61000) });
+      await assertFails(claim('bob', chessPath, 'over', 'alice'));
+      await seedTennis({ status: 'over', turnStartedAt: ago(61000) });
+      await assertFails(claim('alice', tennisPath, 'over', 'bob'));
+      await seedDate({ round: 5, roundStartedAt: ago(61000) });
+      await assertFails(claim('alice', datePath, 'cancelled', 'bob'));
+    });
+
+    it('no left claim before both players joined', async () => {
+      await seedChess({ joined: ['alice'], turnStartedAt: ago(61000) });
+      await assertFails(claim('alice', chessPath, 'over', 'bob'));
+    });
+
+    it('leaving a round game cancels it with my own leftBy only', async () => {
+      await seedDate();
+      await assertFails(claim('alice', datePath, 'cancelled', 'bob'));
+      await assertSucceeds(claim('alice', datePath, 'cancelled', 'alice'));
+      await assertSucceeds(setDoc(doc(db('bob'), datePath), {
+        gameId: 'g2', players: ['alice', 'bob'], createdBy: 'bob', status: 'playing', round: 0,
+        deck: { r0: ['a', 'b', 'c', 'd'], r1: ['a', 'b', 'c', 'd'], r2: ['a', 'b', 'c', 'd'],
+          r3: ['a', 'b', 'c', 'd'], r4: ['a', 'b', 'c', 'd'] },
+        picks: {}, joined: ['bob'], roundStartedAt: null,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      }), 'a new game replaces the left one');
+    });
+
+    it('leaving chess or a duel resigns with my own leftBy only', async () => {
+      await seedChess();
+      await assertFails(updateDoc(doc(db('alice'), chessPath),
+        { status: 'over', resignedBy: 'alice', leftBy: 'bob', updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(doc(db('alice'), chessPath),
+        { status: 'over', resignedBy: 'alice', leftBy: 'alice', updatedAt: serverTimestamp() }));
+      await seedTennis();
+      await assertSucceeds(updateDoc(doc(db('bob'), tennisPath),
+        { status: 'over', resignedBy: 'bob', leftBy: 'bob', updatedAt: serverTimestamp() }));
+    });
+  });
+
   describe('random-match rooms and queue', () => {
     const live = () => Timestamp.fromMillis(Date.now() + 60000);
     const entry = (uid, over = {}) => ({

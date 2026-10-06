@@ -20,6 +20,7 @@ import '../../services/chat_service.dart';
 import '../../services/discovery_feed_service.dart';
 import '../../services/media/chat_media_service.dart';
 import '../../services/navigation/pending_intent.dart';
+import '../../services/notification/chat_sounds.dart';
 import '../../services/notification/onesignal_sender.dart';
 import '../../services/presence_watch.dart';
 import '../../services/safety_service.dart';
@@ -589,14 +590,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final convId = _conversationId;
     if (convId == null) return;
     final cutoff = _clearedBefore;
+    // The first snapshot is the existing head of the chat, not new mail.
+    var firstSnapshot = true;
 
     _messagesLiveSub = _messagesQuery(convId).limit(20).snapshots().listen((
       snap,
     ) {
       if (!mounted) return;
+      final initial = firstSnapshot;
+      firstSnapshot = false;
 
       var listChanged = false;
       var hasIncoming = false;
+      String? newIncomingId;
 
       for (final c in snap.docChanges) {
         // Leaving the head window is not a deletion.
@@ -623,9 +629,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (c.doc.metadata.hasPendingWrites && msg.senderId == _myUid) {
           _markAnimateIn(msg.id);
         }
-        if (msg.senderId == widget.otherUserId) hasIncoming = true;
+        if (msg.senderId == widget.otherUserId) {
+          hasIncoming = true;
+          newIncomingId = msg.id;
+        }
       }
 
+      // New chats (not replied to yet) stay silent, like their notifications.
+      if (!initial &&
+          newIncomingId != null &&
+          _isForeground &&
+          _conversation?.stateFor(_myUid) == 'active') {
+        ChatSounds.instance.playReceived(messageId: newIncomingId);
+      }
       if (hasIncoming) {
         if (_isForeground) {
           _markReadDebounced();
@@ -662,7 +678,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// After a message write succeeded.
   void _notifyReceiver(String convId, String messageId) {
+    ChatSounds.instance.playSent();
     unawaited(
       OneSignalSender.sendChatNotification(
         conversationId: convId,

@@ -57,6 +57,15 @@ class PresenceWatch {
       .map((e) => e.snapshot.value == 'online')
       .distinct();
 
+  /// True only while [uid]'s presence explicitly says offline (set by its
+  /// onDisconnect). A missing node (presence never written) is not "gone",
+  /// so it can't make a live player forfeit a game.
+  Stream<bool> watchGone(String uid) => FirebaseDatabase.instance
+      .ref('presence/$uid/state')
+      .onValue
+      .map((e) => e.snapshot.value == 'offline')
+      .distinct();
+
   void clear() {
     for (final s in _subs.values) {
       s.cancel();

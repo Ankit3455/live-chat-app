@@ -47,14 +47,16 @@ class TennisRules extends DuelRules {
   );
 
   @override
-  ChatGameMessage result(DuelGame game) => resultFor(replayOf(game));
+  ChatGameMessage result(DuelGame game) =>
+      resultFor(replayOf(game), left: game.leftBy != null);
 
-  /// Result card for a finished match ([r].winner is set).
-  static ChatGameMessage resultFor(TennisReplay r) {
+  /// Result card for a finished match ([r].winner is set). [left]: the
+  /// loser left the game.
+  static ChatGameMessage resultFor(TennisReplay r, {bool left = false}) {
     final w = r.winner!;
     return ChatGameMessage(
       '🎾 Tennis Duel: ${r.games[w]}-${r.games[1 - w]}'
-      '${r.byResignation ? ' (resigned)' : ''}',
+      '${_how(r.byResignation, left)}',
       {
         'game': gameName,
         'stage': ChatGameLogic.resultStage,
@@ -62,6 +64,7 @@ class TennisRules extends DuelRules {
         // Winner first, e.g. "2-1".
         'score': '${r.games[w]}-${r.games[1 - w]}',
         if (r.byResignation) 'resigned': true,
+        if (left) 'left': true,
       },
     );
   }
@@ -86,9 +89,17 @@ class TennisRules extends DuelRules {
     final winner = meta['winner'] as String?;
     if (winner == null) return 'Match over';
     final iWon = winner == viewer;
+    if (meta['left'] == true) {
+      return iWon
+          ? '$otherName left the game. You win! 🏆'
+          : 'You left the game.';
+    }
     if (meta['resigned'] == true) {
       return iWon ? '$otherName resigned. You win! 🏆' : 'You resigned.';
     }
     return iWon ? 'You won the match! 🏆' : '$otherName won the match.';
   }
+
+  static String _how(bool resigned, bool left) =>
+      left ? ' (left the game)' : (resigned ? ' (resigned)' : '');
 }

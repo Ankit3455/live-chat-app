@@ -35,6 +35,9 @@ class GameRoomState {
   /// Who resigned or closed the invite (chess, duels and match invites).
   final String? closedBy;
 
+  /// Who left the game (or was away too long), which ended it.
+  final String? leftBy;
+
   /// Ludo / Carrom invite: the private match created on accept.
   final String? matchId;
 
@@ -45,6 +48,7 @@ class GameRoomState {
     required this.joined,
     required this.isOpen,
     this.closedBy,
+    this.leftBy,
     this.matchId,
   });
 
@@ -68,6 +72,7 @@ class GameRoomState {
       isOpen: data['status'] == 'playing' &&
           (round is! num || round < ChatGame.roundCount),
       closedBy: data['resignedBy'] as String?,
+      leftBy: data['leftBy'] as String?,
       matchId: data['matchId'] as String?,
     );
   }

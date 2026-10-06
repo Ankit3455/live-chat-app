@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -39,6 +40,10 @@ class LudoMultiplayerProvider extends ChangeNotifier {
 
   /// Extra time other players wait before skipping a stalled turn.
   static const int turnGraceSeconds = 5;
+
+  /// How long an opponent may be offline (killed app, lost network) while
+  /// still 'active' before a peer marks them away.
+  static const Duration offlineGrace = Duration(seconds: 20);
 
   final LudoGameService _service;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _matchSub;
@@ -104,6 +109,11 @@ class LudoMultiplayerProvider extends ChangeNotifier {
   final Map<String, _AwayObservation> _awayObserved = {};
   final Set<String> _expiryRequested = {};
 
+  final Map<String, StreamSubscription<DatabaseEvent>> _presenceSubs = {};
+  final Map<String, DateTime> _offlineSince = {};
+  final Set<String> _markAwayRequested = {};
+  bool _reconnecting = false;
+
   Map<String, Map<String, dynamic>> playersInfo = {};
 
   LudoMultiplayerProvider({
@@ -139,6 +149,20 @@ class LudoMultiplayerProvider extends ChangeNotifier {
   }
 
   bool get opponentLeft => awayOpponents.isNotEmpty;
+
+  /// I was marked away (missed turns, or a peer saw me offline) while the
+  /// game is still open on this device.
+  bool get localAway =>
+      _matchState == 'playing' && playersInfo[_localUid]?['status'] == 'away';
+
+  /// Opponents who left or were dropped for being away, for the result text.
+  List<String> get departedNames => [
+        for (final e in playersInfo.entries)
+          if (e.key != _localUid &&
+              (e.value['status'] == 'left' ||
+                  e.value['status'] == 'away'))
+            e.value['displayName']?.toString() ?? 'Player',
+      ];
 
   bool get _localIsParticipant {
     final status = playersInfo[_localUid]?['status'];
@@ -303,6 +327,7 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     _applyPawnSteps(Map<String, dynamic>.from(data['pawnSteps'] ?? {}));
     _applyWinners(List<String>.from(data['winners'] ?? const []));
     _trackAway();
+    _syncPresenceWatches();
 
     if (_matchState == 'finished') {
       _gameState = LudoGameState.finish;
@@ -357,6 +382,57 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     _awayObserved.removeWhere((uid, _) => !awayNow.contains(uid));
   }
 
+  /// Watches RTDB presence of every opponent still in a running match.
+  void _syncPresenceWatches() {
+    final wanted = <String>{};
+    if (_matchState == 'playing') {
+      playersInfo.forEach((uid, info) {
+        if (uid != _localUid && info['status'] != 'left') wanted.add(uid);
+      });
+    }
+    for (final uid in _presenceSubs.keys.toList()) {
+      if (wanted.contains(uid)) continue;
+      _presenceSubs.remove(uid)?.cancel();
+      _offlineSince.remove(uid);
+    }
+    for (final uid in wanted) {
+      // Read directly instead of PresenceWatch.watchOne: only an explicit
+      // 'offline' counts, a missing node is unknown, not offline.
+      _presenceSubs[uid] ??= FirebaseDatabase.instance
+          .ref('presence/$uid/state')
+          .onValue
+          .listen(
+        (event) {
+          if (event.snapshot.value == 'offline') {
+            _offlineSince[uid] ??= DateTime.now();
+          } else {
+            _offlineSince.remove(uid);
+          }
+        },
+        onError: (Object e) => debugPrint('❌ Presence($uid) error: $e'),
+      );
+    }
+  }
+
+  /// An opponent who vanished without writing 'away' is marked away by us;
+  /// the away grace (expireAway) then forfeits or skips them.
+  void _markOfflinePlayersAway() {
+    if (_actionsStopped || !_localIsParticipant) return;
+    final now = DateTime.now();
+    _offlineSince.forEach((uid, since) {
+      if (now.difference(since) < offlineGrace) return;
+      if (playersInfo[uid]?['status'] != 'active') return;
+      if (!_markAwayRequested.add(uid)) return;
+      debugPrint('📴 $uid offline for ${offlineGrace.inSeconds}s: marking away');
+      _service.markAway(matchId: matchId, odId: uid).whenComplete(() {
+        Future.delayed(
+          const Duration(seconds: 5),
+          () => _markAwayRequested.remove(uid),
+        );
+      });
+    });
+  }
+
   void _playFinishSound() {
     if (_finishSoundPlayed || winners.isEmpty) return;
     _finishSoundPlayed = true;
@@ -400,6 +476,9 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     _diceStarted = true;
     notifyListeners();
     Audio.rollDice();
+
+    // Marked away while the game was open: playing again means I'm back.
+    if (localAway) await reconnectLocal();
 
     await Future.delayed(const Duration(seconds: 1));
     if (_halted) return;
@@ -500,6 +579,18 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     }
   }
 
+  /// Clears my 'away' status (e.g. "I'm back" on the away banner).
+  Future<void> reconnectLocal() async {
+    final uid = _localUid;
+    if (uid == null || _reconnecting || _halted) return;
+    _reconnecting = true;
+    try {
+      await _service.playerReconnect(matchId: matchId, odId: uid);
+    } finally {
+      _reconnecting = false;
+    }
+  }
+
   /// Marks me as joined; the host starts the match once both are in.
   void _handleWaiting(Map<String, dynamic> data) {
     final uid = _localUid;
@@ -545,6 +636,7 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     }
 
     _expireAwayPlayers();
+    _markOfflinePlayersAway();
   }
 
   Future<void> _advanceStalledTurn() async {
@@ -598,6 +690,11 @@ class LudoMultiplayerProvider extends ChangeNotifier {
     _matchSub = null;
     _ticker?.cancel();
     _ticker = null;
+    for (final sub in _presenceSubs.values) {
+      sub.cancel();
+    }
+    _presenceSubs.clear();
+    _offlineSince.clear();
   }
 
   @override

@@ -200,11 +200,12 @@ class ChessService {
   }
 
   /// Resigns (or cancels an invite nobody joined: [postResult] false skips
-  /// the result card).
+  /// the result card). [left]: resigning by leaving the game.
   Future<void> resign({
     required String convId,
     required String otherUserId,
     bool postResult = true,
+    bool left = false,
   }) async {
     final me = _me;
     await _db.runTransaction<void>((tx) async {
@@ -217,6 +218,7 @@ class ChessService {
       tx.update(_doc(convId), {
         'status': 'over',
         'resignedBy': me,
+        if (left) 'leftBy': me,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
@@ -224,7 +226,38 @@ class ChessService {
     await _send(
       convId,
       otherUserId,
-      ChessGame.result(ChessEnd.resignation, otherUserId),
+      ChessGame.result(ChessEnd.resignation, otherUserId, left: left),
+    );
+  }
+
+  /// The other player hasn't moved for [TurnClock.staleSeconds]: they left,
+  /// so I win. The rules check the time on the server.
+  Future<void> claimLeft({
+    required String convId,
+    required String otherUserId,
+  }) async {
+    final me = _me;
+    final ref = _doc(convId);
+    final claimed = await _db.runTransaction<bool>((tx) async {
+      final game = ChessGame.fromMap(
+        ChatGameService.withDates((await tx.get(ref)).data()),
+      );
+      final started = game?.turnStartedAt;
+      if (game == null || !game.isPlaying || !game.bothJoined) return false;
+      if (started == null || !ChatGameService.isStale(started)) return false;
+      if (game.turn == me) return false;
+      tx.update(ref, {
+        'status': 'over',
+        'leftBy': game.otherOf(me),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!claimed) return;
+    await _send(
+      convId,
+      otherUserId,
+      ChessGame.result(ChessEnd.resignation, me, left: true),
     );
   }
 

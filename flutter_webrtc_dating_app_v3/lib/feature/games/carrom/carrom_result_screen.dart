@@ -78,6 +78,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   bool _opponentWantsRematch = false;
   bool _rematchCreating = false;
   bool _rematchOpened = false;
+  bool _opponentLeft = false;
 
   DocumentReference<Map<String, dynamic>> get _matchRef =>
       FirebaseFirestore.instance
@@ -185,14 +186,16 @@ class _CarromResultScreenState extends State<CarromResultScreen>
       final d = snap.data();
       if (d == null || !mounted) return;
       final rematch = Map<String, dynamic>.from(d['rematch'] ?? {});
+      final left = Map<String, dynamic>.from(d['left'] ?? {});
       setState(() {
         _rematchRequested = rematch[me] == true;
         _opponentWantsRematch = rematch[widget.opponentUid] == true;
+        _opponentLeft = left[widget.opponentUid] == true;
       });
       final newId = d['rematchMatchId'] as String?;
       if (newId != null) {
         if (_rematchRequested) _openRematch(newId);
-      } else if (_rematchRequested && _opponentWantsRematch) {
+      } else if (_rematchRequested && _opponentWantsRematch && !_opponentLeft) {
         _createRematch();
       }
     }, onError: (Object e) => debugPrint('Carrom rematch listener error: $e'));
@@ -200,7 +203,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
 
   Future<void> _requestRematch() async {
     final me = _auth.currentUser?.uid;
-    if (me == null || _rematchRequested) return;
+    if (me == null || _rematchRequested || _opponentLeft) return;
     setState(() => _rematchRequested = true);
     try {
       await _matchRef.update({'rematch.$me': true});
@@ -293,10 +296,13 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   @override
   void dispose() {
     _matchSub?.cancel();
-    // Withdraw an unanswered rematch request when leaving.
+    // Tell the opponent we left and withdraw an unanswered rematch request.
     final me = _auth.currentUser?.uid;
-    if (_rematchRequested && !_rematchOpened && me != null) {
-      _matchRef.update({'rematch.$me': false}).catchError((_) {});
+    if (_hasOpponent && !_rematchOpened && me != null) {
+      _matchRef.update({
+        'left.$me': true,
+        if (_rematchRequested) 'rematch.$me': false,
+      }).catchError((_) {});
     }
     _controller.dispose();
     super.dispose();
@@ -661,7 +667,9 @@ class _CarromResultScreenState extends State<CarromResultScreen>
               CustomButton(
                 text: _rematchLabel(),
                 leftIcon: Icons.replay,
-                onPressed: _rematchRequested ? null : _requestRematch,
+                onPressed: _rematchRequested || _opponentLeft
+                    ? null
+                    : _requestRematch,
               ),
               const SizedBox(height: 12),
             ],
@@ -709,6 +717,7 @@ class _CarromResultScreenState extends State<CarromResultScreen>
   }
 
   String _rematchLabel() {
+    if (_opponentLeft) return '${_formatName(widget.opponentName)} left';
     if (_rematchRequested) return 'Waiting for opponent…';
     if (_opponentWantsRematch) return 'Accept rematch';
     return 'Rematch';

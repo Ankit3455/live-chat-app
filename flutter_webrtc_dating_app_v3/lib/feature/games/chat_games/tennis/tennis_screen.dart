@@ -17,6 +17,7 @@ import '../ui/game_fx.dart';
 import '../ui/game_motion.dart';
 import '../ui/game_ui.dart';
 import '../ui/player_info.dart';
+import '../widgets/game_leave.dart';
 import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
 import 'tennis_court.dart';
@@ -46,7 +47,7 @@ class TennisScreen extends StatefulWidget {
 }
 
 class _TennisScreenState extends State<TennisScreen>
-    with TurnClockTicker, MyProfile, RoomMode {
+    with TurnClockTicker, MyProfile, RoomMode, GameLeave {
   static const GameTheme _theme = GameTheme.tennis;
 
   final DuelService _service = DuelService(TennisRules.instance);
@@ -140,6 +141,17 @@ class _TennisScreenState extends State<TennisScreen>
     otherUserId: widget.otherUserId,
   );
 
+  Future<void> _claimLeft() => _service.claimLeft(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+  );
+
+  Future<void> _leave() => _service.resign(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+    left: true,
+  );
+
   Future<void> _resign({required bool started}) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -195,7 +207,17 @@ class _TennisScreenState extends State<TennisScreen>
             game.bothJoined &&
             replay != null &&
             !replay.isOver;
-        updateClock(running ? game.deadline : null, _timeout);
+        updateClock(
+          running ? game.deadline : null,
+          _timeout,
+          isMineOverdue: game == null || !game.picks.containsKey(myUid),
+          onStale: _claimLeft,
+        );
+        updateLeave(
+          endsGame: game != null && game.isPlaying && (running || inRoom),
+          ask: running,
+          leave: _leave,
+        );
         if (!waiting) {
           roomStep(
             hasGame: game != null,
@@ -212,30 +234,34 @@ class _TennisScreenState extends State<TennisScreen>
         }
         if (replay != null) _sounds(replay);
 
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: gameAppBar(
-            context,
-            title: 'Tennis Duel',
-            actions: [
-              if (running)
-                IconButton(
-                  icon: const Icon(Icons.flag_outlined),
-                  tooltip: 'Resign',
-                  onPressed: _busy ? null : () => _resign(started: true),
-                ),
-            ],
-          ),
-          body: GameBackdrop(
-            theme: _theme,
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: waiting
-                      ? const Center(child: CircularProgressIndicator())
-                      : _body(game, replay),
+        return leaveScope(
+          otherName: widget.otherName,
+          leaveMessage: '${widget.otherName} wins if you leave.',
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            appBar: gameAppBar(
+              context,
+              title: 'Tennis Duel',
+              actions: [
+                if (running)
+                  IconButton(
+                    icon: const Icon(Icons.flag_outlined),
+                    tooltip: 'Resign',
+                    onPressed: _busy ? null : () => _resign(started: true),
+                  ),
+              ],
+            ),
+            body: GameBackdrop(
+              theme: _theme,
+              child: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : _body(game, replay),
+                  ),
                 ),
               ),
             ),
@@ -246,6 +272,19 @@ class _TennisScreenState extends State<TennisScreen>
   }
 
   Widget _body(DuelGame? game, TennisReplay? replay) {
+    final leftBy = game?.leftBy;
+    if (game != null && !game.isPlaying && leftBy != null && leftBy != myUid) {
+      return LeftPanel(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherUserId: widget.otherUserId,
+        competitive: true,
+        inRoom: inRoom,
+        gameName: TennisRules.gameName,
+        busy: _busy,
+        onPlayAgain: _start,
+      );
+    }
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
       return RoomWaiting(
@@ -253,6 +292,7 @@ class _TennisScreenState extends State<TennisScreen>
         otherName: widget.otherName,
         otherGone: roomOtherGone,
         gameName: TennisRules.gameName,
+        onLeave: leaveAndPop,
       );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
@@ -333,6 +373,11 @@ class _TennisScreenState extends State<TennisScreen>
                   secondsLeft: over ? null : seconds,
                 ),
               ),
+              if (!over)
+                awayBanner(
+                  otherUserId: widget.otherUserId,
+                  otherName: widget.otherName,
+                ),
               const SizedBox(height: 12),
               if (last != null) ...[
                 RevealToast(
@@ -359,7 +404,7 @@ class _TennisScreenState extends State<TennisScreen>
               const SizedBox(height: 14),
               if (over)
                 _Over(
-                  text: _outcome(replay, me),
+                  text: _outcome(replay, me, left: game.leftBy != null),
                   won: iWon,
                   busy: _busy,
                   onPlayAgain: _start,
@@ -431,10 +476,15 @@ class _TennisScreenState extends State<TennisScreen>
     }
   }
 
-  String _outcome(TennisReplay r, int me) {
+  String _outcome(TennisReplay r, int me, {bool left = false}) {
     final w = r.winner;
     if (w == null) return 'Match ended.';
     final score = '${r.games[w]}–${r.games[1 - w]}';
+    if (r.byResignation && left) {
+      return w == me
+          ? '${widget.otherName} left the game!'
+          : 'You left the game.';
+    }
     if (r.byResignation) {
       return w == me ? '${widget.otherName} resigned!' : 'You resigned.';
     }

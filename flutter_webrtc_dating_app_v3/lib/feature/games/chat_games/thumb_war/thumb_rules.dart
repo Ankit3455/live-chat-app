@@ -44,9 +44,10 @@ class ThumbRules extends DuelRules {
   ChatGameMessage result(DuelGame game) {
     final r = replayOf(game);
     final w = r.winner!;
+    final left = game.leftBy != null;
     return ChatGameMessage(
       '👍 Thumb War: ${r.rounds[w]}-${r.rounds[1 - w]}'
-      '${r.byResignation ? ' (resigned)' : ''}',
+      '${_how(r.byResignation, left)}',
       {
         'game': gameName,
         'stage': ChatGameLogic.resultStage,
@@ -54,6 +55,7 @@ class ThumbRules extends DuelRules {
         // Winner first, e.g. "2-1".
         'score': '${r.rounds[w]}-${r.rounds[1 - w]}',
         if (r.byResignation) 'resigned': true,
+        if (left) 'left': true,
       },
     );
   }
@@ -69,6 +71,9 @@ class ThumbRules extends DuelRules {
     final iWon = winner == viewer;
     final score = meta['score'] as String?;
     final tail = score == null ? '' : ' ($score)';
+    if (meta['left'] == true) {
+      return iWon ? '$otherName left the game. You win! 👑' : 'You left.';
+    }
     if (meta['resigned'] == true) {
       return iWon ? '$otherName gave up. You win! 👑' : 'You gave up.';
     }
@@ -76,4 +81,7 @@ class ThumbRules extends DuelRules {
         ? 'You are the Thumb War champion! 👑$tail'
         : '$otherName won the Thumb War.$tail';
   }
+
+  static String _how(bool resigned, bool left) =>
+      left ? ' (left the game)' : (resigned ? ' (resigned)' : '');
 }

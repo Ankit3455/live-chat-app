@@ -85,5 +85,23 @@ class OneSignalSender {
     if (response.statusCode != 200) {
       throw StateError('push worker ${response.statusCode}: ${response.body}');
     }
+    if (kDebugMode) _logWorkerResult(workerPath, response.body);
+  }
+
+  /// 200 also covers "nothing sent" (muted, blocked, no-subscribers, ...);
+  /// the Worker's JSON says which.
+  static void _logWorkerResult(String workerPath, String body) {
+    try {
+      final result = jsonDecode(body);
+      if (result is! Map) return;
+      if (result['ok'] == true && result['status'] == 'sent') return;
+      final reason = result['reason'];
+      debugPrint(
+        '⚠️ Push $workerPath not delivered: ${result['status']}'
+        '${reason == null ? '' : ' ($reason)'}',
+      );
+    } catch (_) {
+      debugPrint('⚠️ Push $workerPath: unexpected response $body');
+    }
   }
 }

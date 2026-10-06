@@ -185,11 +185,12 @@ class DuelService {
   }
 
   /// Resigns (or cancels an invite nobody joined: [postResult] false skips
-  /// the result card).
+  /// the result card). [left]: resigning by leaving the game.
   Future<void> resign({
     required String convId,
     required String otherUserId,
     bool postResult = true,
+    bool left = false,
   }) async {
     final me = _me;
     final ref = _doc(convId);
@@ -201,11 +202,41 @@ class DuelService {
       tx.update(ref, {
         'status': 'over',
         'resignedBy': me,
+        if (left) 'leftBy': me,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      return game.copyWith(status: 'over', resignedBy: me);
+      return game.copyWith(
+        status: 'over',
+        resignedBy: me,
+        leftBy: left ? me : null,
+      );
     });
     if (postResult) await _postResult(convId, otherUserId, ended);
+  }
+
+  /// The other player hasn't picked for [TurnClock.staleSeconds]: they left,
+  /// so I win. The rules check the time on the server.
+  Future<void> claimLeft({
+    required String convId,
+    required String otherUserId,
+  }) async {
+    final me = _me;
+    final ref = _doc(convId);
+    final ended = await _db.runTransaction<DuelGame?>((tx) async {
+      final game = _read(await tx.get(ref));
+      final started = game?.turnStartedAt;
+      if (game == null || !game.isPlaying || !game.bothJoined) return null;
+      if (started == null || !ChatGameService.isStale(started)) return null;
+      final other = game.otherOf(me);
+      if (game.picks.containsKey(other)) return null;
+      tx.update(ref, {
+        'status': 'over',
+        'leftBy': other,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return game.copyWith(status: 'over', resignedBy: other, leftBy: other);
+    });
+    if (ended != null) await _postResult(convId, otherUserId, ended);
   }
 
   Future<void> _postResult(

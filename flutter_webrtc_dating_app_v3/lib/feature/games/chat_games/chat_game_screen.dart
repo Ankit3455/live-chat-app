@@ -20,6 +20,7 @@ import 'ui/game_fx.dart';
 import 'ui/game_motion.dart';
 import 'ui/game_ui.dart';
 import 'ui/player_info.dart';
+import 'widgets/game_leave.dart';
 import 'widgets/premium_pickers.dart';
 import 'widgets/room_mode.dart';
 import 'widgets/turn_clock.dart';
@@ -49,7 +50,7 @@ class ChatGameScreen extends StatefulWidget {
 }
 
 class _ChatGameScreenState extends State<ChatGameScreen>
-    with TurnClockTicker, MyProfile, RoomMode {
+    with TurnClockTicker, MyProfile, RoomMode, GameLeave {
   final ChatGameService _service = ChatGameService.instance;
   late Stream<ChatGame?> _game = _watch();
 
@@ -144,6 +145,11 @@ class _ChatGameScreenState extends State<ChatGameScreen>
     kind: _kind,
   );
 
+  Future<void> _claimLeft() => _service.claimLeft(widget.conversationId, _kind);
+
+  Future<void> _leave() =>
+      _service.cancel(widget.conversationId, _kind, left: true);
+
   Future<void> _endGame() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -198,11 +204,18 @@ class _ChatGameScreenState extends State<ChatGameScreen>
       builder: (context, snap) {
         final game = snap.data;
         final waiting = snap.connectionState == ConnectionState.waiting;
+        final running = game != null && game.isActive && game.bothJoined;
         updateClock(
-          game != null && game.isActive && game.bothJoined
-              ? game.deadline
-              : null,
+          running ? game.deadline : null,
           _timeout,
+          isMineOverdue:
+              game == null || !game.picksFor(game.round).containsKey(myUid),
+          onStale: _claimLeft,
+        );
+        updateLeave(
+          endsGame: game != null && game.isActive && (running || inRoom),
+          ask: running,
+          leave: _leave,
         );
         if (game != null) _sounds(game);
         if (!waiting) {
@@ -219,30 +232,34 @@ class _ChatGameScreenState extends State<ChatGameScreen>
             join: _join,
           );
         }
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: gameAppBar(
-            context,
-            title: _kind.title,
-            actions: [
-              if (game != null && game.isActive)
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  tooltip: 'End this game',
-                  onPressed: _busy ? null : _endGame,
-                ),
-            ],
-          ),
-          body: GameBackdrop(
-            theme: _theme,
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: waiting
-                      ? const Center(child: CircularProgressIndicator())
-                      : _body(game),
+        return leaveScope(
+          otherName: widget.otherName,
+          leaveMessage: 'The game ends for both of you.',
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            appBar: gameAppBar(
+              context,
+              title: _kind.title,
+              actions: [
+                if (game != null && game.isActive)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'End this game',
+                    onPressed: _busy ? null : _endGame,
+                  ),
+              ],
+            ),
+            body: GameBackdrop(
+              theme: _theme,
+              child: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : _body(game),
+                  ),
                 ),
               ),
             ),
@@ -283,19 +300,36 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   }
 
   Widget _body(ChatGame? game) {
-    if (roomSettingUp && (game == null || (game.isActive && !game.bothJoined))) {
+    final leftBy = game?.leftBy;
+    if (game != null && game.cancelled && leftBy != null && leftBy != myUid) {
+      return LeftPanel(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherUserId: widget.otherUserId,
+        competitive: false,
+        inRoom: inRoom,
+        gameName: _kind.name,
+        busy: _busy,
+        onPlayAgain: _start,
+      );
+    }
+    if (roomSettingUp &&
+        (game == null || (game.isActive && !game.bothJoined))) {
       return RoomWaiting(
         theme: _theme,
         otherName: widget.otherName,
         otherGone: roomOtherGone,
         gameName: _kind.name,
+        onLeave: leaveAndPop,
       );
     }
     if (game == null || game.cancelled) {
       return GameIntro(
         theme: _theme,
         title: '${_kind.title} with ${widget.otherName}',
-        subtitle: game?.cancelled ?? false
+        subtitle: leftBy != null
+            ? 'You left the last game. Start a new one any time.'
+            : game?.cancelled ?? false
             ? 'The last game was ended. Start a new one any time.'
             : _kind.tagline,
         steps: _steps,
@@ -365,6 +399,10 @@ class _ChatGameScreenState extends State<ChatGameScreen>
                 ),
                 center: _RoundDots(round: r, theme: _theme),
               ),
+            ),
+            awayBanner(
+              otherUserId: widget.otherUserId,
+              otherName: widget.otherName,
             ),
             if (r > 0) ...[const SizedBox(height: 12), _reveal(view, r - 1)],
             const SizedBox(height: 18),

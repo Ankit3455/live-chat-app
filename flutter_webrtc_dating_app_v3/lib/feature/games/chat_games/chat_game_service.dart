@@ -299,12 +299,47 @@ class ChatGameService {
     };
   }
 
-  Future<void> cancel(String convId, ChatGameKind kind) async {
+  /// Ends the game for both. [left]: I'm leaving it (leftBy = me), so the
+  /// other player sees that I left.
+  Future<void> cancel(
+    String convId,
+    ChatGameKind kind, {
+    bool left = false,
+  }) async {
     await _game(convId, kind).update({
       'status': 'cancelled',
+      if (left) 'leftBy': _me,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// The other player hasn't picked for [TurnClock.staleSeconds]: ends the
+  /// game as left by them. The rules check the time on the server.
+  Future<void> claimLeft(String convId, ChatGameKind kind) async {
+    final me = _me;
+    final ref = _game(convId, kind);
+    await _db.runTransaction<void>((tx) async {
+      final game = ChatGame.fromMap(
+        kind,
+        withDates((await tx.get(ref)).data()),
+      );
+      final started = game?.roundStartedAt;
+      if (game == null || !game.isActive || !game.bothJoined) return;
+      if (started == null || !isStale(started)) return;
+      final other = game.otherOf(me);
+      if (game.picksFor(game.round).containsKey(other)) return;
+      tx.update(ref, {
+        'status': 'cancelled',
+        'leftBy': other,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  /// A clock that started at [started] is old enough to claim a left player.
+  static bool isStale(DateTime started) => DateTime.now().isAfter(
+    started.add(const Duration(seconds: TurnClock.staleSeconds)),
+  );
 
   /// Sends a plain text message (e.g. "Should we actually go?"). Rooms have
   /// no chat.

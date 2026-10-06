@@ -17,6 +17,7 @@ import '../ui/game_fx.dart';
 import '../ui/game_motion.dart';
 import '../ui/game_ui.dart';
 import '../ui/player_info.dart';
+import '../widgets/game_leave.dart';
 import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
 import 'chess_board.dart';
@@ -47,7 +48,7 @@ class ChessScreen extends StatefulWidget {
 }
 
 class _ChessScreenState extends State<ChessScreen>
-    with TurnClockTicker, MyProfile, RoomMode {
+    with TurnClockTicker, MyProfile, RoomMode, GameLeave {
   static const GameTheme _theme = GameTheme.chess;
 
   final ChessService _service = ChessService.instance;
@@ -138,6 +139,17 @@ class _ChessScreenState extends State<ChessScreen>
     otherUserId: widget.otherUserId,
   );
 
+  Future<void> _claimLeft() => _service.claimLeft(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+  );
+
+  Future<void> _leave() => _service.resign(
+    convId: widget.conversationId,
+    otherUserId: widget.otherUserId,
+    left: true,
+  );
+
   Future<void> _resign({required bool started}) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -194,7 +206,17 @@ class _ChessScreenState extends State<ChessScreen>
             replay != null &&
             !replay.isOver &&
             replay.illegalAt == null;
-        updateClock(running ? game.deadline : null, _timeout);
+        updateClock(
+          running ? game.deadline : null,
+          _timeout,
+          isMineOverdue: game?.turn == myUid,
+          onStale: _claimLeft,
+        );
+        updateLeave(
+          endsGame: game != null && game.isPlaying && (running || inRoom),
+          ask: running,
+          leave: _leave,
+        );
         if (!waiting) {
           roomStep(
             hasGame: game != null,
@@ -211,30 +233,34 @@ class _ChessScreenState extends State<ChessScreen>
         }
         if (game != null && replay != null) _sounds(game, replay);
 
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: gameAppBar(
-            context,
-            title: ChessGame.title,
-            actions: [
-              if (running)
-                IconButton(
-                  icon: const Icon(Icons.flag_outlined),
-                  tooltip: 'Resign',
-                  onPressed: _busy ? null : () => _resign(started: true),
-                ),
-            ],
-          ),
-          body: GameBackdrop(
-            theme: _theme,
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: waiting
-                      ? const Center(child: CircularProgressIndicator())
-                      : _body(game, replay),
+        return leaveScope(
+          otherName: widget.otherName,
+          leaveMessage: '${widget.otherName} wins if you leave.',
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            appBar: gameAppBar(
+              context,
+              title: ChessGame.title,
+              actions: [
+                if (running)
+                  IconButton(
+                    icon: const Icon(Icons.flag_outlined),
+                    tooltip: 'Resign',
+                    onPressed: _busy ? null : () => _resign(started: true),
+                  ),
+              ],
+            ),
+            body: GameBackdrop(
+              theme: _theme,
+              child: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : _body(game, replay),
+                  ),
                 ),
               ),
             ),
@@ -245,6 +271,19 @@ class _ChessScreenState extends State<ChessScreen>
   }
 
   Widget _body(ChessGame? game, ChessReplay? replay) {
+    final leftBy = game?.leftBy;
+    if (game != null && !game.isPlaying && leftBy != null && leftBy != myUid) {
+      return LeftPanel(
+        theme: _theme,
+        otherName: widget.otherName,
+        otherUserId: widget.otherUserId,
+        competitive: true,
+        inRoom: inRoom,
+        gameName: ChessGame.gameName,
+        busy: _busy,
+        onPlayAgain: _start,
+      );
+    }
     if (roomSettingUp &&
         (game == null || (game.isPlaying && !game.bothJoined))) {
       return RoomWaiting(
@@ -252,6 +291,7 @@ class _ChessScreenState extends State<ChessScreen>
         otherName: widget.otherName,
         otherGone: roomOtherGone,
         gameName: ChessGame.gameName,
+        onLeave: leaveAndPop,
       );
     }
     if (game == null || replay == null || game.status == 'cancelled') {
@@ -328,6 +368,11 @@ class _ChessScreenState extends State<ChessScreen>
                   ),
                 ),
               ),
+              if (!over)
+                awayBanner(
+                  otherUserId: widget.otherUserId,
+                  otherName: widget.otherName,
+                ),
               const SizedBox(height: 16),
               // 32 vector pieces: keep them out of other widgets' repaints.
               RepaintBoundary(
@@ -398,6 +443,7 @@ class _ChessScreenState extends State<ChessScreen>
       otherName: widget.otherName,
       end: end,
       winner: winner,
+      left: game.leftBy != null,
     );
   }
 }

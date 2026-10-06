@@ -50,7 +50,12 @@ class DuelGame {
 
   /// Finished shots: {uid: pick}, a missing uid = timed out.
   final List<Map<String, Object>> history;
+
+  /// Who resigned; a player who left (leftBy) counts as resigned.
   final String? resignedBy;
+
+  /// Who left the game (or was away too long).
+  final String? leftBy;
   final List<String> joined;
 
   /// When the current shot's 30 seconds started; null until both joined.
@@ -64,6 +69,7 @@ class DuelGame {
     required this.picks,
     required this.history,
     this.resignedBy,
+    this.leftBy,
     this.joined = const [],
     this.turnStartedAt,
   });
@@ -81,6 +87,7 @@ class DuelGame {
     Map<String, Object>? picks,
     List<Map<String, Object>>? history,
     String? resignedBy,
+    String? leftBy,
   }) => DuelGame(
     gameId: gameId,
     players: players,
@@ -89,6 +96,7 @@ class DuelGame {
     picks: picks ?? this.picks,
     history: history ?? this.history,
     resignedBy: resignedBy ?? this.resignedBy,
+    leftBy: leftBy ?? this.leftBy,
     joined: joined,
     turnStartedAt: turnStartedAt,
   );
@@ -114,7 +122,8 @@ class DuelGame {
       history: [
         for (final e in (data['history'] as List?) ?? const []) picksOf(e),
       ],
-      resignedBy: data['resignedBy'] as String?,
+      resignedBy: data['resignedBy'] as String? ?? data['leftBy'] as String?,
+      leftBy: data['leftBy'] as String?,
       joined: ((data['joined'] as List?) ?? const [])
           .whereType<String>()
           .toList(),
