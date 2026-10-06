@@ -8,6 +8,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 
 import 'call_consent.dart';
+import 'call_intent_channel.dart';
+import 'video_filters.dart';
 import 'webrtc/webrtc_service.dart';
 import 'webrtc/signaling_service.dart';
 import 'webrtc/ice_servers.dart';
@@ -79,6 +81,19 @@ class CallService {
   Timer? _durationTimer;
   int _callDuration = 0; // seconds since the media connected
   int get callDuration => _callDuration;
+  DateTime? _connectedAt;
+
+  // Video filters: mine (applied to my preview) and the one the other side
+  // picked for its video (applied to the remote renderer).
+  final ValueNotifier<VideoFilter> _localFilter = ValueNotifier(
+    VideoFilter.normal,
+  );
+  ValueListenable<VideoFilter> get localFilterListenable => _localFilter;
+  final ValueNotifier<VideoFilter> _remoteFilter = ValueNotifier(
+    VideoFilter.normal,
+  );
+  ValueListenable<VideoFilter> get remoteFilterListenable => _remoteFilter;
+  StreamSubscription<String?>? _filterSub;
 
   // UI toggles state
   bool _isMuted = false;
@@ -211,6 +226,7 @@ class CallService {
         configuration: config,
       );
       _ensureCurrent(callId);
+      unawaited(_startFilterSync(_currentCall!));
 
       await _signal.armRoomOnDisconnect(callId);
       _watchRoom(callId);
@@ -258,6 +274,12 @@ class CallService {
               calleeId: receiverId,
               callId: callId,
               status: CallConstants.inboxEnded,
+            ),
+          );
+          unawaited(
+            OneSignalSender.sendCallCancel(
+              receiverId: receiverId,
+              callId: callId,
             ),
           );
         }
@@ -346,6 +368,8 @@ class CallService {
         if (_ringingCall?.id == call.id) {
           _clearRinging();
           _safe(() => _signal.clearIncoming(call.id));
+          unawaited(CallIntentChannel.cancelNotification(call.id));
+          if (!isInCall) unawaited(CallIntentChannel.releaseLockScreen());
         }
       }
     }, onError: (_) {});
@@ -369,6 +393,7 @@ class CallService {
   Future<void> answerCall(CallModel call) async {
     if (_currentCall?.id == call.id && isInCall) return; // double tap
     if (isInCall) throw StateError('Already in another call');
+    unawaited(CallIntentChannel.cancelNotification(call.id));
 
     try {
       await _ensurePermissions(call.type);
@@ -407,6 +432,7 @@ class CallService {
         configuration: config,
       );
       _ensureCurrent(call.id);
+      unawaited(_startFilterSync(_currentCall!));
 
       await _safe(() => _signal.clearIncoming(call.id));
       _startConnectTimer(call.id);
@@ -428,6 +454,8 @@ class CallService {
   Future<void> rejectCall(String callId, {bool busy = false}) async {
     if (_ringingCall?.id == callId) _clearRinging();
     _mutualByCall.remove(callId);
+    unawaited(CallIntentChannel.cancelNotification(callId));
+    if (!isInCall) unawaited(CallIntentChannel.releaseLockScreen());
     await _safe(
       () => _signal.endRoom(
         callId,
@@ -465,6 +493,41 @@ class CallService {
   void toggleVideo() {
     final newState = _webrtc.toggleLocalVideo();
     _isVideoEnabled = newState;
+  }
+
+  /// Applies [filter] to my video on both sides and remembers it.
+  Future<void> setVideoFilter(VideoFilter filter) async {
+    _localFilter.value = filter;
+    unawaited(VideoFilter.savePreferred(filter));
+    final call = _currentCall;
+    if (call == null || !isInCall || call.type != CallType.video) return;
+    await _safe(() => _signal.setVideoFilter(call.id, filter.id));
+  }
+
+  Future<void> _startFilterSync(CallModel call) async {
+    if (call.type != CallType.video) return;
+    final me = _myUid;
+    if (me == null) return;
+    final other = call.callerId == me ? call.receiverId : call.callerId;
+    unawaited(_filterSub?.cancel());
+    _filterSub = _signal
+        .videoFilter(call.id, other)
+        .listen(
+          (id) => _remoteFilter.value = VideoFilter.byId(id),
+          onError: (_) {},
+        );
+    final preferred = await VideoFilter.loadPreferred();
+    if (_currentCall?.id != call.id || !isInCall) return;
+    _localFilter.value = preferred;
+    if (preferred != VideoFilter.normal) {
+      await _safe(() => _signal.setVideoFilter(call.id, preferred.id));
+    }
+  }
+
+  void _stopFilterSync() {
+    _filterSub?.cancel();
+    _filterSub = null;
+    _remoteFilter.value = VideoFilter.normal;
   }
 
   /// Loudspeaker route control for mobile
@@ -536,6 +599,7 @@ class CallService {
           _noAnswerTimer?.cancel();
           if (!_everConnected) {
             _everConnected = true;
+            _connectedAt = DateTime.now();
             _startDurationTicker();
           }
           _setPhase(CallPhase.active);
@@ -598,6 +662,18 @@ class CallService {
 
     if (isCaller) {
       if (_inboxWritten) {
+        // Unanswered: stop the receiver's ringing notification. Declined and
+        // busy came from the receiver, which already stopped it.
+        if (!_everConnected &&
+            reason != CallEndReason.declined &&
+            reason != CallEndReason.busy) {
+          unawaited(
+            OneSignalSender.sendCallCancel(
+              receiverId: call.receiverId,
+              callId: call.id,
+            ),
+          );
+        }
         await _safe(
           () => _signal.closeIncomingForCallee(
             calleeId: call.receiverId,
@@ -610,22 +686,45 @@ class CallService {
           ),
         );
       }
-      if (reason == CallEndReason.declined ||
-          reason == CallEndReason.busy ||
-          reason == CallEndReason.noAnswer) {
-        unawaited(_writeCallEvent(call, reason));
-      }
     } else {
       await _safe(() => _signal.clearIncoming(call.id));
+      unawaited(CallIntentChannel.cancelNotification(call.id));
+    }
+    unawaited(CallIntentChannel.releaseLockScreen());
+
+    final connectedAt = _connectedAt;
+    final talked = connectedAt == null
+        ? _callDuration
+        : DateTime.now().difference(connectedAt).inSeconds;
+    if (_everConnected) {
+      // Whoever ends the call writes the summary; the peer only fills in if
+      // it never arrived (e.g. the other app was killed). The message id is
+      // per call, so a second write is rejected instead of duplicated.
+      if (writeRoom) {
+        unawaited(_writeCallEvent(call, _callStatusEnded, duration: talked));
+      } else {
+        unawaited(
+          Future<void>.delayed(
+            _peerSummaryDelay,
+            () => _writeCallEvent(
+              call,
+              _callStatusEnded,
+              duration: talked,
+              onlyIfMissing: true,
+            ),
+          ),
+        );
+      }
+    } else if (isCaller) {
+      final status = _unansweredStatus(reason);
+      if (status != null) unawaited(_writeCallEvent(call, status));
     }
 
     await _webrtc.dispose();
     _stopDurationTicker();
+    _stopFilterSync();
 
-    _currentCall = call.copyWith(
-      status: _statusFor(reason),
-      duration: _callDuration,
-    );
+    _currentCall = call.copyWith(status: _statusFor(reason), duration: talked);
     _lastEndReason = reason;
     _isMuted = false;
     _isSpeakerOn = false;
@@ -679,32 +778,82 @@ class CallService {
     }
   }
 
-  /// Writes a `type: 'call'` message so both chats show the missed/declined
-  /// call. Missed and busy calls also notify the callee.
-  Future<void> _writeCallEvent(CallModel call, CallEndReason reason) async {
+  static const _callStatusEnded = 'ended';
+  static const _peerSummaryDelay = Duration(seconds: 4);
+
+  /// metadata.callStatus for a call that never connected, or null if no
+  /// chat entry is written for [reason].
+  static String? _unansweredStatus(CallEndReason reason) {
+    switch (reason) {
+      case CallEndReason.declined:
+        return 'declined';
+      case CallEndReason.busy:
+        return 'busy';
+      case CallEndReason.noAnswer:
+        return 'missed';
+      case CallEndReason.cancelled:
+        return 'cancelled';
+      default:
+        return null;
+    }
+  }
+
+  /// Viewer-neutral text for the conversation preview and push.
+  static String callEventText({
+    required bool isVideo,
+    required String status,
+    int duration = 0,
+  }) {
+    final kind = isVideo ? 'video' : 'audio';
+    switch (status) {
+      case _callStatusEnded:
+        final label = isVideo ? '📹 Video call' : '📞 Audio call';
+        return '$label · ${CallModel.formatDuration(duration)}';
+      case 'declined':
+        return 'Declined $kind call';
+      default:
+        return 'Missed $kind call';
+    }
+  }
+
+  /// Writes the `type: 'call'` message (one per call, id `call_<callId>`) so
+  /// both chats show the outcome. metadata.callerId lets each side word it
+  /// as outgoing/incoming. Missed, busy and cancelled calls notify the callee.
+  Future<void> _writeCallEvent(
+    CallModel call,
+    String status, {
+    int duration = 0,
+    bool onlyIfMissing = false,
+  }) async {
     try {
+      final me = _myUid;
+      if (me == null) return;
+      final other = me == call.callerId ? call.receiverId : call.callerId;
       final convId =
           _conversationId ??
           await CallConsent.findConversationId(call.callerId, call.receiverId);
       if (convId == null) return;
 
-      final kind = call.type == CallType.video ? 'video' : 'audio';
-      final status = reason == CallEndReason.declined
-          ? 'declined'
-          : reason == CallEndReason.busy
-          ? 'busy'
-          : 'missed';
-      final text = reason == CallEndReason.declined
-          ? 'Declined $kind call'
-          : 'Missed $kind call';
-
       final convRef = _firestore.collection('conversations').doc(convId);
-      final msgRef = convRef.collection('messages').doc();
+      final msgRef = convRef.collection('messages').doc('call_${call.id}');
+      if (onlyIfMissing) {
+        final existing = await msgRef.get();
+        if (existing.exists) return;
+      }
+
+      final isVideo = call.type == CallType.video;
+      final ended = status == _callStatusEnded;
+      final text = callEventText(
+        isVideo: isVideo,
+        status: status,
+        duration: duration,
+      );
+
       final batch = _firestore.batch();
       batch.set(msgRef, {
         'id': msgRef.id,
-        'senderId': call.callerId,
-        'receiverId': call.receiverId,
+        'senderId': me,
+        'receiverId': other,
         'conversationId': convId,
         'message': text,
         'type': 'call',
@@ -712,9 +861,10 @@ class CallService {
         'timestamp': FieldValue.serverTimestamp(),
         'metadata': {
           'callId': call.id,
-          'callType': kind,
+          'callType': isVideo ? 'video' : 'audio',
           'callStatus': status,
-          'duration': 0,
+          'callerId': call.callerId,
+          'duration': ended ? duration : 0,
         },
         'replyToMessageId': null,
         'isDeleted': false,
@@ -722,23 +872,23 @@ class CallService {
         'readAt': null,
         'deliveredAt': null,
       });
-      // Same summary shape as ChatService._writeMessage.
+      // Same summary shape as ChatService._writeMessage. A finished call was
+      // seen by both, so it does not count as unread.
       batch.update(convRef, {
         'lastMessage': {
           'text': text,
           'type': 'call',
-          'senderId': call.callerId,
+          'senderId': me,
           'messageId': msgRef.id,
           'at': FieldValue.serverTimestamp(),
         },
         'lastMessageAt': FieldValue.serverTimestamp(),
-        'participantData.${call.receiverId}.unreadCount': FieldValue.increment(
-          1,
-        ),
+        if (!ended)
+          'participantData.$other.unreadCount': FieldValue.increment(1),
       });
       await batch.commit();
 
-      if (reason != CallEndReason.declined) {
+      if (!ended && status != 'declined') {
         await OneSignalSender.sendChatNotification(
           conversationId: convId,
           messageId: msgRef.id,
@@ -757,7 +907,9 @@ class CallService {
     _linkSub?.cancel();
     _linkSub = null;
     _stopDurationTicker();
+    _stopFilterSync();
     _callDuration = 0;
+    _connectedAt = null;
     _everConnected = false;
     _inboxWritten = false;
     _lastEndReason = null;

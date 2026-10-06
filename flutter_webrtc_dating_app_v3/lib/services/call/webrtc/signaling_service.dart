@@ -12,7 +12,8 @@ import '../../../models/call_model.dart';
 ///   rooms/{callId}/{
 ///     callerId, calleeId, state, endReason,
 ///     offer, answer,
-///     caller_candidates/{autoId}, callee_candidates/{autoId}
+///     caller_candidates/{autoId}, callee_candidates/{autoId},
+///     filters/{uid}
 ///   }
 ///   incoming_calls/{uid}/{callId} = { status, roomId, callType, callerId, ... }
 class SignalingService {
@@ -128,6 +129,29 @@ class SignalingService {
   Stream<String?> roomState(String callId) {
     return _roomRef(callId)
         .child(CallConstants.pathState)
+        .onValue
+        .map(
+          (e) => e.snapshot.value is String ? e.snapshot.value as String : null,
+        );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Video filter (each side writes only its own entry)
+  // ─────────────────────────────────────────────────────────
+
+  Future<void> setVideoFilter(String callId, String filterId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    await _roomRef(
+      callId,
+    ).child(CallConstants.pathFilters).child(uid).set(filterId);
+  }
+
+  /// Filter id [uid] picked for its video (null if none or room deleted).
+  Stream<String?> videoFilter(String callId, String uid) {
+    return _roomRef(callId)
+        .child(CallConstants.pathFilters)
+        .child(uid)
         .onValue
         .map(
           (e) => e.snapshot.value is String ? e.snapshot.value as String : null,

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/haptics.dart';
 import '../../models/call_model.dart';
+import '../../services/call/call_intent_channel.dart';
 import '../../services/call/call_service.dart';
 import '../../services/call/webrtc/call_constants.dart';
 import '../../services/call/webrtc/signaling_service.dart';
@@ -51,9 +52,23 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
   void initState() {
     super.initState();
     _setupAnimations();
-    _playRingtone();
     _startTimeout();
     _listenForCancel();
+    // This screen rings from here on; stop the Android notification ringing.
+    unawaited(CallIntentChannel.cancelNotification(widget.call.id));
+    if (CallIntentChannel.takeAutoAnswer(widget.call.id)) {
+      // Accepted from the notification.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _answerCall());
+    } else {
+      _playRingtone();
+      CallIntentChannel.autoAnswerCallId.addListener(_onAutoAnswer);
+    }
+  }
+
+  /// Accept tapped on the notification while this screen was already open.
+  void _onAutoAnswer() {
+    if (!mounted || _handled) return;
+    if (CallIntentChannel.takeAutoAnswer(widget.call.id)) _answerCall();
   }
 
   void _setupAnimations() {
@@ -139,6 +154,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     await _cancelListeners();
     await _stopRingtone();
     if (!mounted) return;
+    unawaited(CallIntentChannel.releaseLockScreen());
     ScaffoldMessenger.maybeOf(
       context,
     )?.showSnackBar(const SnackBar(content: Text('The caller hung up.')));
@@ -155,6 +171,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
   @override
   void dispose() {
+    CallIntentChannel.autoAnswerCallId.removeListener(_onAutoAnswer);
     _pulseController.dispose();
     _timeoutTimer?.cancel();
     _roomSub?.cancel();
@@ -191,6 +208,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
       );
     } catch (e) {
       debugPrint('IncomingCallScreen: answer failed: $e');
+      unawaited(CallIntentChannel.releaseLockScreen());
       if (!mounted) return;
 
       final message = e is CallPermissionDeniedException

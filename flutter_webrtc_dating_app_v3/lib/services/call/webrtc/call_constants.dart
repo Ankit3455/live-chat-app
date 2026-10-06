@@ -9,6 +9,9 @@ class CallConstants {
   static const String pathState = 'state';
   static const String pathEndReason = 'endReason';
 
+  /// rooms/{id}/filters/{uid} = VideoFilter id that uid picked for its video.
+  static const String pathFilters = 'filters';
+
   // Room state: ringing -> accepted -> ended. The reason for 'ended' is in
   // rooms/{id}/endReason (one of the endReason* values below).
   static const String roomStateRinging = 'ringing';

@@ -111,6 +111,16 @@ class CallModel {
 
   bool isOutgoingFor(String uid) => callerId == uid;
 
+  /// "0:47", "4:32" or "1:02:05".
+  static String formatDuration(int seconds) {
+    final s = seconds < 0 ? 0 : seconds;
+    final h = s ~/ 3600;
+    final m = (s % 3600) ~/ 60;
+    final sec = (s % 60).toString().padLeft(2, '0');
+    if (h > 0) return '$h:${m.toString().padLeft(2, '0')}:$sec';
+    return '$m:$sec';
+  }
+
   /// Name of the other party from [myUid]'s point of view ('' counts as missing).
   String otherNameFor(String myUid, {String fallback = 'User'}) {
     final name = isOutgoingFor(myUid) ? receiverName : callerName;

@@ -14,7 +14,6 @@ import 'package:flutter/foundation.dart';
 import '../../../models/chat_message_model.dart';
 import '../../../services/chat_service.dart';
 import '../../../services/notification/onesignal_sender.dart';
-import 'build_our_date/date_cards.dart';
 import 'chat_game.dart';
 import 'chat_game_logic.dart';
 import 'game_space.dart';
@@ -60,12 +59,10 @@ class ChatGameService {
 
   /// Starts a new game and invites the other player, or does nothing if one
   /// is already running. Returns whether a game was created.
-  /// [otherAnswers] holds the other player's interests/habits.
   Future<bool> start({
     required String convId,
     required String otherUserId,
     required ChatGameKind kind,
-    Map<String, dynamic> otherAnswers = const {},
   }) async {
     final me = _me;
     final random = Random.secure();
@@ -80,26 +77,6 @@ class ChatGameService {
       invite: invite,
     );
 
-    final tags = <String, Set<String>>{};
-    if (kind == ChatGameKind.date) {
-      final mine = await _myAnswers(me);
-      tags[me] = DateCards.tagsFrom(
-        interests: mine['interests'] as List?,
-        habits: mine['habits'],
-      );
-      tags[otherUserId] = DateCards.tagsFrom(
-        interests: otherAnswers['interests'] as List?,
-        habits: otherAnswers['habits'],
-      );
-    }
-
-    final deck = ChatGameLogic.buildDeck(
-      kind,
-      tagsA: tags[participants[0]] ?? const {},
-      tagsB: tags[participants[1]] ?? const {},
-      random: random,
-    );
-
     final ref = _game(convId, kind);
     final created = await _db.runTransaction<bool>((tx) async {
       final current = ChatGame.fromMap(
@@ -108,6 +85,12 @@ class ChatGameService {
       );
       // Both tapped Start at once: join the game that already exists.
       if (current != null && current.isActive) return false;
+      // A new game never repeats the questions of the one it replaces.
+      final deck = ChatGameLogic.buildDeck(
+        kind,
+        random: random,
+        exclude: ChatGameLogic.deckIds(current),
+      );
       final now = FieldValue.serverTimestamp();
       tx.set(ref, {
         'gameId': gameId,
@@ -194,7 +177,7 @@ class ChatGameService {
         if (completes) 'roundStartedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      if (!completes || r + 1 < ChatGame.roundCount) return null;
+      if (!completes || r + 1 < game.rounds) return null;
       final picks = [...game.picks];
       picks[r] = {...game.picksFor(r), me: value};
       return ChatGame(
@@ -264,7 +247,7 @@ class ChatGameService {
         'roundStartedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      if (next < ChatGame.roundCount) return null;
+      if (next < game.rounds) return null;
       return ChatGame(
         kind: kind,
         gameId: game.gameId,
@@ -351,16 +334,6 @@ class ChatGameService {
       message: text,
     );
     _notify(convId, id);
-  }
-
-  Future<Map<String, dynamic>> _myAnswers(String me) async {
-    try {
-      final snap = await _db.collection('users').doc(me).get();
-      return snap.data() ?? const {};
-    } catch (e) {
-      _log('myAnswers', e);
-      return const {};
-    }
   }
 
   /// Posts a game card (invite or result) in the chat and pushes it. Games

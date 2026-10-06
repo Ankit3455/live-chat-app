@@ -672,10 +672,39 @@ service cloud.firestore {
       return name in ['date', 'rate', 'flags', 'telepathy'];
     }
 
-    // date: 4 cards; rate / flags: 1 topic; telepathy: prompt + 9 emojis.
+    // Build Our Date and Rate It have 10 rounds, the others 5 (ChatGameKind).
+    function roundCount(name) {
+      return name in ['date', 'rate'] ? 10 : 5;
+    }
+
+    function roundKeys(name) {
+      return name in ['date', 'rate']
+        ? ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9']
+        : ['r0', 'r1', 'r2', 'r3', 'r4'];
+    }
+
+    // date: 1 question; rate / flags: 1 topic; telepathy: prompt + 9 emojis.
     function gameRoundOk(name, deck, r) {
       return deck[r] is list
-        && deck[r].size() == (name == 'date' ? 4 : (name == 'telepathy' ? 10 : 1));
+        && deck[r].size() == (name == 'telepathy' ? 10 : 1);
+    }
+
+    // Exactly r0..r(roundCount - 1), each well formed.
+    function gameDeckOk(name, deck) {
+      return deck is map
+        && deck.keys().hasOnly(roundKeys(name))
+        && deck.size() == roundCount(name)
+        && gameRoundOk(name, deck, 'r0')
+        && gameRoundOk(name, deck, 'r1')
+        && gameRoundOk(name, deck, 'r2')
+        && gameRoundOk(name, deck, 'r3')
+        && gameRoundOk(name, deck, 'r4')
+        && (roundCount(name) == 5
+          || (gameRoundOk(name, deck, 'r5')
+            && gameRoundOk(name, deck, 'r6')
+            && gameRoundOk(name, deck, 'r7')
+            && gameRoundOk(name, deck, 'r8')
+            && gameRoundOk(name, deck, 'r9')));
     }
 
     // Telepathy: 3 different emojis from the round, never the prompt id.
@@ -688,7 +717,7 @@ service cloud.firestore {
     }
 
     function gamePickValueOk(name, v, choices) {
-      return (name == 'date' && v in choices)
+      return (name == 'date' && v is int && v >= 0 && v <= 3)
         || (name == 'rate' && v is int && v >= 1 && v <= 10)
         || (name == 'flags' && v in ['red', 'green'])
         || (name == 'telepathy' && telepathyPickOk(v, choices));
@@ -707,14 +736,7 @@ service cloud.firestore {
         && d.joined == [request.auth.uid]
         && d.get('roundStartedAt', null) == null
         && gameIdOk(d)
-        && d.deck is map
-        && d.deck.keys().hasOnly(['r0', 'r1', 'r2', 'r3', 'r4'])
-        && d.deck.size() == 5
-        && gameRoundOk(name, d.deck, 'r0')
-        && gameRoundOk(name, d.deck, 'r1')
-        && gameRoundOk(name, d.deck, 'r2')
-        && gameRoundOk(name, d.deck, 'r3')
-        && gameRoundOk(name, d.deck, 'r4')
+        && gameDeckOk(name, d.deck)
         && d.createdAt == request.time
         && d.updatedAt == request.time
         && open;
@@ -730,7 +752,7 @@ service cloud.firestore {
       let pb = before.picks.get(r, {});
       let pa = after.picks.get(r, {});
       return before.status == 'playing'
-        && before.round < 5
+        && before.round < roundCount(name)
         && me in before.players
         && before.get('roundStartedAt', null) is timestamp
         && changedKeys().hasOnly(['picks', 'round', 'roundStartedAt', 'updatedAt'])
@@ -747,11 +769,11 @@ service cloud.firestore {
     }
 
     // 30 s passed: the round ends with whatever picks there are.
-    function roundTimeoutOk() {
+    function roundTimeoutOk(name) {
       let before = resource.data;
       let after = request.resource.data;
       return before.status == 'playing'
-        && before.round < 5
+        && before.round < roundCount(name)
         && request.auth.uid in before.players
         && gameClockExpired('roundStartedAt')
         && changedKeys().hasOnly(['round', 'roundStartedAt', 'updatedAt'])
@@ -760,9 +782,9 @@ service cloud.firestore {
         && after.updatedAt == request.time;
     }
 
-    function roundCancelOk() {
+    function roundCancelOk(name) {
       return resource.data.status == 'playing'
-        && resource.data.round < 5
+        && resource.data.round < roundCount(name)
         && request.auth.uid in resource.data.players
         && changedKeys().hasOnly(['status', 'leftBy', 'updatedAt'])
         && request.resource.data.status == 'cancelled'
@@ -770,15 +792,19 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
-    // A finished or ended game is replaced by the next one.
+    // A finished or ended game is replaced by the next one, and so is a game
+    // saved with an older round count (its deck has a different size).
     function roundUpdateOk(name, parts, open) {
       return roundGame(name)
         && (roundPickOk(name, open)
-          || roundTimeoutOk()
+          || roundTimeoutOk(name)
           || gameJoinOk('roundStartedAt')
-          || roundCancelOk()
-          || (resource.data.round < 5 && gameLeftClaimOk('roundStartedAt', 'cancelled'))
-          || ((resource.data.status == 'cancelled' || resource.data.round >= 5)
+          || roundCancelOk(name)
+          || (resource.data.round < roundCount(name)
+            && gameLeftClaimOk('roundStartedAt', 'cancelled'))
+          || ((resource.data.status == 'cancelled'
+              || resource.data.round >= roundCount(name)
+              || resource.data.get('deck', {}).size() != roundCount(name))
             && roundNewGameOk(name, parts, open)));
     }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../../models/call_model.dart' show CallModel;
 import '../../../models/chat_message_model.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../feature/games/chat_games/widgets/chat_game_bubble.dart';
@@ -195,25 +196,33 @@ class MessageBubble extends StatelessWidget {
     return MessageType.text;
   }
 
-  /// Centered system line for missed/declined call events.
+  /// Centered system line for call events, worded for the viewer.
   Widget _buildCallEvent() {
     final meta = message.metadata ?? const {};
     final isVideo = meta['callType'] == 'video';
     final status = meta['callStatus']?.toString() ?? 'missed';
-    final kind = isVideo ? 'video' : 'voice';
+    final kind = isVideo ? 'video' : 'audio';
+    // Older events have no callerId; they were always sent by the caller.
+    final callerId = meta['callerId'];
+    final outgoing = callerId is String ? callerId == _myUid : isMe;
 
     final String text;
-    if (isMe) {
-      final outcome = status == 'declined'
-          ? 'Declined'
-          : status == 'busy'
-          ? 'Busy'
-          : 'No answer';
+    if (status == 'ended') {
+      final seconds = (meta['duration'] as num?)?.toInt() ?? 0;
+      final direction = outgoing ? 'Outgoing' : 'Incoming';
+      text = '$direction $kind call · ${CallModel.formatDuration(seconds)}';
+    } else if (outgoing) {
+      final outcome = switch (status) {
+        'declined' => 'Declined',
+        'busy' => 'Busy',
+        'cancelled' => 'Cancelled',
+        _ => 'No answer',
+      };
       text = 'Outgoing $kind call · $outcome';
     } else {
       text = status == 'declined' ? 'Declined $kind call' : 'Missed $kind call';
     }
-    final missed = !isMe && status != 'declined';
+    final missed = !outgoing && status != 'declined' && status != 'ended';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:availchat/feature/games/chat_games/chat_game.dart';
 import 'package:availchat/feature/games/chat_games/chat_game_logic.dart';
 import 'package:availchat/feature/games/chat_games/flags/flag_statements.dart';
+import 'package:availchat/feature/games/chat_games/rate_it/rate_topic_pool.dart';
 import 'package:availchat/feature/games/chat_games/rate_it/rate_topics.dart';
 import 'package:availchat/feature/games/chat_games/telepathy/telepathy_prompts.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +12,7 @@ ChatGame _game(
   ChatGameKind kind, {
   required List<List<String>> deck,
   List<Map<String, Object>> picks = const [],
-  int round = ChatGame.roundCount,
+  int? round,
   bool cancelled = false,
 }) => ChatGame(
   kind: kind,
@@ -19,10 +20,10 @@ ChatGame _game(
   players: const ['alice', 'bob'],
   createdBy: 'alice',
   cancelled: cancelled,
-  round: round,
+  round: round ?? kind.rounds,
   deck: deck,
   picks: [
-    for (var r = 0; r < ChatGame.roundCount; r++)
+    for (var r = 0; r < kind.rounds; r++)
       r < picks.length ? picks[r] : const <String, Object>{},
   ],
 );
@@ -35,16 +36,20 @@ void main() {
     expect(ChatGameKind.byName('chess'), isNull);
   });
 
-  test('every deck has 5 rounds of the right size', () {
+  test('date and rate have 10 rounds, flags and telepathy 5', () {
+    expect(ChatGameKind.date.rounds, 10);
+    expect(ChatGameKind.rate.rounds, 10);
+    expect(ChatGameKind.flags.rounds, 5);
+    expect(ChatGameKind.telepathy.rounds, 5);
+  });
+
+  test('every deck has one round per game round, of the right size', () {
     for (final kind in ChatGameKind.values) {
       final deck = ChatGameLogic.buildDeck(kind, random: Random(1));
-      expect(deck.length, ChatGame.roundCount, reason: kind.name);
+      expect(deck.length, kind.rounds, reason: kind.name);
       for (final round in deck) {
-        expect(round.length, switch (kind) {
-          ChatGameKind.date => 4,
-          ChatGameKind.telepathy => 10,
-          _ => 1,
-        });
+        expect(round.length, kind == ChatGameKind.telepathy ? 10 : 1);
+        expect(round.length, ChatGame.deckRoundSize(kind));
       }
     }
   });
@@ -59,9 +64,9 @@ void main() {
         ChatGameKind.flags,
         random: Random(seed),
       ).map((r) => r.single);
-      expect(rate.toSet().length, ChatGame.roundCount);
-      expect(flags.toSet().length, ChatGame.roundCount);
-      expect(rate.every((id) => RateTopics.byId(id) != null), isTrue);
+      expect(rate.toSet().length, ChatGameKind.rate.rounds);
+      expect(flags.toSet().length, ChatGameKind.flags.rounds);
+      expect(rate.every((id) => ChatGameLogic.rateTopic(id) != null), isTrue);
       expect(flags.every((id) => FlagStatements.byId(id) != null), isTrue);
     }
   });
@@ -70,6 +75,10 @@ void main() {
     expect(
       RateTopics.pool.map((t) => t.id).toSet().length,
       RateTopics.pool.length,
+    );
+    expect(
+      RateTopicPool.pool.map((t) => t.id).toSet().length,
+      RateTopicPool.pool.length,
     );
     expect(
       FlagStatements.pool.map((s) => s.id).toSet().length,
@@ -90,18 +99,13 @@ void main() {
     expect(ChatGameLogic.isValidPick(flags, 'green'), isTrue);
     expect(ChatGameLogic.isValidPick(flags, 'yellow'), isFalse);
 
-    final date = _game(
-      ChatGameKind.date,
-      deck: List.filled(5, [
-        'vibe_chill',
-        'vibe_foodie',
-        'vibe_creative',
-        'vibe_playful',
-      ]),
-      round: 0,
-    );
-    expect(ChatGameLogic.isValidPick(date, 'vibe_chill'), isTrue);
-    expect(ChatGameLogic.isValidPick(date, 'place_cafe'), isFalse);
+    final date = _game(ChatGameKind.date, deck: _one('q', 10), round: 0);
+    for (var i = 0; i < 4; i++) {
+      expect(ChatGameLogic.isValidPick(date, i), isTrue);
+    }
+    expect(ChatGameLogic.isValidPick(date, -1), isFalse);
+    expect(ChatGameLogic.isValidPick(date, 4), isFalse);
+    expect(ChatGameLogic.isValidPick(date, '0'), isFalse);
 
     final ended = _game(
       ChatGameKind.rate,
@@ -122,9 +126,9 @@ void main() {
   test('rate result message carries the taste match', () {
     final g = _game(
       ChatGameKind.rate,
-      deck: _one('t'),
+      deck: _one('t', 10),
       picks: [
-        for (var r = 0; r < 5; r++) {'alice': 6, 'bob': 6},
+        for (var r = 0; r < 10; r++) {'alice': 6, 'bob': 6},
       ],
     );
     expect(ChatGameLogic.tasteMatch(g), 100);
@@ -174,36 +178,6 @@ void main() {
     expect(ChatGameLogic.flagsAgree(g, 0), isFalse);
   });
 
-  test('date result lists the chosen cards and the score', () {
-    final g = _game(
-      ChatGameKind.date,
-      deck: const [
-        ['vibe_romantic', 'vibe_chill', 'vibe_foodie', 'vibe_playful'],
-        ['place_rooftop', 'place_cafe', 'place_beach', 'place_park'],
-        ['food_chai', 'food_pizza', 'food_momos', 'food_dosa'],
-        ['act_karaoke', 'act_movie', 'act_walk', 'act_pottery'],
-        ['time_sunset', 'time_night', 'time_sunrise', 'time_afternoon'],
-      ],
-      picks: [
-        {'alice': 'vibe_romantic', 'bob': 'vibe_romantic'},
-        {'alice': 'place_rooftop', 'bob': 'place_rooftop'},
-        {'alice': 'food_chai', 'bob': 'food_chai'},
-        {'alice': 'act_karaoke', 'bob': 'act_karaoke'},
-        {'alice': 'time_sunset', 'bob': 'time_sunset'},
-      ],
-    );
-    expect(ChatGameLogic.dateScore(g), 5);
-    final msg = ChatGameLogic.result(g);
-    expect(msg.metadata['cards'], [
-      'vibe_romantic',
-      'place_rooftop',
-      'food_chai',
-      'act_karaoke',
-      'time_sunset',
-    ]);
-    expect(msg.text, contains('Sunset at the Rooftop'));
-  });
-
   test('invites name the game in metadata', () {
     for (final k in ChatGameKind.values) {
       final m = ChatGameLogic.invite(k);
@@ -220,7 +194,7 @@ void main() {
       'status': 'playing',
       'round': 1,
       'deck': {
-        for (var r = 0; r < 5; r++) 'r$r': ['t$r'],
+        for (var r = 0; r < 10; r++) 'r$r': ['t$r'],
       },
       'picks': {
         'r0': {'alice': 3, 'bob': 9, 'junk': 1.5},
@@ -256,7 +230,10 @@ void main() {
       ChatGameKind.telepathy,
       random: Random(3),
     );
-    expect(deck.map((r) => r.first).toSet().length, ChatGame.roundCount);
+    expect(
+      deck.map((r) => r.first).toSet().length,
+      ChatGameKind.telepathy.rounds,
+    );
     for (final round in deck) {
       final prompt = TelepathyPrompts.byId(round.first)!;
       expect(round.skip(1).toSet(), prompt.emojis.toSet());
@@ -349,28 +326,36 @@ void main() {
     expect(g.pickOf(0, 'alice'), ['😴', '☕', '🎬']);
   });
 
-  test('a timed-out date round still gets a card', () {
-    const deck = [
-      ['vibe_romantic', 'vibe_chill', 'vibe_foodie', 'vibe_playful'],
-      ['place_rooftop', 'place_cafe', 'place_beach', 'place_park'],
-      ['food_chai', 'food_pizza', 'food_momos', 'food_dosa'],
-      ['act_karaoke', 'act_movie', 'act_walk', 'act_pottery'],
-      ['time_sunset', 'time_night', 'time_sunrise', 'time_afternoon'],
-    ];
-    final g = _game(
-      ChatGameKind.date,
-      deck: deck,
-      round: 2,
-      picks: [
-        {'alice': 'vibe_chill'},
-        {},
-        {'alice': 'food_chai'},
-      ],
+  test('a game saved with an older round count reads as ended', () {
+    Map<String, dynamic> doc(int rounds, int size) => {
+      'players': ['alice', 'bob'],
+      'status': 'playing',
+      'round': 2,
+      'deck': {
+        for (var r = 0; r < rounds; r++) 'r$r': List.filled(size, 'x$r'),
+      },
+      'picks': {
+        'r0': {'alice': 'vibe_chill', 'bob': 'vibe_chill'},
+      },
+    };
+    final old = ChatGame.fromMap(ChatGameKind.date, doc(5, 4))!;
+    expect(old.cancelled, isTrue);
+    expect(old.isActive, isFalse);
+    expect(old.isDone, isFalse);
+    expect(ChatGameLogic.dateScore(old), 0, reason: 'old string picks');
+    expect(ChatGame.fromMap(ChatGameKind.rate, doc(5, 1))!.isActive, isFalse);
+    expect(ChatGame.fromMap(ChatGameKind.date, doc(10, 1))!.isActive, isTrue);
+    expect(ChatGame.fromMap(ChatGameKind.flags, doc(5, 1))!.isActive, isTrue);
+  });
+
+  test('old date-plan result cards still show their plan', () {
+    expect(
+      ChatGameLogic.resultLine(ChatGameKind.date, {
+        'cards': ['vibe_romantic', 'place_rooftop'],
+        'score': 2,
+      }),
+      'at the Rooftop',
     );
-    expect(ChatGameLogic.dateResult(g, 0), 'vibe_chill');
-    expect(deck[1], contains(ChatGameLogic.dateResult(g, 1)));
-    expect(ChatGameLogic.dateResult(g, 1), ChatGameLogic.dateResult(g, 1));
-    expect(ChatGameLogic.dateResult(g, 2), isNull, reason: 'round still open');
   });
 
   test('missing flag votes show a clock', () {
@@ -422,6 +407,6 @@ void main() {
   });
 }
 
-List<List<String>> _one(String prefix) => [
-  for (var r = 0; r < ChatGame.roundCount; r++) ['$prefix$r'],
+List<List<String>> _one(String prefix, [int rounds = 5]) => [
+  for (var r = 0; r < rounds; r++) ['$prefix$r'],
 ];

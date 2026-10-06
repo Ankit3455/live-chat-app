@@ -6,6 +6,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/call_model.dart';
+import '../../services/call/call_service.dart';
+import '../../services/call/video_filters.dart';
 import '../../widgets/app_states.dart';
 import 'widgets/call_controls.dart';
 import 'widgets/call_ui.dart';
@@ -142,9 +144,15 @@ class _VideoCallScreenState extends State<VideoCallScreen>
               ImageFiltered(
                 enabled: reconnecting,
                 imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                child: RTCVideoView(
-                  _remoteRenderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                child: ValueListenableBuilder<VideoFilter>(
+                  valueListenable: callService.remoteFilterListenable,
+                  builder: (context, filter, child) =>
+                      VideoFilterView(filter: filter, child: child!),
+                  child: RTCVideoView(
+                    _remoteRenderer,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  ),
                 ),
               )
             else
@@ -274,9 +282,38 @@ class _VideoCallScreenState extends State<VideoCallScreen>
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          ValueListenableBuilder<VideoFilter>(
+            valueListenable: callService.localFilterListenable,
+            builder: (context, filter, _) => Material(
+              color: filter == VideoFilter.normal
+                  ? AppColors.backgroundDeep.withOpacity(0.45)
+                  : AppColors.brandPurple.withOpacity(0.85),
+              shape: const CircleBorder(),
+              child: IconButton(
+                tooltip: 'Filters',
+                onPressed: _openFilterPicker,
+                icon: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
         ],
       ),
+    );
+  }
+
+  void _openFilterPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _FilterPickerSheet(callService: callService),
     );
   }
 
@@ -330,10 +367,16 @@ class _VideoCallScreenState extends State<VideoCallScreen>
             fit: StackFit.expand,
             children: [
               if (hasLocal && cameraOn)
-                RTCVideoView(
-                  _localRenderer,
-                  mirror: true,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                ValueListenableBuilder<VideoFilter>(
+                  valueListenable: callService.localFilterListenable,
+                  builder: (context, filter, child) =>
+                      VideoFilterView(filter: filter, child: child!),
+                  child: RTCVideoView(
+                    _localRenderer,
+                    mirror: true,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  ),
                 )
               else
                 const Center(
@@ -430,5 +473,117 @@ class _VideoCallScreenState extends State<VideoCallScreen>
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+
+/// Horizontal row of filter swatches; the choice applies on both sides.
+class _FilterPickerSheet extends StatelessWidget {
+  final CallService callService;
+
+  const _FilterPickerSheet({required this.callService});
+
+  // Stand-in "scene" so each swatch shows what its filter does.
+  static const _sample = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFF2C6A0), Color(0xFFE07A5F), Color(0xFF3D85C6)],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 16, 0, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Video filter',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 14),
+              child: Text(
+                'Both of you see your video with this look.',
+                style: TextStyle(color: AppColors.lavender, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              height: 96,
+              child: ValueListenableBuilder<VideoFilter>(
+                valueListenable: callService.localFilterListenable,
+                builder: (context, current, _) => ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: VideoFilter.all.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) {
+                    final f = VideoFilter.all[i];
+                    return _swatch(f, selected: f == current);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _swatch(VideoFilter filter, {required bool selected}) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${filter.label} filter',
+      child: GestureDetector(
+        onTap: () => callService.setVideoFilter(filter),
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 60,
+              height: 60,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? AppColors.brandPink : AppColors.border,
+                  width: selected ? 3 : 1,
+                ),
+              ),
+              child: ClipOval(
+                child: VideoFilterView(
+                  filter: filter,
+                  child: const DecoratedBox(
+                    decoration: _sample,
+                    child: SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              filter.label,
+              style: TextStyle(
+                color: selected ? AppColors.white : AppColors.lavender,
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

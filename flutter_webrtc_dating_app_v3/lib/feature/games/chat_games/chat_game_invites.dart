@@ -57,11 +57,19 @@ class GameRoomState {
   /// Invite sent, the other player hasn't accepted yet.
   bool get isPending => isOpen && !bothJoined;
 
-  /// Round games end at round 5 and stay 'playing'; chess and duels set
-  /// 'over'; a cancelled round game is 'cancelled'.
-  static GameRoomState? fromMap(Map<String, dynamic>? data) {
+  /// Round games end after their last round and stay 'playing'; chess and
+  /// duels set 'over'; a cancelled round game is 'cancelled'. [name] is the
+  /// game's doc id (its kind for round games).
+  static GameRoomState? fromMap(Map<String, dynamic>? data, [String? name]) {
     if (data == null) return null;
     final round = data['round'];
+    final deck = data['deck'];
+    final kind = ChatGameKind.byName(name);
+    final roundsLeft = round is! num ||
+        (deck is Map &&
+            (kind == null
+                ? round < deck.length
+                : round < kind.rounds && ChatGame.hasCurrentShape(kind, deck)));
     return GameRoomState(
       gameId: (data['gameId'] as String?) ?? '',
       createdBy: (data['createdBy'] as String?) ?? '',
@@ -69,8 +77,7 @@ class GameRoomState {
           ((data['players'] as List?) ?? const []).whereType<String>().toList(),
       joined:
           ((data['joined'] as List?) ?? const []).whereType<String>().toList(),
-      isOpen: data['status'] == 'playing' &&
-          (round is! num || round < ChatGame.roundCount),
+      isOpen: data['status'] == 'playing' && roundsLeft,
       closedBy: data['resignedBy'] as String?,
       leftBy: data['leftBy'] as String?,
       matchId: data['matchId'] as String?,
@@ -103,7 +110,10 @@ class ChatGameInvites {
   /// not exist yet).
   static Future<GameRoomState?> current(String convId, String name) async {
     try {
-      return GameRoomState.fromMap((await _doc(convId, name).get()).data());
+      return GameRoomState.fromMap(
+        (await _doc(convId, name).get()).data(),
+        name,
+      );
     } catch (e) {
       _log('current', e);
       return null;
@@ -139,10 +149,6 @@ class ChatGameInvites {
       convId: convId,
       otherUserId: otherUserId,
       kind: ChatGameKind.byName(name) ?? ChatGameKind.date,
-      otherAnswers: {
-        'interests': otherUser?.interests ?? const <String>[],
-        'habits': otherUser?.habits,
-      },
     );
   }
 
@@ -232,7 +238,7 @@ class GameRoomsWatcher {
     for (final name in names) {
       if (_subs.containsKey(name)) continue;
       _subs[name] = ChatGameInvites._doc(convId, name).snapshots().listen(
-        (snap) => _update(name, GameRoomState.fromMap(snap.data())),
+        (snap) => _update(name, GameRoomState.fromMap(snap.data(), name)),
         onError: (Object e) {
           ChatGameInvites._log('watch($name)', e);
           _subs.remove(name);

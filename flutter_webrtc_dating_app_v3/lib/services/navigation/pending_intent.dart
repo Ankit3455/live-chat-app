@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 
 enum PendingIntentType { chat, call }
 
+/// What the user did on the incoming-call notification. Push and local
+/// notification taps are [show].
+enum CallIntentAction { show, accept, decline }
+
 /// Something the user asked to open from outside the app (push or local
 /// notification tap). Built from untrusted payloads; handlers re-check
 /// ownership and current state before acting.
@@ -18,6 +22,7 @@ class PendingIntent {
   final String? callId;
   final String? callerName;
   final bool isVideo;
+  final CallIntentAction callAction;
 
   const PendingIntent.chat({
     required this.otherUserId,
@@ -26,7 +31,8 @@ class PendingIntent {
   }) : type = PendingIntentType.chat,
        callId = null,
        callerName = null,
-       isVideo = false;
+       isVideo = false,
+       callAction = CallIntentAction.show;
 
   const PendingIntent.call({
     required this.callId,
@@ -34,6 +40,7 @@ class PendingIntent {
     this.callerName,
     this.isVideo = false,
     this.receiverId,
+    this.callAction = CallIntentAction.show,
   }) : type = PendingIntentType.call,
        conversationId = null;
 
@@ -80,6 +87,27 @@ class PendingIntent {
         );
     }
     return null;
+  }
+
+  /// Android's native incoming-call notification (MainActivity.kt
+  /// `call_intent` channel): `{action, callId, callerId, callerName,
+  /// callType, receiverId}`.
+  static PendingIntent? fromNativeCall(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    final call = fromPushData({...data, 'type': 'call'});
+    if (call == null) return null;
+    final action = CallIntentAction.values.firstWhere(
+      (a) => a.name == data['action'],
+      orElse: () => CallIntentAction.show,
+    );
+    return PendingIntent.call(
+      callId: call.callId,
+      otherUserId: call.otherUserId,
+      callerName: call.callerName,
+      isVideo: call.isVideo,
+      receiverId: call.receiverId,
+      callAction: action,
+    );
   }
 
   /// Local notification payload: `chat:<otherUid>[:<conversationId>]` or

@@ -70,17 +70,23 @@ class ChatGameBubble extends StatelessWidget {
         viewer: myUid,
         otherName: otherUserName,
       );
-      final cards = kind == ChatGameKind.date
+      final chips = kind == ChatGameKind.date
           ? [
+              ...ChatGameLogic.resultAnswers(
+                meta,
+                viewer: myUid,
+                otherName: otherUserName,
+              ),
+              // Old 5-card date plans.
               for (final id in (meta['cards'] as List?) ?? const [])
                 if (id is String && DateCards.byId(id) != null)
-                  DateCards.byId(id)!,
+                  '${DateCards.byId(id)!.emoji} ${DateCards.byId(id)!.label}',
             ]
-          : const <DateCard>[];
+          : const <String>[];
       return _GameCard(
         title: title,
         body: line.isEmpty ? message.message : line,
-        cards: cards,
+        chips: chips,
         buttons: [
           if (actions != null)
             _CardButton('Open', onTap: () async => actions.open(entry.name)),
@@ -186,13 +192,13 @@ class ChatGameBubble extends StatelessWidget {
 class _GameCard extends StatelessWidget {
   final String title;
   final String body;
-  final List<DateCard> cards;
+  final List<String> chips;
   final List<_CardButton> buttons;
 
   const _GameCard({
     required this.title,
     required this.body,
-    this.cards = const [],
+    this.chips = const [],
     this.buttons = const [],
   });
 
@@ -237,12 +243,12 @@ class _GameCard extends StatelessWidget {
               ),
             ),
           ),
-          if (cards.isNotEmpty) ...[
+          if (chips.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: [for (final c in cards) DateCardChip(card: c)],
+              children: [for (final c in chips) DateCardChip(text: c)],
             ),
           ],
           if (buttons.isNotEmpty) ...[

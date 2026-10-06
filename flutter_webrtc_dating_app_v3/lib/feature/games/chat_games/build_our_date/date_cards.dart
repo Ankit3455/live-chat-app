@@ -1,7 +1,8 @@
 // lib/feature/games/chat_games/build_our_date/date_cards.dart
 //
-// Card decks and the pure game logic for Build Our Date. No Flutter or
-// Firebase imports, so it can be unit tested on its own.
+// The original 5-round Build Our Date cards. The game now uses
+// DateQuestions; these stay so date-plan result cards already in chats
+// still read (DateCards.title). No Flutter or Firebase imports.
 
 import 'dart:math';
 

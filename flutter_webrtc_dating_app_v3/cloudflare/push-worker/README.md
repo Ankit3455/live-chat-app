@@ -95,13 +95,14 @@ logs: `wrangler tail`.
 
 ## Endpoints
 
-Both: `POST`, `Content-Type: application/json`, body at most 4 KB,
+All: `POST`, `Content-Type: application/json`, body at most 4 KB,
 `Authorization: Bearer <Firebase ID token>`.
 
 | Endpoint | Body | Sends |
 | --- | --- | --- |
 | `/chat-push` | `{"conversationId": "...", "messageId": "..."}` | New-message push, or a missed-call push when the message is a `call` message |
-| `/call-push` | `{"receiverId": "...", "callId": "..."}` | Incoming-call push (audio/video channel, `ttl` 60, `ios_sound` `incoming_call.caf`) |
+| `/call-push` | `{"receiverId": "...", "callId": "..."}` | Incoming-call push (`incoming_call_ring_v1` channel, `ttl` 60, `ios_sound` `incoming_call.caf`, `collapse_id` per call, `data.timestamp` = call start). On Android the app's notification extension (`CallNotificationExtension.kt`) draws the ringing call itself |
+| `/call-cancel` | `{"receiverId": "...", "callId": "..."}` | Sent by the caller when it hangs up before an answer: silent `call_cancel` push on the same `collapse_id`, so the receiver stops ringing. Caller only; the room must be gone/ended or name the caller and receiver |
 
 Responses: `200 {"ok":true,"status":"sent"}` (other statuses such as
 `muted`, `blocked`, `duplicate`, `stale`, `disabled` mean "nothing sent, on

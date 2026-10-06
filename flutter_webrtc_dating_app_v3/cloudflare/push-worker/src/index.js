@@ -3,6 +3,7 @@
 //
 //   POST /chat-push {conversationId, messageId}
 //   POST /call-push {receiverId, callId}
+//   POST /call-cancel {receiverId, callId}
 //   Authorization: Bearer <Firebase ID token>
 //
 // Every Firestore / RTDB read uses the caller's own ID token, so security
@@ -25,14 +26,17 @@ const DEFAULT_ONESIGNAL_APP_ID = 'f4489084-4880-4e7f-aa6d-a3b0cfb8beb4';
 
 const CHANNEL_CHAT = 'onesignal_chat_channel';
 const CHANNEL_NEW_CHAT = 'onesignal_new_chat_channel'; // silent, low importance
-const CHANNEL_AUDIO_CALL = 'onesignal_audio_call_channel';
-const CHANNEL_VIDEO_CALL = 'onesignal_video_call_channel';
+// Ringing channel created natively by CallNotifier.kt. Normally the app's
+// notification extension draws the call itself; this is the fallback.
+const CHANNEL_CALL_RING = 'incoming_call_ring_v1';
 const IOS_CALL_SOUND = 'incoming_call.caf';
 
 const MAX_BODY_BYTES = 4096;
 const CALL_PUSH_MAX_AGE_MS = 90 * 1000;
 const CHAT_MESSAGE_MAX_AGE_MS = 10 * 60 * 1000;
 const CALL_PUSH_PER_MINUTE = 10;
+const CALL_CANCEL_PER_MINUTE = 10;
+const COLLAPSE_ID_MAX = 64;
 const CHAT_PUSH_PER_MINUTE = 60;
 
 // ---------- helpers ----------
@@ -300,6 +304,13 @@ async function refuseCall(ctx, receiverId, callId, hasRoom) {
   await rtdbUpdate(ctx, updates).catch(() => false);
 }
 
+// Shared by the ringing push and its cancel so the cancel replaces it.
+// callIds are `${callerUid}_${uuid}` (65+ chars), so the tail is kept.
+export function callCollapseId(callId) {
+  const prefix = 'call_';
+  return prefix + callId.slice(-(COLLAPSE_ID_MAX - prefix.length));
+}
+
 async function handleCallPush(ctx, env, data) {
   const receiverId = requireString(data, 'receiverId');
   const callId = requireString(data, 'callId');
@@ -363,9 +374,10 @@ async function handleCallPush(ctx, env, data) {
       include_aliases: { external_id: [receiverId] },
       headings: { en: `Incoming ${isVideo ? 'Video' : 'Voice'} Call` },
       contents: { en: `${caller.name} is calling...` },
-      existing_android_channel_id: isVideo ? CHANNEL_VIDEO_CALL : CHANNEL_AUDIO_CALL,
+      existing_android_channel_id: CHANNEL_CALL_RING,
       priority: 10,
       ttl: 60,
+      collapse_id: callCollapseId(callId),
       ios_interruption_level: 'time_sensitive',
       ios_sound: IOS_CALL_SOUND,
       data: {
@@ -377,6 +389,7 @@ async function handleCallPush(ctx, env, data) {
         callType: isVideo ? 'video' : 'audio',
         receiverId,
         conversationId: conv.id,
+        timestamp: typeof startedAt === 'number' ? startedAt : Date.now(),
       },
     });
   } catch (err) {
@@ -386,11 +399,51 @@ async function handleCallPush(ctx, env, data) {
   return deliveryResult(outcome);
 }
 
+// ---------- POST /call-cancel ----------
+
+// The caller hung up (or gave up) before the receiver answered: replaces the
+// ringing push so the receiver's phone stops ringing.
+async function handleCallCancel(ctx, env, data) {
+  const receiverId = requireString(data, 'receiverId');
+  const callId = requireString(data, 'callId');
+  const uid = ctx.uid;
+  if (receiverId === uid || !callId.startsWith(`${uid}_`)) throw new HttpError(403, 'permission-denied');
+  rateLimit(uid, 'call_cancel', CALL_CANCEL_PER_MINUTE);
+
+  const room = await rtdbGet(ctx, ['rooms', callId]);
+  if (!readable(room)) throw new HttpError(403, 'permission-denied');
+  if (room && room.state !== 'ended' && (room.callerId !== uid || room.calleeId !== receiverId)) {
+    throw new HttpError(403, 'permission-denied');
+  }
+
+  const key = `call_cancel_${callId}`;
+  if (!claimOnce(key)) return { status: 'duplicate' };
+
+  try {
+    const outcome = await sendToOneSignal(env, {
+      include_aliases: { external_id: [receiverId] },
+      contents: { en: 'Missed call' },
+      // Silent: the missed-call chat push (/chat-push) is the one that alerts.
+      existing_android_channel_id: CHANNEL_NEW_CHAT,
+      priority: 10,
+      ttl: 120,
+      collapse_id: callCollapseId(callId),
+      ios_interruption_level: 'passive',
+      data: { type: 'call_cancel', callId, receiverId },
+    });
+    return deliveryResult(outcome);
+  } catch (err) {
+    releaseClaim(key);
+    throw err;
+  }
+}
+
 // ---------- entry point ----------
 
 const ROUTES = {
   '/chat-push': handleChatPush,
   '/call-push': handleCallPush,
+  '/call-cancel': handleCallCancel,
 };
 
 export default {

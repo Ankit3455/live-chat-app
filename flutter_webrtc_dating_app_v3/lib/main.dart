@@ -9,6 +9,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'services/notification/onesignal_service.dart';
@@ -23,6 +24,7 @@ import 'screens/settings/change_password_screen.dart';
 
 import 'services/auth_service.dart';
 import 'services/call/webrtc/signaling_service.dart';
+import 'services/call/call_intent_channel.dart';
 import 'services/call/call_service.dart';
 import 'services/navigation/pending_intent.dart';
 import 'services/safety_service.dart';
@@ -141,7 +143,10 @@ class AvailChatApp extends StatefulWidget {
 
 class _AvailChatAppState extends State<AvailChatApp>
     with WidgetsBindingObserver {
-  static const Duration _ringingLookup = Duration(seconds: 6);
+  // Cold start from a call notification: splash, auth, the RTDB listener and
+  // CallService.admitIncoming (consent, room and profile reads) all run first.
+  static const Duration _ringingLookup = Duration(seconds: 15);
+  static const String _fullScreenExplainedKey = 'full_screen_intent_explained';
 
   final PendingIntentRouter _router = PendingIntentRouter.instance;
 
@@ -149,6 +154,7 @@ class _AvailChatAppState extends State<AvailChatApp>
   StreamSubscription<CallModel?>? _incomingCallSub;
   String? _shownCallId;
   bool _askingPermission = false;
+  bool _explainingFullScreen = false;
 
   @override
   void initState() {
@@ -157,6 +163,8 @@ class _AvailChatAppState extends State<AvailChatApp>
     _router.ready.addListener(_onRouterReadyChanged);
     _router.configure(handler: _handleIntent, canRoute: _canRouteIntents);
     _authSub = FirebaseAuth.instance.authStateChanges().listen(_onAuthChanged);
+    CallIntentChannel.setActionHandler(_onNativeCallAction);
+    unawaited(_readInitialCallAction());
   }
 
   @override
@@ -178,6 +186,7 @@ class _AvailChatAppState extends State<AvailChatApp>
     }
     _showRingingCall();
     _maybeAskNotificationPermission();
+    unawaited(_processPendingDeclines());
   }
 
   void _onAuthChanged(User? user) {
@@ -187,6 +196,41 @@ class _AvailChatAppState extends State<AvailChatApp>
     if (user == null) return;
     _listenForIncomingCalls();
     _maybeAskNotificationPermission();
+    unawaited(_processPendingDeclines());
+  }
+
+  // ---------- Android call notification (MainActivity.kt) ----------
+
+  Future<void> _readInitialCallAction() async {
+    final action = await CallIntentChannel.initialAction();
+    if (action != null) await _onNativeCallAction(action);
+  }
+
+  Future<bool> _onNativeCallAction(Map<String, dynamic> action) async {
+    if (action['action'] == CallIntentAction.decline.name) {
+      await _processPendingDeclines();
+      return true;
+    }
+    final intent = PendingIntent.fromNativeCall(action);
+    if (intent == null) return false;
+    if (intent.callAction == CallIntentAction.accept) {
+      CallIntentChannel.autoAnswerCallId.value = intent.callId;
+    }
+    _router.add(intent);
+    return true;
+  }
+
+  /// Calls declined on the notification while Flutter was not running (or
+  /// the native decline write failed). Rejecting twice is harmless.
+  Future<void> _processPendingDeclines() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    final ids = await CallIntentChannel.consumePendingDeclines();
+    for (final id in ids) {
+      if (CallService().currentCall?.id == id && CallService().isInCall) {
+        continue;
+      }
+      await CallService().rejectCall(id);
+    }
   }
 
   void _onRouterReadyChanged() {
@@ -306,6 +350,15 @@ class _AvailChatAppState extends State<AvailChatApp>
     final callId = intent.callId;
     if (callId == null) return;
     final calls = CallService();
+    if (intent.callAction == CallIntentAction.decline) {
+      await calls.rejectCall(callId);
+      return;
+    }
+    if (_incomingCallSub == null &&
+        FirebaseAuth.instance.currentUser != null &&
+        !calls.isInCall) {
+      _listenForIncomingCalls();
+    }
 
     // On cold start the inbox listener may still be admitting this call.
     final deadline = DateTime.now().add(_ringingLookup);
@@ -320,6 +373,10 @@ class _AvailChatAppState extends State<AvailChatApp>
       _showRingingCall();
       return;
     }
+    // Gone (caller hung up, or it was answered/declined elsewhere).
+    CallIntentChannel.takeAutoAnswer(callId);
+    unawaited(CallIntentChannel.cancelNotification(callId));
+    unawaited(CallIntentChannel.releaseLockScreen());
     final name = intent.callerName;
     final kind = intent.isVideo ? 'video' : 'voice';
     _router.showSnackBar(
@@ -341,6 +398,50 @@ class _AvailChatAppState extends State<AvailChatApp>
       }
     } finally {
       _askingPermission = false;
+    }
+    await _maybeExplainFullScreenIntent();
+  }
+
+  /// Android 14+ needs the user's OK before an incoming call may open
+  /// full screen over the lock screen. Explained once, after notifications
+  /// are allowed.
+  Future<void> _maybeExplainFullScreenIntent() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (_explainingFullScreen || !_router.ready.value || !_inForeground) return;
+    if (!NotificationChannels.permissionGranted) return;
+    _explainingFullScreen = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_fullScreenExplainedKey) ?? false) return;
+      if (await CallIntentChannel.canUseFullScreenIntent()) return;
+      await prefs.setBool(_fullScreenExplainedKey, true);
+      final context = _router.navigatorKey.currentContext;
+      if (context == null || !context.mounted) return;
+      final allow = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Show incoming calls'),
+          content: const Text(
+            'To see who is calling when your phone is locked, allow Destined '
+            'to show full-screen notifications on the next screen.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Not now'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Open settings'),
+            ),
+          ],
+        ),
+      );
+      if (allow == true) await CallIntentChannel.openFullScreenIntentSettings();
+    } catch (e) {
+      if (kDebugMode) debugPrint('Full-screen intent explainer failed: $e');
+    } finally {
+      _explainingFullScreen = false;
     }
   }
 

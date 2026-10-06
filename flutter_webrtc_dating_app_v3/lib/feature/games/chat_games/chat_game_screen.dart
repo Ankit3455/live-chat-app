@@ -12,7 +12,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../models/user_model.dart';
 import '../ludo/audio.dart';
-import 'build_our_date/date_cards.dart';
 import 'chat_game.dart';
 import 'chat_game_service.dart';
 import 'chat_game_views.dart';
@@ -54,7 +53,6 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   final ChatGameService _service = ChatGameService.instance;
   late Stream<ChatGame?> _game = _watch();
 
-  Set<String> _myTags = const {};
   bool _busy = false;
   int _heardRound = -1;
   bool _heardEnd = false;
@@ -67,14 +65,6 @@ class _ChatGameScreenState extends State<ChatGameScreen>
 
   Stream<ChatGame?> _watch() =>
       _service.watch(widget.conversationId, widget.kind);
-
-  @override
-  void onProfileLoaded(UserModel profile) {
-    _myTags = DateCards.tagsFrom(
-      interests: profile.interests,
-      habits: profile.habits,
-    );
-  }
 
   void _sounds(ChatGame g) {
     if (_heardRound >= 0 && g.round > _heardRound) Audio.playMove();
@@ -112,10 +102,6 @@ class _ChatGameScreenState extends State<ChatGameScreen>
       convId: widget.conversationId,
       otherUserId: widget.otherUserId,
       kind: _kind,
-      otherAnswers: {
-        'interests': widget.otherUser?.interests ?? const <String>[],
-        'habits': widget.otherUser?.habits,
-      },
     );
     // The first listen may have been denied before the chat existed.
     if (mounted) setState(() => _game = _watch());
@@ -273,14 +259,14 @@ class _ChatGameScreenState extends State<ChatGameScreen>
     switch (_kind) {
       case ChatGameKind.date:
         return const [
-          HowToStep('🃏', '5 rounds: vibe, place, food, activity and time.'),
-          HowToStep('🤫', 'You both pick a card in secret.'),
-          HowToStep('✨', 'Same card = match! Different? A coin decides.'),
-          HowToStep('💌', 'Get a date plan you can actually go on.'),
+          HowToStep('❓', '10 questions about your perfect date.'),
+          HowToStep('🤫', 'You both pick one of 4 answers in secret.'),
+          HowToStep('✨', 'Same answer = match!'),
+          HowToStep('💌', 'See your match % and the date you both chose.'),
         ];
       case ChatGameKind.rate:
         return const [
-          HowToStep('🔢', 'Rate 5 things from 1 to 10.'),
+          HowToStep('🔢', 'Rate 10 things from 1 to 10.'),
           HowToStep('🤫', 'You both rate in secret.'),
           HowToStep('📊', 'See how close your tastes are.'),
         ];
@@ -357,7 +343,6 @@ class _ChatGameScreenState extends State<ChatGameScreen>
       myUid: myUid,
       otherName: widget.otherName,
       busy: _busy,
-      myTags: _myTags,
       onPick: _pick,
     );
     if (game.isDone) return _result(view);
@@ -373,7 +358,7 @@ class _ChatGameScreenState extends State<ChatGameScreen>
     return TurnBanner(
       turnKey: r,
       show: true,
-      text: r == ChatGame.roundCount - 1 ? 'Last round!' : 'Round ${r + 1}',
+      text: r == game.rounds - 1 ? 'Last round!' : 'Round ${r + 1}',
       theme: _theme,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -397,7 +382,7 @@ class _ChatGameScreenState extends State<ChatGameScreen>
                   active: !otherPicked,
                   secondsLeft: seconds,
                 ),
-                center: _RoundDots(round: r, theme: _theme),
+                center: _RoundDots(round: r, total: game.rounds, theme: _theme),
               ),
             ),
             awayBanner(
@@ -556,16 +541,21 @@ class _ChatGameScreenState extends State<ChatGameScreen>
   }
 }
 
-/// Five segments; done rounds filled, the current one glowing.
+/// One segment per round; done rounds filled, the current one glowing.
 class _RoundDots extends StatelessWidget {
   final int round;
+  final int total;
   final GameTheme theme;
 
-  const _RoundDots({required this.round, required this.theme});
+  const _RoundDots({
+    required this.round,
+    required this.total,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const total = ChatGame.roundCount;
+    final compact = total > 5;
     return Semantics(
       label: 'Round ${round + 1} of $total',
       excludeSemantics: true,
@@ -586,8 +576,8 @@ class _RoundDots extends StatelessWidget {
               for (var i = 0; i < total; i++)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: i == round ? 16 : 7,
+                  margin: EdgeInsets.symmetric(horizontal: compact ? 1.5 : 2),
+                  width: i == round ? (compact ? 12 : 16) : (compact ? 5 : 7),
                   height: 7,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4),

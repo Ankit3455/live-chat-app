@@ -1002,15 +1002,14 @@ describe('firestore.rules', () => {
     });
   });
 
+  // r0..r(n-1), each holding [`${prefix}${r}`].
+  const oneIdDeck = (prefix, n) =>
+    Object.fromEntries(Array.from({ length: n }, (_, r) => [`r${r}`, [`${prefix}${r}`]]));
+
   describe('chat games: build our date', () => {
     const gamePath = 'conversations/c1/games/date';
-    const deck = {
-      r0: ['vibe_chill', 'vibe_adventure', 'vibe_foodie', 'vibe_creative'],
-      r1: ['place_cafe', 'place_beach', 'place_rooftop', 'place_park'],
-      r2: ['food_street', 'food_pizza', 'food_chai', 'food_momos'],
-      r3: ['act_movie', 'act_walk', 'act_karaoke', 'act_pottery'],
-      r4: ['time_sunrise', 'time_afternoon', 'time_sunset', 'time_night'],
-    };
+    // 10 rounds, one question id each; a pick is the option index 0..3.
+    const deck = oneIdDeck('q', 10);
     const newGame = (over = {}) => ({
       gameId: 'g1',
       players: ['alice', 'bob'],
@@ -1038,8 +1037,8 @@ describe('firestore.rules', () => {
           });
       });
     };
-    const pick = (uid, card, extra = {}) =>
-      updateDoc(doc(db(uid), gamePath), { [`picks.r0.${uid}`]: card, updatedAt: serverTimestamp(), ...extra });
+    const pick = (uid, option, extra = {}, r = 0) =>
+      updateDoc(doc(db(uid), gamePath), { [`picks.r${r}.${uid}`]: option, updatedAt: serverTimestamp(), ...extra });
 
     it('a participant can start a game; a stranger cannot read or start one', async () => {
       await assertSucceeds(setDoc(doc(db('alice'), gamePath), newGame()));
@@ -1057,37 +1056,69 @@ describe('firestore.rules', () => {
       await assertFails(setDoc(ref, newGame({ round: 2 })));
       await assertFails(setDoc(ref, newGame({ createdBy: 'bob' })));
       await assertFails(setDoc(ref, newGame({ players: ['alice', 'carol'] })));
-      await assertFails(setDoc(ref, newGame({ picks: { r0: { alice: 'vibe_chill' } } })));
-      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r0: ['vibe_chill'] } })));
-      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r5: deck.r0 } })));
+      await assertFails(setDoc(ref, newGame({ picks: { r0: { alice: 0 } } })));
       await assertFails(setDoc(ref, newGame({ extra: true })));
       await assertFails(setDoc(doc(db('alice'), 'conversations/c1/games/chess'), newGame()));
     });
 
-    it('players add only their own pick, once, from the round deck', async () => {
+    it('a date deck has exactly 10 rounds of 1 question id', async () => {
+      const ref = doc(db('alice'), gamePath);
+      await assertFails(setDoc(ref, newGame({ deck: oneIdDeck('q', 5) })), 'the old 5 rounds');
+      await assertFails(setDoc(ref, newGame({ deck: oneIdDeck('q', 9) })));
+      await assertFails(setDoc(ref, newGame({ deck: oneIdDeck('q', 11) })));
+      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r0: ['q0', 'q1', 'q2', 'q3'] } })), 'old 4-card round');
+      await assertFails(setDoc(ref, newGame({ deck: { ...deck, r9: [] } })));
+      const { r9, ...nine } = deck;
+      await assertFails(setDoc(ref, newGame({ deck: { ...nine, r10: r9 } })), 'keys must be r0..r9');
+      await assertSucceeds(setDoc(ref, newGame()));
+    });
+
+    it('a date pick is a whole number from 0 to 3', async () => {
       await seedGame();
-      await assertFails(updateDoc(doc(db('alice'), gamePath), { 'picks.r0.bob': 'vibe_chill', updatedAt: serverTimestamp() }));
-      await assertFails(pick('alice', 'place_cafe'));
-      await assertFails(pick('alice', 'vibe_chill', { round: 1 }));
-      await assertSucceeds(pick('alice', 'vibe_chill'));
-      await assertFails(pick('alice', 'vibe_foodie'));
-      await assertFails(pick('carol', 'vibe_chill'));
+      await assertFails(pick('alice', -1));
+      await assertFails(pick('alice', 4));
+      await assertFails(pick('alice', 1.5));
+      await assertFails(pick('alice', '2'));
+      await assertFails(pick('alice', 'q0'));
+      await assertSucceeds(pick('alice', 3));
+      await seedGame();
+      await assertSucceeds(pick('alice', 0));
+    });
+
+    it('players add only their own pick, once', async () => {
+      await seedGame();
+      await assertFails(updateDoc(doc(db('alice'), gamePath), { 'picks.r0.bob': 1, updatedAt: serverTimestamp() }));
+      await assertFails(pick('alice', 1, { round: 1 }));
+      await assertFails(pick('alice', 1, {}, 1), 'not the current round');
+      await assertSucceeds(pick('alice', 1));
+      await assertFails(pick('alice', 2));
+      await assertFails(pick('carol', 1));
     });
 
     it('the pick that completes a round must move to the next round', async () => {
-      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } });
-      await assertFails(pick('bob', 'vibe_foodie'));
-      await assertFails(pick('bob', 'vibe_foodie', { round: 2 }));
-      await assertFails(pick('bob', 'vibe_foodie', { round: 1 }));
-      await assertSucceeds(pick('bob', 'vibe_foodie', { round: 1, roundStartedAt: serverTimestamp() }));
+      await seedGame({ picks: { r0: { alice: 1 } } });
+      await assertFails(pick('bob', 2));
+      await assertFails(pick('bob', 2, { round: 2 }));
+      await assertFails(pick('bob', 2, { round: 1 }));
+      await assertSucceeds(pick('bob', 2, { round: 1, roundStartedAt: serverTimestamp() }));
+    });
+
+    it('the pick that completes round 9 finishes the game at round 10', async () => {
+      await seedGame({ round: 9, picks: { r9: { alice: 2 } } });
+      await assertFails(pick('bob', 2, { round: 11, roundStartedAt: serverTimestamp() }, 9));
+      await assertSucceeds(pick('bob', 2, { round: 10, roundStartedAt: serverTimestamp() }, 9));
+      await assertFails(pick('alice', 0, {}, 10), 'no round 11');
+      await assertSucceeds(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })),
+        'a finished game is replaced by the next one');
     });
 
     it('no picks once the game is finished or ended', async () => {
+      await seedGame({ round: 10 });
+      await assertFails(pick('alice', 0, {}, 10));
       await seedGame({ round: 5 });
-      await assertFails(updateDoc(doc(db('alice'), gamePath),
-        { 'picks.r5.alice': 'vibe_chill', updatedAt: serverTimestamp() }));
+      await assertSucceeds(pick('alice', 0, {}, 5), 'round 5 is mid-game now');
       await seedGame({ status: 'cancelled' });
-      await assertFails(pick('alice', 'vibe_chill'));
+      await assertFails(pick('alice', 1));
     });
 
     it('either player can end a running game, and start a new one afterwards', async () => {
@@ -1098,13 +1129,29 @@ describe('firestore.rules', () => {
       await assertSucceeds(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })));
     });
 
+    it('a running game saved with the old 5-card deck can be replaced', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), gamePath), {
+          ...newGame(),
+          round: 2,
+          deck: { r0: ['a', 'b', 'c', 'd'], r1: ['a', 'b', 'c', 'd'], r2: ['a', 'b', 'c', 'd'],
+            r3: ['a', 'b', 'c', 'd'], r4: ['a', 'b', 'c', 'd'] },
+          joined: ['alice', 'bob'],
+          roundStartedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      });
+      await assertSucceeds(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })));
+    });
+
     it('blocked users cannot play', async () => {
       await seedGame();
       await env.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'), { blockedAt: Timestamp.now() });
       });
-      await assertFails(pick('alice', 'vibe_chill'));
-      await assertFails(pick('bob', 'vibe_chill'));
+      await assertFails(pick('alice', 1));
+      await assertFails(pick('bob', 1));
     });
 
     it('a deleted user cannot be played with', async () => {
@@ -1112,32 +1159,35 @@ describe('firestore.rules', () => {
       await env.withSecurityRulesDisabled(async (ctx) => {
         await updateDoc(doc(ctx.firestore(), 'conversations/c1'), { 'participantData.bob.deleted': true });
       });
-      await assertFails(pick('alice', 'vibe_chill'));
+      await assertFails(pick('alice', 1));
     });
 
     it('the invitee joins and starts the clock; no picks before that', async () => {
       await assertSucceeds(setDoc(doc(db('alice'), gamePath), newGame()));
-      await assertFails(pick('alice', 'vibe_chill'));
+      await assertFails(pick('alice', 1));
       await assertFails(updateDoc(doc(db('carol'), gamePath),
         { joined: ['alice', 'carol'], roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
       await assertFails(updateDoc(doc(db('bob'), gamePath),
         { joined: ['alice', 'bob'], updatedAt: serverTimestamp() }));
       await assertSucceeds(updateDoc(doc(db('bob'), gamePath),
         { joined: ['alice', 'bob'], roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
-      await assertSucceeds(pick('alice', 'vibe_chill'));
+      await assertSucceeds(pick('alice', 1));
     });
 
     it('a round can be timed out only after 30 seconds', async () => {
-      const timeout = (uid) => updateDoc(doc(db(uid), gamePath),
-        { round: 1, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } });
+      const timeout = (uid, round = 1) => updateDoc(doc(db(uid), gamePath),
+        { round, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      await seedGame({ picks: { r0: { alice: 1 } } });
       await assertFails(timeout('bob'));
-      await seedGame({ picks: { r0: { alice: 'vibe_chill' } } },
+      await seedGame({ picks: { r0: { alice: 1 } } },
         { roundStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
       await assertFails(timeout('carol'));
-      await assertFails(updateDoc(doc(db('bob'), gamePath),
-        { round: 2, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertFails(timeout('bob', 2));
       await assertSucceeds(timeout('bob'));
+      await seedGame({ round: 9 }, { roundStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
+      await assertSucceeds(timeout('alice', 10), 'the last round times out too');
+      await seedGame({ round: 10 }, { roundStartedAt: Timestamp.fromMillis(Date.now() - 31000) });
+      await assertFails(timeout('alice', 11));
     });
 
     it('games cannot be deleted', async () => {
@@ -1152,9 +1202,8 @@ describe('firestore.rules', () => {
   });
 
   describe('chat games: rate it and red flag, green flag', () => {
-    const oneEach = (prefix) => ({
-      r0: [`${prefix}0`], r1: [`${prefix}1`], r2: [`${prefix}2`], r3: [`${prefix}3`], r4: [`${prefix}4`],
-    });
+    // Rate It has 10 rounds; Red Flag Green Flag and Telepathy keep 5.
+    const oneEach = (prefix) => oneIdDeck(prefix, prefix === 't' ? 10 : 5);
     const newGame = (deck, over = {}) => ({
       gameId: 'g1',
       players: ['alice', 'bob'],
@@ -1194,6 +1243,43 @@ describe('firestore.rules', () => {
       });
       await assertFails(setDoc(doc(db('alice'), 'conversations/c1/games/rate'),
         newGame({ ...oneEach('t'), r0: ['t0', 'x'] })));
+    });
+
+    it('rate needs 10 rounds; flags and telepathy still 5', async () => {
+      const games = 'conversations/c1/games';
+      await assertFails(setDoc(doc(db('alice'), `${games}/rate`), newGame(oneIdDeck('t', 5))));
+      await assertFails(setDoc(doc(db('alice'), `${games}/rate`), newGame(oneIdDeck('t', 11))));
+      await assertFails(setDoc(doc(db('alice'), `${games}/flags`), newGame(oneIdDeck('s', 10))));
+      const emojis = ['😴', '☕', '🎬', '🍕', '🏞️', '📚', '🎮', '🛍️', '🧘'];
+      const tenRounds = Object.fromEntries(Array.from({ length: 10 }, (_, r) => [`r${r}`, ['sunday', ...emojis]]));
+      await assertFails(setDoc(doc(db('alice'), `${games}/telepathy`), newGame(tenRounds)));
+      await assertSucceeds(setDoc(doc(db('alice'), `${games}/rate`), newGame(oneIdDeck('t', 10))));
+      await assertSucceeds(setDoc(doc(db('alice'), `${games}/flags`), newGame(oneIdDeck('s', 5))));
+    });
+
+    it('a rate game ends after round 10, a flags game after round 5', async () => {
+      const games = 'conversations/c1/games';
+      const seedAtRound = async (kind, deck, round, picks) => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), `${games}/${kind}`), {
+            ...newGame(deck), round, picks,
+            joined: ['alice', 'bob'], roundStartedAt: Timestamp.now(),
+            createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+          });
+        });
+      };
+      const finish = (kind, r, value) => updateDoc(doc(db('bob'), `${games}/${kind}`),
+        { [`picks.r${r}.bob`]: value, round: r + 1, roundStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      await seedAtRound('rate', oneEach('t'), 5, { r5: { alice: 4 } });
+      await assertSucceeds(finish('rate', 5, 6), 'round 5 is mid-game for rate');
+      await seedAtRound('rate', oneEach('t'), 9, { r9: { alice: 4 } });
+      await assertSucceeds(finish('rate', 9, 6));
+      await assertFails(updateDoc(doc(db('alice'), `${games}/rate`),
+        { 'picks.r10.alice': 5, updatedAt: serverTimestamp() }));
+      await seedAtRound('flags', oneEach('s'), 4, { r4: { alice: 'red' } });
+      await assertSucceeds(finish('flags', 4, 'green'));
+      await assertFails(updateDoc(doc(db('alice'), `${games}/flags`),
+        { 'picks.r5.alice': 'red', updatedAt: serverTimestamp() }));
     });
 
     it('a rating must be a whole number from 1 to 10', async () => {
@@ -1484,9 +1570,8 @@ describe('firestore.rules', () => {
       { picks: { alice: 'L' }, history: [], turnStartedAt: Timestamp.now(), ...over });
     const seedDate = (over = {}) => seedAt(datePath, {
       round: 1,
-      deck: { r0: ['a', 'b', 'c', 'd'], r1: ['a', 'b', 'c', 'd'], r2: ['a', 'b', 'c', 'd'],
-        r3: ['a', 'b', 'c', 'd'], r4: ['a', 'b', 'c', 'd'] },
-      picks: { r1: { alice: 'a' } },
+      deck: oneIdDeck('q', 10),
+      picks: { r1: { alice: 0 } },
       roundStartedAt: Timestamp.now(),
       ...over,
     });
@@ -1535,7 +1620,7 @@ describe('firestore.rules', () => {
       await assertFails(claim('bob', chessPath, 'over', 'alice'));
       await seedTennis({ status: 'over', turnStartedAt: ago(61000) });
       await assertFails(claim('alice', tennisPath, 'over', 'bob'));
-      await seedDate({ round: 5, roundStartedAt: ago(61000) });
+      await seedDate({ round: 10, roundStartedAt: ago(61000) });
       await assertFails(claim('alice', datePath, 'cancelled', 'bob'));
     });
 
@@ -1550,8 +1635,7 @@ describe('firestore.rules', () => {
       await assertSucceeds(claim('alice', datePath, 'cancelled', 'alice'));
       await assertSucceeds(setDoc(doc(db('bob'), datePath), {
         gameId: 'g2', players: ['alice', 'bob'], createdBy: 'bob', status: 'playing', round: 0,
-        deck: { r0: ['a', 'b', 'c', 'd'], r1: ['a', 'b', 'c', 'd'], r2: ['a', 'b', 'c', 'd'],
-          r3: ['a', 'b', 'c', 'd'], r4: ['a', 'b', 'c', 'd'] },
+        deck: oneIdDeck('q', 10),
         picks: {}, joined: ['bob'], roundStartedAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       }), 'a new game replaces the left one');
@@ -1656,7 +1740,7 @@ describe('firestore.rules', () => {
       await assertFails(deleteDoc(doc(db('alice'), 'game_rooms/r1')));
       const game = {
         gameId: 'g1', players: ['alice', 'bob'], createdBy: 'alice', status: 'playing', round: 0,
-        deck: { r0: ['a'], r1: ['b'], r2: ['c'], r3: ['d'], r4: ['e'] },
+        deck: oneIdDeck('t', 10),
         picks: {}, joined: ['alice'], roundStartedAt: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       };

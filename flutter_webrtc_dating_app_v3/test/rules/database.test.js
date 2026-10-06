@@ -134,6 +134,16 @@ describe('database.rules.json', () => {
       await assertFails(set(ref(rtdb('carol'), `rooms/${id}`), room('carol', 'bob')));
     });
 
+    it('each participant writes only its own short video filter', async () => {
+      await assertSucceeds(set(ref(rtdb('alice'), `rooms/${id}/filters/alice`), 'warm'));
+      await assertSucceeds(set(ref(rtdb('bob'), `rooms/${id}/filters/bob`), 'bw'));
+      await assertFails(set(ref(rtdb('alice'), `rooms/${id}/filters/bob`), 'warm'));
+      await assertFails(set(ref(rtdb('carol'), `rooms/${id}/filters/carol`), 'warm'));
+      await assertFails(set(ref(rtdb('alice'), `rooms/${id}/filters/alice`), 'x'.repeat(21)));
+      await assertFails(set(ref(rtdb('alice'), `rooms/${id}/filters/alice`), 7));
+      await assertFails(set(ref(rtdb('alice'), `rooms/${id}/filters`), { alice: 'warm', bob: 'cool' }));
+    });
+
     it('end-of-call update with reason is allowed for participants', async () => {
       await assertSucceeds(update(ref(rtdb('bob'), `rooms/${id}`), {
         state: 'ended',

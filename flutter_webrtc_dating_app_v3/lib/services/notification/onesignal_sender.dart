@@ -54,6 +54,24 @@ class OneSignalSender {
     }
   }
 
+  /// Caller gave up before an answer: stops the receiver's ringing
+  /// notification. Worker only (there is no Cloud Functions equivalent).
+  static Future<void> sendCallCancel({
+    required String receiverId,
+    required String callId,
+  }) async {
+    if (!PushConfig.enabled) return;
+    try {
+      await _send(
+        workerPath: '/call-cancel',
+        callable: '',
+        body: {'receiverId': receiverId, 'callId': callId},
+      );
+    } catch (e) {
+      debugPrint('❌ Call cancel notification error: $e');
+    }
+  }
+
   static Future<void> _send({
     required String workerPath,
     required String callable,

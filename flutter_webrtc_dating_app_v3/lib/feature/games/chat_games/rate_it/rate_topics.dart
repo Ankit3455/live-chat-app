@@ -1,8 +1,8 @@
 // lib/feature/games/chat_games/rate_it/rate_topics.dart
 //
-// Rate It: both rate the same 5 things from 1 to 10, then compare.
-
-import 'dart:math';
+// Rate It: both rate the same 10 things from 1 to 10, then compare. Decks
+// come from RateTopicPool; [RateTopics.pool] are the original topics, kept so
+// older games still show their names.
 
 class RateTopic {
   final String id;
@@ -54,14 +54,6 @@ class RateTopics {
   static final Map<String, RateTopic> _byId = {for (final t in pool) t.id: t};
 
   static RateTopic? byId(String? id) => id == null ? null : _byId[id];
-
-  /// [rounds] different topics, one per round.
-  static List<List<String>> buildDeck(int rounds, Random random) {
-    final shuffled = List.of(pool)..shuffle(random);
-    return [
-      for (final t in shuffled.take(rounds)) [t.id],
-    ];
-  }
 
   static bool isValidScore(Object? v) =>
       v is int && v >= minScore && v <= maxScore;

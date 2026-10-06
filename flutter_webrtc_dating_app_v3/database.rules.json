@@ -16,7 +16,8 @@
 //  - call_consent: server-only; caller and callee may read their pair.
 //  - rooms/{callId}: only the callerId/calleeId stored in the room read or
 //    write; caller creates it; ids immutable; offer and caller_candidates are
-//    caller-only, answer and callee_candidates callee-only.
+//    caller-only, answer and callee_candidates callee-only; filters/{uid} only
+//    by that participant (short string).
 //
 //  - Account deletion runs in the client (Spark plan, no Functions): the owner
 //    removes presence/{uid}, incoming_calls/{uid} and users/{uid}, and may remove
@@ -105,6 +106,12 @@
         "endedBy": {
           ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)",
           ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "filters": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)",
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          }
         },
         "$other": {
           ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)"

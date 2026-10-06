@@ -7,12 +7,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 
-import 'build_our_date/date_cards.dart';
 import 'build_our_date/widgets/date_card_tile.dart';
 import 'chat_game.dart';
 import 'chat_game_logic.dart';
 import 'flags/flag_statements.dart';
-import 'rate_it/rate_topics.dart';
 import 'telepathy/telepathy_picker.dart';
 import 'telepathy/telepathy_prompts.dart';
 import 'ui/game_ui.dart';
@@ -24,9 +22,6 @@ class ChatGameView {
   final String myUid;
   final String otherName;
   final bool busy;
-
-  /// Questionnaire tags of the current user ("Made for you" badges).
-  final Set<String> myTags;
   final ValueChanged<Object> onPick;
 
   const ChatGameView({
@@ -34,7 +29,6 @@ class ChatGameView {
     required this.myUid,
     required this.otherName,
     required this.busy,
-    required this.myTags,
     required this.onPick,
   });
 
@@ -44,8 +38,6 @@ class ChatGameView {
   bool get canPick =>
       myPick == null && !busy && game.isActive && game.bothJoined;
 
-  String _possessive(String uid) => uid == myUid ? 'your' : "$otherName's";
-
   GameTheme get theme => GameTheme.of(game.kind.name);
 
   // ---------- round ----------
@@ -53,9 +45,10 @@ class ChatGameView {
   String question() {
     switch (game.kind) {
       case ChatGameKind.date:
-        return DateCards.rounds[round].question;
+        final q = ChatGameLogic.dateQuestionAt(game, round);
+        return q == null ? '' : '${q.emoji} ${q.prompt}';
       case ChatGameKind.rate:
-        final t = RateTopics.byId(_item(round));
+        final t = ChatGameLogic.rateTopicAt(game, round);
         return t == null ? '' : '${t.emoji} ${t.label}';
       case ChatGameKind.flags:
         return 'Red flag or green flag?';
@@ -68,7 +61,7 @@ class ChatGameView {
   String? hint() {
     switch (game.kind) {
       case ChatGameKind.date:
-        return null;
+        return 'Pick one in secret. Same answer as $otherName = match!';
       case ChatGameKind.rate:
         return 'Slide to rate, then lock it in.';
       case ChatGameKind.flags:
@@ -104,25 +97,22 @@ class ChatGameView {
 
   Widget _datePicker() {
     final pick = myPick;
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.05,
+    final options =
+        ChatGameLogic.dateQuestionAt(game, round)?.options ?? const [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final id in game.deck[round])
-          if (DateCards.byId(id) != null)
-            DateCardTile(
-              card: DateCards.byId(id)!,
-              selected: pick == id,
-              dimmed: pick != null && pick != id,
-              badge: DateCards.byId(id)!.tags.any(myTags.contains)
-                  ? 'Made for you'
-                  : null,
-              onTap: canPick ? () => onPick(id) : null,
-            ),
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          ChoiceButton(
+            label: options[i],
+            fontSize: 17,
+            accent: theme.a,
+            selected: pick == i,
+            dimmed: pick != null && pick != i,
+            onTap: canPick ? () => onPick(i) : null,
+          ),
+        ],
       ],
     );
   }
@@ -155,12 +145,12 @@ class ChatGameView {
   (String, String, bool) revealPair(int r) {
     final mine = game.pickOf(r, myUid);
     final theirs = game.pickOf(r, otherUid);
-    String show(Object? v) {
+    String show(String uid) {
+      final v = game.pickOf(r, uid);
       if (v == null) return '⏱️';
       switch (game.kind) {
         case ChatGameKind.date:
-          final c = DateCards.byId(v as String?);
-          return c == null ? '?' : '${c.emoji} ${c.label}';
+          return _dateAnswer(r, uid);
         case ChatGameKind.rate:
           return v is int ? '${RateDial.faceFor(v)} $v' : '?';
         case ChatGameKind.flags:
@@ -178,7 +168,17 @@ class ChatGameView {
         ChatGameLogic.sharedEmojis(game, r).length ==
             TelepathyPrompts.picksPerRound,
     };
-    return (show(mine), show(theirs), same);
+    return (show(myUid), show(otherUid), same);
+  }
+
+  /// [uid]'s date answer as I read it: their "Me" / "You" become names.
+  String _dateAnswer(int r, String uid) {
+    final who = ChatGameLogic.dateWho(game, r, uid);
+    if (who != null && uid != myUid) {
+      return who == myUid ? ChatGameLogic.dateYouOption : '🙋 $otherName';
+    }
+    final choice = ChatGameLogic.dateChoice(game, r, uid);
+    return ChatGameLogic.dateOption(game, r, choice) ?? '?';
   }
 
   // ---------- reveal (round that just finished) ----------
@@ -199,21 +199,25 @@ class ChatGameView {
     final timedOut = _timedOut(r);
     switch (game.kind) {
       case ChatGameKind.date:
-        final card = DateCards.byId(ChatGameLogic.dateResult(game, r));
-        if (card == null) return '';
-        if (timedOut != null) {
-          return '$timedOut. ${card.emoji} ${card.label} it is.';
+        if (timedOut != null) return '$timedOut. No match this round.';
+        final emoji = ChatGameLogic.dateQuestionAt(game, r)?.emoji ?? '';
+        final who = ChatGameLogic.dateAgreedWho(game, r);
+        if (who != null) {
+          return '✨ Match! You both said: ${who == myUid ? 'you' : otherName}';
         }
         if (ChatGameLogic.dateMatched(game, r)) {
-          return '✨ Match! You both picked ${card.emoji} ${card.label}';
+          final answer = ChatGameLogic.dateOption(
+            game,
+            r,
+            ChatGameLogic.dateChoice(game, r, myUid),
+          );
+          return '✨ Match! You both picked $emoji ${answer ?? ''}'.trim();
         }
-        final winner = game.players[DateCards.coinWinner(game.gameId, r)];
-        return '🪙 Different picks. Coin flip: ${_possessive(winner)} pick '
-            '${card.emoji} ${card.label}';
+        return '$emoji Different picks this time. Next one!'.trim();
       case ChatGameKind.rate:
         final mine = ChatGameLogic.rating(game, r, myUid);
         final theirs = ChatGameLogic.rating(game, r, otherUid);
-        final t = RateTopics.byId(_item(r));
+        final t = ChatGameLogic.rateTopicAt(game, r);
         if (t == null) return '';
         if (mine == null || theirs == null) return '$timedOut ${t.emoji}';
         if (mine == theirs) {
@@ -255,7 +259,7 @@ class ChatGameView {
   String resultTitle() {
     switch (game.kind) {
       case ChatGameKind.date:
-        return 'Our date plan';
+        return 'Your date match';
       case ChatGameKind.rate:
         return 'Your tastes';
       case ChatGameKind.flags:
@@ -266,10 +270,11 @@ class ChatGameView {
   }
 
   String resultHeadline() {
-    const total = ChatGame.roundCount;
+    final total = game.rounds;
     switch (game.kind) {
       case ChatGameKind.date:
-        return '${ChatGameLogic.dateScore(game)}/$total in sync';
+        return '${ChatGameLogic.datePercent(game)}% match · '
+            '${ChatGameLogic.dateScore(game)}/$total answers';
       case ChatGameKind.rate:
         return '${ChatGameLogic.tasteMatch(game)}% taste match';
       case ChatGameKind.flags:
@@ -283,14 +288,14 @@ class ChatGameView {
   Widget resultBody() {
     switch (game.kind) {
       case ChatGameKind.date:
-        final cards = [
-          for (final id in ChatGameLogic.dateResults(game))
-            if (DateCards.byId(id) != null) DateCards.byId(id)!,
-        ];
+        final matches = ChatGameLogic.dateMatches(game);
         return Column(
           children: [
             Text(
-              DateCards.title([for (final c in cards) c.id]),
+              matches.isEmpty
+                  ? 'No matching answers this time. Play again for new '
+                        'questions!'
+                  : 'Your date:',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.white,
@@ -298,24 +303,34 @@ class ChatGameView {
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 14),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 6,
-              runSpacing: 6,
-              children: [for (final c in cards) DateCardChip(card: c)],
-            ),
+            if (matches.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final m in matches)
+                    DateCardChip(
+                      text: ChatGameLogic.dateMatchLabel(
+                        m,
+                        viewer: myUid,
+                        otherName: otherName,
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         );
       case ChatGameKind.rate:
         return Column(
           children: [
             _legend(),
-            for (var r = 0; r < ChatGame.roundCount; r++)
-              if (RateTopics.byId(_item(r)) != null)
+            for (var r = 0; r < game.rounds; r++)
+              if (ChatGameLogic.rateTopicAt(game, r) case final t?)
                 ResultRow(
-                  label:
-                      '${RateTopics.byId(_item(r))!.emoji} ${RateTopics.byId(_item(r))!.label}',
+                  label: '${t.emoji} ${t.label}',
                   mine: '${ChatGameLogic.rating(game, r, myUid) ?? '-'}',
                   theirs: '${ChatGameLogic.rating(game, r, otherUid) ?? '-'}',
                   same:
@@ -328,7 +343,7 @@ class ChatGameView {
         return Column(
           children: [
             _legend(),
-            for (var r = 0; r < ChatGame.roundCount; r++)
+            for (var r = 0; r < game.rounds; r++)
               if (FlagStatements.byId(_item(r)) != null)
                 ResultRow(
                   label: FlagStatements.byId(_item(r))!.text,
@@ -342,7 +357,7 @@ class ChatGameView {
         return Column(
           children: [
             _legend(),
-            for (var r = 0; r < ChatGame.roundCount; r++)
+            for (var r = 0; r < game.rounds; r++)
               if (TelepathyPrompts.byId(_item(r)) != null)
                 ResultRow(
                   label: TelepathyPrompts.byId(_item(r))!.label,

@@ -6,8 +6,13 @@
 // No Flutter or Firebase imports, so it can be unit tested on its own.
 
 enum ChatGameKind {
-  date('💌', 'Build Our Date', 'Plan a pretend date together, card by card.'),
-  rate('🔢', 'Rate It', 'Rate 5 things from 1 to 10 and compare tastes.'),
+  date(
+    '💌',
+    'Build Our Date',
+    'Answer 10 date questions in secret and see how well you match.',
+    10,
+  ),
+  rate('🔢', 'Rate It', 'Rate 10 things from 1 to 10 and compare tastes.', 10),
   flags('🚩', 'Red Flag, Green Flag', 'Vote on 5 dating habits: red or green?'),
   telepathy(
     '🧠',
@@ -15,11 +20,14 @@ enum ChatGameKind {
     'Pick the emojis your match will pick. Sync minds!',
   );
 
-  const ChatGameKind(this.emoji, this.title, this.tagline);
+  const ChatGameKind(this.emoji, this.title, this.tagline, [this.rounds = 5]);
 
   final String emoji;
   final String title;
   final String tagline;
+
+  /// Rounds per game; the rules expect deck keys r0..r(rounds - 1).
+  final int rounds;
 
   static ChatGameKind? byName(Object? name) {
     for (final k in values) {
@@ -49,9 +57,6 @@ class TurnClock {
 }
 
 class ChatGame {
-  /// Every chat game has this many rounds (the rules expect r0..r4).
-  static const int roundCount = 5;
-
   final ChatGameKind kind;
   final String gameId;
   final List<String> players;
@@ -59,11 +64,11 @@ class ChatGame {
   final bool cancelled;
   final int round;
 
-  /// deck[r] = what round r is about: 4 card ids (date), 1 item id
-  /// (rate, flags) or a prompt id + 9 emojis (telepathy).
+  /// deck[r] = what round r is about: 1 question / item id (date, rate,
+  /// flags) or a prompt id + 9 emojis (telepathy).
   final List<List<String>> deck;
 
-  /// picks[r] = {uid: value}. A card id (date), 1..10 (rate),
+  /// picks[r] = {uid: value}. An option index 0..3 (date), 1..10 (rate),
   /// 'red' / 'green' (flags) or a list of 3 emojis (telepathy).
   final List<Map<String, Object>> picks;
 
@@ -96,8 +101,10 @@ class ChatGame {
   DateTime? get deadline =>
       roundStartedAt?.add(const Duration(seconds: TurnClock.seconds));
 
-  bool get isDone => !cancelled && round >= roundCount;
-  bool get isActive => !cancelled && round < roundCount;
+  int get rounds => kind.rounds;
+
+  bool get isDone => !cancelled && round >= rounds;
+  bool get isActive => !cancelled && round < rounds;
 
   Map<String, Object> picksFor(int r) =>
       r >= 0 && r < picks.length ? picks[r] : const {};
@@ -114,6 +121,20 @@ class ChatGame {
 
   static String roundKey(int round) => 'r$round';
 
+  /// [deck] has exactly one entry per round of [kind], each the right size.
+  static bool hasCurrentShape(ChatGameKind kind, Map<dynamic, dynamic> deck) {
+    if (deck.length != kind.rounds) return false;
+    for (var r = 0; r < kind.rounds; r++) {
+      final round = deck[roundKey(r)];
+      if (round is! List || round.length != deckRoundSize(kind)) return false;
+    }
+    return true;
+  }
+
+  /// Entries per deck round; firestore.rules gameRoundOk checks the same.
+  static int deckRoundSize(ChatGameKind kind) =>
+      kind == ChatGameKind.telepathy ? 10 : 1;
+
   /// [data] with timestamps already converted to DateTime.
   static ChatGame? fromMap(ChatGameKind kind, Map<String, dynamic>? data) {
     if (data == null) return null;
@@ -121,12 +142,15 @@ class ChatGame {
     final deckMap = data['deck'];
     if (players == null || players.length != 2 || deckMap is! Map) return null;
     final rawPicks = data['picks'] is Map ? data['picks'] as Map : const {};
+    final roundCount = kind.rounds;
     return ChatGame(
       kind: kind,
       gameId: (data['gameId'] as String?) ?? '',
       players: players,
       createdBy: (data['createdBy'] as String?) ?? '',
-      cancelled: data['status'] == 'cancelled',
+      // A game saved before its kind changed round count reads as ended.
+      cancelled:
+          data['status'] == 'cancelled' || !hasCurrentShape(kind, deckMap),
       round: (data['round'] as num?)?.toInt() ?? 0,
       deck: [
         for (var r = 0; r < roundCount; r++)

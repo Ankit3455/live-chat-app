@@ -76,6 +76,16 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // Native incoming-call notification (CallNotificationExtension.kt).
+    // Keep OneSignal on the version onesignal_flutter pulls in (its android/build.gradle).
+    implementation("com.onesignal:OneSignal:5.10.2")
+    implementation("androidx.core:core-ktx:1.13.1")
+    // Decline from the notification while the app is closed (CallActionReceiver.kt).
+    // Same BoM as firebase_core (FirebaseSDKVersion in its android/gradle.properties).
+    implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-database")
 }
 
 flutter {

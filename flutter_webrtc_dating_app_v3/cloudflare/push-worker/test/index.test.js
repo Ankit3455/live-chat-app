@@ -3,7 +3,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import worker, { oneSignalEndpoint } from '../src/index.js';
+import worker, { oneSignalEndpoint, callCollapseId } from '../src/index.js';
 import { resetJwksCache, decodeFields } from '../src/firebase.js';
 import { resetState } from '../src/limits.js';
 import { offerSendsVideo, pushBody } from '../src/rules.js';
@@ -294,8 +294,11 @@ test('call push: room fallback when the inbox is unreadable', async () => {
   const r = await call('/call-push', { receiverId: BOB, callId: 'alice_c1' });
   assert.deepEqual(r.body, { ok: true, status: 'sent' });
   const p = sent[0];
-  assert.equal(p.existing_android_channel_id, 'onesignal_video_call_channel');
+  assert.equal(p.existing_android_channel_id, 'incoming_call_ring_v1');
   assert.equal(p.ttl, 60);
+  assert.equal(p.collapse_id, 'call_alice_c1');
+  assert.equal(p.data.timestamp, rtdb['rooms/alice_c1'].createdAt);
+  assert.equal(p.data.callType, 'video');
   assert.equal(p.ios_sound, 'incoming_call.caf');
   assert.equal(p.data.type, 'call');
   assert.equal(p.data.conversationId, CONV_ID);
@@ -303,11 +306,14 @@ test('call push: room fallback when the inbox is unreadable', async () => {
 });
 
 test('call push: uses the inbox entry when readable', async () => {
+  const startedAt = Date.now() - 1000;
   rtdb[`incoming_calls/${BOB}/alice_c1`] = {
-    callerId: ALICE, status: 'ringing', callType: 'audio', timestamp: Date.now(), callerAvatar: 'https://a/x.png',
+    callerId: ALICE, status: 'ringing', callType: 'audio', timestamp: startedAt, callerAvatar: 'https://a/x.png',
   };
   await call('/call-push', { receiverId: BOB, callId: 'alice_c1' });
-  assert.equal(sent[0].existing_android_channel_id, 'onesignal_audio_call_channel');
+  assert.equal(sent[0].existing_android_channel_id, 'incoming_call_ring_v1');
+  assert.equal(sent[0].data.callType, 'audio');
+  assert.equal(sent[0].data.timestamp, startedAt);
   assert.equal(sent[0].data.callerAvatar, 'https://a/x.png');
 });
 
@@ -345,6 +351,61 @@ test('call push: per-uid rate limit', async () => {
   let last;
   for (let i = 0; i < 11; i++) last = await call('/call-push', { receiverId: BOB, callId: `alice_x${i}` });
   assert.equal(last.status, 429);
+});
+
+test('call push: collapse id stays within 64 chars for real call ids', async () => {
+  const callId = `${'u'.repeat(28)}_${crypto.randomUUID()}`;
+  const id = callCollapseId(callId);
+  assert.ok(id.length <= 64);
+  assert.ok(id.startsWith('call_'));
+  assert.ok(callId.endsWith(id.slice('call_'.length)));
+  assert.equal(callCollapseId(callId), id);
+});
+
+// ---------- call cancel ----------
+
+test('call cancel: replaces the ringing push with a silent cancel', async () => {
+  rtdb['rooms/alice_c1'].state = 'ended';
+  const r = await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' });
+  assert.deepEqual(r, { status: 200, body: { ok: true, status: 'sent' } });
+  const p = sent[0];
+  assert.deepEqual(p.include_aliases, { external_id: [BOB] });
+  assert.equal(p.collapse_id, 'call_alice_c1');
+  assert.equal(p.contents.en, 'Missed call');
+  assert.equal(p.existing_android_channel_id, 'onesignal_new_chat_channel');
+  assert.deepEqual(p.data, { type: 'call_cancel', callId: 'alice_c1', receiverId: BOB });
+});
+
+test('call cancel: allowed while ringing for the caller and after the room is deleted', async () => {
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' })).body.status, 'sent');
+  delete rtdb['rooms/alice_c2'];
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c2' })).body.status, 'sent');
+  assert.equal(sent.length, 2);
+});
+
+test('call cancel: sent once per call', async () => {
+  await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' });
+  const r = await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' });
+  assert.equal(r.body.status, 'duplicate');
+  assert.equal(sent.length, 1);
+});
+
+test('call cancel: rejects foreign calls, wrong receivers and unreadable rooms', async () => {
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'bob_c1' })).status, 403);
+  assert.equal((await call('/call-cancel', { receiverId: ALICE, callId: 'alice_c1' })).status, 403);
+  assert.equal((await call('/call-cancel', { receiverId: 'carol', callId: 'alice_c1' })).status, 403);
+  rtdb['rooms/alice_c1'] = 'FORBIDDEN';
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' })).status, 403);
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice/c1' })).status, 400);
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' }, { token: '' })).status, 401);
+  assert.equal(sent.length, 0);
+});
+
+test('call cancel: OneSignal failure returns 502 and allows a retry', async () => {
+  oneSignalStatus = 500;
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' })).status, 502);
+  oneSignalStatus = 200;
+  assert.equal((await call('/call-cancel', { receiverId: BOB, callId: 'alice_c1' })).body.status, 'sent');
 });
 
 // ---------- pure helpers ----------
