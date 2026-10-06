@@ -1098,15 +1098,18 @@ describe('firestore.rules', () => {
       await assertSucceeds(setDoc(doc(db('bob'), gamePath), newGame({ createdBy: 'bob', gameId: 'g2', joined: ['bob'] })));
     });
 
-    it('blocked or deleted users cannot start or play', async () => {
+    it('blocked users cannot play', async () => {
       await seedGame();
       await env.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'), { blockedAt: Timestamp.now() });
       });
       await assertFails(pick('alice', 'vibe_chill'));
       await assertFails(pick('bob', 'vibe_chill'));
+    });
+
+    it('a deleted user cannot be played with', async () => {
+      await seedGame();
       await env.withSecurityRulesDisabled(async (ctx) => {
-        await deleteDoc(doc(ctx.firestore(), 'users/bob/blocked/alice'));
         await updateDoc(doc(ctx.firestore(), 'conversations/c1'), { 'participantData.bob.deleted': true });
       });
       await assertFails(pick('alice', 'vibe_chill'));

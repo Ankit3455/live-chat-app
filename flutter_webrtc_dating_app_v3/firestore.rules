@@ -785,7 +785,8 @@ service cloud.firestore {
         && n < 600
         && changedKeys().hasOnly(['moves', 'status', 'turnStartedAt', 'updatedAt'])
         && after.moves.size() == n + 1
-        && after.moves[0:n] == before.moves
+        // [0:0] fails in the rules engine, so an empty list is compared as is.
+        && (n == 0 || after.moves[0:n] == before.moves)
         && after.moves[n] is string
         && after.moves[n].matches(pattern)
         && after.status in ['playing', 'over']
@@ -854,7 +855,7 @@ service cloud.firestore {
         && changedKeys().hasOnly(['picks', 'history', 'turnStartedAt', 'status', 'updatedAt'])
         && after.picks == {}
         && after.history.size() == n + 1
-        && after.history[0:n] == before.history
+        && (n == 0 || after.history[0:n] == before.history)
         && entryOk
         && after.turnStartedAt == request.time
         && after.updatedAt == request.time
