@@ -190,6 +190,17 @@ class SessionService {
           .doc(user.uid)
           .get()
           .timeout(const Duration(seconds: 8));
+      // Presence writes online/lastSeen right at sign-in. Read while that
+      // write is pending, the doc can come back with only those two fields
+      // (no DOB), which would send a finished account to the age gate.
+      for (var i = 0; i < 6 && snap.metadata.hasPendingWrites; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        snap = await _db
+            .collection('users')
+            .doc(user.uid)
+            .get()
+            .timeout(const Duration(seconds: 8));
+      }
     } catch (_) {
       try {
         snap = await _db
