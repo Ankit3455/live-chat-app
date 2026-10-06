@@ -126,36 +126,63 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
         fontWeight: FontWeight.w700,
       );
 
+  /// Not signing up after all (e.g. a new Google account): back to login.
+  /// Only signs out; continuing with Google later resumes from here.
+  void _backToLogin() {
+    if (_saving) return;
+    AuthRouter.signOutToLogin(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDeep,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: _constrained(
-                  AnimatedSwitcher(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 250),
-                    child: _blocked
-                        ? KeyedSubtree(
-                            key: const ValueKey('blocked'),
-                            child: _buildBlocked(),
-                          )
-                        : KeyedSubtree(
-                            key: const ValueKey('form'),
-                            child: _buildForm(),
-                          ),
+    // This screen is the root, so system back would close the app.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _backToLogin();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundDeep,
+        body: SafeArea(
+          child: Column(
+            children: [
+              if (!_blocked)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                    child: IconButton(
+                      icon:
+                          const Icon(Icons.arrow_back, color: AppColors.white),
+                      tooltip: 'Back to login',
+                      onPressed: _saving ? null : _backToLogin,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: _constrained(
+                    AnimatedSwitcher(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 250),
+                      child: _blocked
+                          ? KeyedSubtree(
+                              key: const ValueKey('blocked'),
+                              child: _buildBlocked(),
+                            )
+                          : KeyedSubtree(
+                              key: const ValueKey('form'),
+                              child: _buildForm(),
+                            ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            _constrained(_buildFooter()),
-          ],
+              _constrained(_buildFooter()),
+            ],
+          ),
         ),
       ),
     );
@@ -392,10 +419,9 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
                 ),
                 const SizedBox(height: 4),
                 CustomButton(
-                  text: 'Sign out',
+                  text: 'Back to login',
                   type: ButtonType.text,
-                  onPressed:
-                      _saving ? null : () => AuthRouter.signOutToLogin(context),
+                  onPressed: _saving ? null : _backToLogin,
                 ),
               ],
       ),
