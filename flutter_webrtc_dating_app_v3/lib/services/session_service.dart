@@ -98,6 +98,7 @@ class SessionService {
   // The OneSignal Flutter SDK has no working JWT login yet; once it does,
   // fetch a token from the `mintOneSignalJwt` callable and pass it here.
   Future<void> bindPushIdentity(String uid) async {
+    if (kIsWeb) return;
     try {
       await OneSignal.login(uid);
     } catch (e) {
@@ -106,6 +107,7 @@ class SessionService {
   }
 
   Future<void> unbindPushIdentity() async {
+    if (kIsWeb) return;
     try {
       await OneSignal.logout();
     } catch (e) {

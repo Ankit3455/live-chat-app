@@ -28,6 +28,8 @@ class NotificationChannels {
   /// Creates channels and routes taps to [onTap] (including the tap that
   /// launched the app). Never prompts; see [requestPermissionOnce].
   static Future<void> initialize({void Function(String? payload)? onTap}) async {
+    // Neither plugin has a web implementation.
+    if (kIsWeb) return;
     const AndroidInitializationSettings androidSettings =
     AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -72,6 +74,7 @@ class NotificationChannels {
   /// Asks for notification permission (iOS, Android 13+) at most once per
   /// install. Call after sign-in, when the user has reached the app.
   static Future<void> requestPermissionOnce() async {
+    if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_permissionAskedKey) ?? false) return;

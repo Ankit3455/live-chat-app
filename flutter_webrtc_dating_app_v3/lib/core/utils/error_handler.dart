@@ -1,10 +1,12 @@
-import 'dart:ui';
-
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ErrorHandler {
   static void initialize() {
+    // Crashlytics has no web implementation: keep Flutter's default logging.
+    if (kIsWeb) return;
+
     // Log Flutter framework errors
     FlutterError.onError = (errorDetails) {
       FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
@@ -20,6 +22,7 @@ class ErrorHandler {
   static void logError(String message, dynamic error, StackTrace? stack) {
     debugPrint('❌ ERROR: $message');
     debugPrint('Error: $error');
+    if (kIsWeb) return;
     FirebaseCrashlytics.instance.recordError(
       error,
       stack,

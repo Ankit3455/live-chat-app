@@ -86,6 +86,8 @@ Future<void> _activateAppCheck() async {
 }
 
 void _initOneSignal() {
+  // The OneSignal Flutter SDK has no web implementation.
+  if (kIsWeb) return;
   try {
     OneSignal.initialize(OneSignalService.appId);
     // Registered at startup so the tap that launched the app is delivered.

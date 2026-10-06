@@ -1,11 +1,11 @@
 {
-    "name": "flutter_webrtc_dating_app_v3",
-    "short_name": "flutter_webrtc_dating_app_v3",
+    "name": "Destined",
+    "short_name": "Destined",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0F0A1A",
     "theme_color": "#7C3AED",
-    "description": "A new Flutter project.",
+    "description": "Destined: find your cosmic connection. Chat, call and play games with your matches.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
