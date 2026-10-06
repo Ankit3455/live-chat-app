@@ -1604,7 +1604,7 @@ describe('firestore.rules', () => {
       await assertFails(updateDoc(doc(db('bob'), chessPath),
         { status: 'over', leftBy: 'alice', resignedBy: 'alice', updatedAt: serverTimestamp() }));
       await seedDate({ roundStartedAt: ago(61000) });
-      await assertFails(claim('alice', datePath, 'cancelled', 'alice'));
+      await assertFails(claim('alice', datePath, 'cancelled', 'carol'));
       await assertFails(claim('alice', datePath, 'over', 'bob'));
     });
 
