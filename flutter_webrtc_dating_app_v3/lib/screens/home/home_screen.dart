@@ -14,6 +14,7 @@ import 'package:availchat/models/user_model.dart';
 // Screens
 import 'package:availchat/screens/chat/chat_screen.dart';
 import 'package:availchat/services/presence_watch.dart';
+import 'package:availchat/screens/home/user_search_screen.dart';
 import 'package:availchat/screens/profile/profile_details_screen.dart';
 import 'package:availchat/screens/settings/discovery_settings_screen.dart';
 import 'package:availchat/screens/shell/main_shell.dart';
@@ -159,6 +160,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   Future<void> _clearFilters() => _controller.clearFilters();
+
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+    );
+  }
 
   void _openProfile(UserModel user) {
     Navigator.push(
@@ -317,6 +325,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Search users',
+            onPressed: _openSearch,
+            icon: const Icon(Icons.search_rounded, color: AppColors.white),
           ),
           IconButton(
             tooltip: 'Discovery filters',
