@@ -45,6 +45,10 @@ class UserModel {
   final String? birthTime;
   final String? birthLocation;
   final String? location;
+
+  /// From reverse geocoding: city is private, countryCode (ISO) is public.
+  final String? geoCity;
+  final String? countryCode;
   final String? bio;
 
   // Discovery. Coordinates exist only on the user's own doc; other users are
@@ -125,6 +129,8 @@ class UserModel {
     this.birthTime,
     this.birthLocation,
     this.location,
+    this.geoCity,
+    this.countryCode,
     this.bio,
     this.userLatitude,
     this.userLongitude,
@@ -335,6 +341,8 @@ class UserModel {
       age: _int(map['age']),
       birthTime: _str(map['birthTime']),
       birthLocation: _str(map['birthLocation']) ?? _str(map['placeOfBirth']),
+      geoCity: _str(map['geoCity']),
+      countryCode: _str(map['countryCode']),
       location: _str(map['location']),
       bio: _str(map['bio']),
       userLatitude: _double(map['userLatitude']),
@@ -424,6 +432,8 @@ class UserModel {
       'birthTime': birthTime,
       'birthLocation': birthLocation,
       'location': location,
+      'geoCity': geoCity,
+      'countryCode': countryCode,
       'bio': bio,
       'userLatitude': userLatitude,
       'userLongitude': userLongitude,
@@ -495,6 +505,8 @@ class UserModel {
     String? birthTime,
     String? birthLocation,
     String? location,
+    String? geoCity,
+    String? countryCode,
     String? bio,
     double? userLatitude,
     double? userLongitude,
@@ -563,6 +575,8 @@ class UserModel {
       birthTime: birthTime ?? this.birthTime,
       birthLocation: birthLocation ?? this.birthLocation,
       location: location ?? this.location,
+      geoCity: geoCity ?? this.geoCity,
+      countryCode: countryCode ?? this.countryCode,
       bio: bio ?? this.bio,
       userLatitude: userLatitude ?? this.userLatitude,
       userLongitude: userLongitude ?? this.userLongitude,

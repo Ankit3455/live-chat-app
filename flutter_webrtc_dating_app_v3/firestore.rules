@@ -168,6 +168,8 @@ service cloud.firestore {
         && strMax(d, k, 'hereFor', 200)
         && strMax(d, k, 'city', 100)
         && strMax(d, k, 'currentCity', 100)
+        && strMax(d, k, 'geoCity', 100)
+        && strMax(d, k, 'countryCode', 2)
         && strMax(d, k, 'placeOfBirth', 150)
         && strMax(d, k, 'birthLocation', 150)
         && strMax(d, k, 'birthTime', 20)
@@ -227,7 +229,8 @@ service cloud.firestore {
         'personalityPriority', 'believesInAstrology', 'astrologyBeliefLevel',
         'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
         'gender', 'avatarProperties', 'age', 'geohash', 'discoveryEnabled',
-        'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages'
+        'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages',
+        'countryCode'
       ];
     }
 
@@ -256,6 +259,7 @@ service cloud.firestore {
         && strMax(d, k, 'idealDate', 500)
         && strMax(d, k, 'hereFor', 200)
         && strMax(d, k, 'gender', 50)
+        && strMax(d, k, 'countryCode', 2)
         && strMax(d, k, 'profileImage', 2048)
         && strMax(d, k, 'avatar', 2048)
         && strMax(d, k, 'voiceIntroUrl', 2048)

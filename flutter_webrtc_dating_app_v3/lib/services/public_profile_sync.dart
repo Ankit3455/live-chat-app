@@ -111,6 +111,7 @@ class PublicProfileSync {
     'idealDate': 500,
     'hereFor': 200,
     'gender': 50,
+    'countryCode': 2,
   };
   static const List<String> _urlKeys = [
     'profileImage',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -26,6 +28,10 @@ enum LocationUpdateResult {
 ///
 /// A device fix ('gps') wins over a typed city ('city'): the city's centre
 /// only fills in when there is no recent device fix.
+///
+/// Each saved position is reverse-geocoded on the device (no API key) into
+/// `geoCity` (private, for the user's own labels) and `countryCode` (ISO,
+/// public: coarse enough to share).
 class LocationService {
   LocationService._();
   static final LocationService instance = LocationService._();
@@ -72,6 +78,7 @@ class LocationService {
       final position = await _currentPosition();
       if (position == null) return LocationUpdateResult.failed;
       await _save(uid, position.latitude, position.longitude, sourceGps);
+      unawaited(_savePlace(uid, position.latitude, position.longitude));
       return LocationUpdateResult.updated;
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
@@ -115,6 +122,9 @@ class LocationService {
         results.first.longitude,
         sourceCity,
       );
+      unawaited(
+        _savePlace(uid, results.first.latitude, results.first.longitude),
+      );
       return true;
     } catch (e) {
       if (kDebugMode) debugPrint('Geocoding "$query" failed: $e');
@@ -151,6 +161,50 @@ class LocationService {
       if (kDebugMode)
         debugPrint('Fresh position failed, trying last known: $e');
       return Geolocator.getLastKnownPosition();
+    }
+  }
+
+  /// City and country of a position from the platform geocoder, or nulls.
+  static Future<({String? city, String? countryCode})> placeOf(
+    double lat,
+    double lng,
+  ) async {
+    try {
+      final marks = await placemarkFromCoordinates(lat, lng)
+          .timeout(const Duration(seconds: 8));
+      if (marks.isEmpty) return (city: null, countryCode: null);
+      final m = marks.first;
+      String? clean(String? v) {
+        final t = v?.trim() ?? '';
+        return t.isEmpty ? null : t;
+      }
+
+      final code = clean(m.isoCountryCode)?.toUpperCase();
+      return (
+        city: clean(m.locality) ?? clean(m.subAdministrativeArea),
+        countryCode: code != null && code.length == 2 ? code : null,
+      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('Reverse geocoding failed: $e');
+      return (city: null, countryCode: null);
+    }
+  }
+
+  Future<void> _savePlace(String uid, double lat, double lng) async {
+    final place = await placeOf(lat, lng);
+    final fields = <String, dynamic>{
+      if (place.city != null) 'geoCity': place.city,
+      if (place.countryCode != null) 'countryCode': place.countryCode,
+    };
+    if (fields.isEmpty) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .set(fields, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 6), onTimeout: () {});
+    } catch (e) {
+      if (kDebugMode) debugPrint('Saving place failed: $e');
     }
   }
 
