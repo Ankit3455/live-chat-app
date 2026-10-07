@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:availchat/managers/filter_preferences.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
@@ -24,6 +26,10 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   DiscoveryFeed? _feed;
   DiscoveryFilters _filters = const DiscoveryFilters();
   Set<String> _hiddenUids = const {};
+
+  /// Passed on this device: uid -> epoch ms. Hidden for [_passFor].
+  Map<String, int> _passedAt = {};
+  static const Duration _passFor = Duration(days: 7);
 
   List<UserModel> _allUsers = [];
   List<UserModel> _displayedUsers = [];
@@ -99,6 +105,7 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
     _listenToHidden();
     unawaited(LocationService.instance.refreshIfPermitted());
     _filters = await filters;
+    await _loadPassed(uid);
     await Future.wait([_reloadFeed(), _checkProfileCompletion()]);
   }
 
@@ -229,11 +236,63 @@ class HomeController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _publishUsers() {
-    _displayedUsers = List.unmodifiable(_allUsers);
+    final cutoff = DateTime.now().subtract(_passFor).millisecondsSinceEpoch;
+    _displayedUsers = List.unmodifiable(
+      _allUsers.where((u) => (_passedAt[u.uid] ?? 0) < cutoff),
+    );
     PresenceWatch.instance.watch(
       _allUsers.map((u) => u.uid).whereType<String>(),
     );
     _notify();
+  }
+
+  // ===========================================================================
+  // Pass
+  // ===========================================================================
+
+  String _passKey(String uid) => 'discover_passed_$uid';
+
+  Future<void> _loadPassed(String uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_passKey(uid));
+      if (raw == null) return;
+      final cutoff = DateTime.now().subtract(_passFor).millisecondsSinceEpoch;
+      _passedAt = {
+        for (final e in (jsonDecode(raw) as Map).entries)
+          if (e.value is int && (e.value as int) >= cutoff)
+            e.key.toString(): e.value as int,
+      };
+    } catch (e) {
+      debugPrint('Loading passed profiles failed: $e');
+    }
+  }
+
+  Future<void> _savePassed() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_passKey(uid), jsonEncode(_passedAt));
+    } catch (e) {
+      debugPrint('Saving passed profiles failed: $e');
+    }
+  }
+
+  /// Hides [user] from the feed on this device for a week.
+  Future<void> pass(UserModel user) async {
+    final uid = user.uid;
+    if (uid == null) return;
+    _passedAt = {..._passedAt, uid: DateTime.now().millisecondsSinceEpoch};
+    _publishUsers();
+    await _savePassed();
+  }
+
+  Future<void> undoPass(UserModel user) async {
+    if (_passedAt.remove(user.uid) == null) return;
+    _passedAt = {..._passedAt};
+    _publishUsers();
+    await _savePassed();
   }
 
   // ===========================================================================

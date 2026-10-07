@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../managers/unread_manager.dart';
@@ -36,68 +38,62 @@ class CustomBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final unread = context.watch<UnreadManager>().totalUnread;
 
-    return Container(
-      // minHeight (not height) so scaled labels can grow the bar.
-      constraints: const BoxConstraints(minHeight: 70),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.surfaceCard.withOpacity(0.95),
-            AppColors.backgroundDeep.withOpacity(0.95),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(35),
-        border: Border.all(
-          color: AppColors.brandPurple.withOpacity(0.3),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brandPurple.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+    // Frosted glass: blur what scrolls underneath.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          // minHeight (not height) so scaled labels can grow the bar.
+          constraints: const BoxConstraints(minHeight: 66),
+          decoration: BoxDecoration(
+            color: const Color(0xB8160F25),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: AppColors.brandPurpleLight.withOpacity(0.18),
+            ),
           ),
-        ],
-      ),
-      // Cap label scaling; full labels stay in Semantics.
-      child: MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 1.3,
-        // Without this the Centered items take the bar's max height and the
-        // bar fills the whole screen (bottomNavigationBar has no max).
-        child: IntrinsicHeight(
-          child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              icon: Icons.explore,
-              label: 'Discover',
-              isSelected: currentIndex == 0,
-              itemKey: _keyAt(0),
-              onTap: () => _select(0),
+          // Cap label scaling; full labels stay in Semantics.
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.3,
+            // Without this the Centered items take the bar's max height and the
+            // bar fills the whole screen (bottomNavigationBar has no max).
+            child: IntrinsicHeight(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavItem(
+                    icon: Icons.explore,
+                    label: 'Discover',
+                    isSelected: currentIndex == 0,
+                    itemKey: _keyAt(0),
+                    onTap: () => _select(0),
+                  ),
+                  _NavItem(
+                    icon: Icons.chat_bubble,
+                    label: 'Chats',
+                    isSelected: currentIndex == 1,
+                    badgeCount: unread,
+                    itemKey: _keyAt(1),
+                    onTap: () => _select(1),
+                  ),
+                  _NavItem(
+                    icon: Icons.games,
+                    label: 'Games',
+                    isSelected: currentIndex == 2,
+                    itemKey: _keyAt(2),
+                    onTap: () => _select(2),
+                  ),
+                  _NavItem(
+                    icon: Icons.person,
+                    label: 'Profile',
+                    isSelected: currentIndex == 3,
+                    itemKey: _keyAt(3),
+                    onTap: () => _select(3),
+                  ),
+                ],
+              ),
             ),
-            _NavItem(
-              icon: Icons.chat_bubble,
-              label: 'Chats',
-              isSelected: currentIndex == 1,
-              badgeCount: unread,
-              itemKey: _keyAt(1),
-              onTap: () => _select(1),
-            ),
-            _NavItem(
-              icon: Icons.games,
-              label: 'Games',
-              isSelected: currentIndex == 2,
-              itemKey: _keyAt(2),
-              onTap: () => _select(2),
-            ),
-            _NavItem(
-              icon: Icons.person,
-              label: 'Profile',
-              isSelected: currentIndex == 3,
-              itemKey: _keyAt(3),
-              onTap: () => _select(3),
-            ),
-          ],
           ),
         ),
       ),
@@ -145,19 +141,32 @@ class _NavItem extends StatelessWidget {
   }
 
   Widget _buildPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: isSelected
-            ? const LinearGradient(
-                colors: [AppColors.brandPurple, AppColors.brandPurpleMid],
-              )
-            : null,
-        borderRadius: BorderRadius.circular(18),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Glowing marker above the active tab.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: isSelected ? 28 : 0,
+            height: 3,
+            margin: const EdgeInsets.only(bottom: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              gradient: const LinearGradient(
+                colors: [AppColors.brandPurple, AppColors.brandPink],
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.brandMagenta.withOpacity(.8),
+                        blurRadius: 10,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
           _buildIcon(),
           const SizedBox(height: 3),
           Text(

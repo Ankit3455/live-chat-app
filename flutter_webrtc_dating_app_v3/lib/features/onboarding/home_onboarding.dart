@@ -198,8 +198,13 @@ class HomeOnboarding {
     final bubblesKey = keys.bubbles;
     final firstGridItemKey = keys.firstGridItem;
     final secondGridItemKey = keys.secondGridItem;
+    // bubbles = Tonight's Draw, firstGridItem = the orbit, secondGridItem =
+    // the first match card (only built once it scrolls into range).
     final hasBubbles = bubblesKey.currentContext != null;
-    final totalSteps = hasBubbles ? 3 : 2;
+    final hasFirst = firstGridItemKey.currentContext != null;
+    final hasSecond = secondGridItemKey.currentContext != null;
+    final totalSteps =
+        (hasBubbles ? 1 : 0) + (hasFirst ? 1 : 0) + (hasSecond ? 1 : 0);
     final stepOffset = hasBubbles ? 0 : -1;
 
     // Get screen dimensions for smart positioning
@@ -230,9 +235,9 @@ class HomeOnboarding {
                   totalSteps: totalSteps,
                   icon: Icons.auto_awesome_rounded,
                   iconColor: AppColors.gold,
-                  title: "Online now",
+                  title: "Tonight's Draw",
                   description:
-                      "People who are online right now. Scroll sideways and tap someone to start a chat.",
+                      "Your most compatible people today, face down. Tap a card to reveal it, tap again to open the profile. New cards every midnight.",
                   buttonText: "Next",
                   isLastStep: false,
                   onButtonTap: () {
@@ -280,13 +285,13 @@ class HomeOnboarding {
                   context: context,
                   stepNumber: 2 + stepOffset,
                   totalSteps: totalSteps,
-                  icon: Icons.touch_app_rounded,
+                  icon: Icons.travel_explore_rounded,
                   iconColor: AppColors.online,
-                  title: "Tap to view a profile",
+                  title: "In your orbit",
                   description:
-                      "Tap any profile to see their photos and details, then say hello from there.",
-                  buttonText: "Next",
-                  isLastStep: false,
+                      "See who's around, from your area out to everywhere. Pinch or slide to zoom, and tap someone to open their profile.",
+                  buttonText: hasSecond ? "Next" : "Got it",
+                  isLastStep: !hasSecond,
                   onButtonTap: () {
                     HapticFeedback.selectionClick();
                     controller.next();
@@ -303,11 +308,9 @@ class HomeOnboarding {
     // =========================================================================
     // Step 3: Hold for Details - Use second grid item, tooltip ABOVE
     // =========================================================================
-    final holdKey = secondGridItemKey.currentContext != null
-        ? secondGridItemKey
-        : firstGridItemKey;
+    final holdKey = secondGridItemKey;
 
-    if (holdKey.currentContext != null) {
+    if (hasSecond) {
       // Get position of the hold target
       final RenderBox? renderBox =
           holdKey.currentContext?.findRenderObject() as RenderBox?;
@@ -344,7 +347,7 @@ class HomeOnboarding {
                   iconColor: AppColors.error,
                   title: "Hold for a quick look",
                   description:
-                      "Press and hold any profile for a quick look at their bio, interests and compatibility.",
+                      "Press and hold a match card for a quick look at their bio, interests and compatibility. Say hi right from the card.",
                   buttonText: "Got it",
                   isLastStep: true,
                   onButtonTap: () {

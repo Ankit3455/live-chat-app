@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 
 // Core
 import 'package:availchat/core/constants/app_colors.dart';
+import 'package:availchat/core/utils/compatibility_utils.dart';
+import 'package:availchat/core/utils/discover_picks.dart';
 import 'package:availchat/managers/filter_preferences.dart';
 
 // Models
@@ -16,13 +17,15 @@ import 'package:availchat/screens/chat/chat_screen.dart';
 import 'package:availchat/services/presence_watch.dart';
 import 'package:availchat/screens/home/user_search_screen.dart';
 import 'package:availchat/screens/profile/profile_details_screen.dart';
+import 'package:availchat/screens/questionnaire/deck/deck_widgets.dart';
+import 'package:availchat/screens/questionnaire/profile_completion_screen.dart';
 import 'package:availchat/screens/settings/discovery_settings_screen.dart';
 import 'package:availchat/screens/shell/main_shell.dart';
 
 // Widgets
-import 'widgets/profile_bubble.dart';
-import 'widgets/profile_card.dart';
-import 'widgets/profile_completion_banner.dart';
+import 'widgets/cosmic_match_card.dart';
+import 'widgets/orbit_view.dart';
+import 'widgets/tonights_draw.dart';
 
 import 'package:availchat/widgets/app_states.dart';
 
@@ -41,7 +44,9 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) => const MainShell();
 }
 
-/// Discover tab: the profile feed. Lives inside [MainShell].
+/// Discover tab ("Tonight's Draw"): today's three most compatible people,
+/// a zoomable orbit of who's around, and cosmic match cards. Lives inside
+/// [MainShell].
 class DiscoverTab extends StatefulWidget {
   const DiscoverTab({super.key});
 
@@ -105,8 +110,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   void _onShellTabChanged() => _maybeStartAutoTour();
 
-  /// Online list frozen while the home tour is showing.
-  List<UserModel>? _onlineDuringTour;
+  /// Quick lens over the loaded feed (chips above the match cards).
+  _Lens _lens = _Lens.forYou;
 
   bool get _isVisibleTab =>
       (_shellTab?.value ?? MainShell.discoverTab) == MainShell.discoverTab;
@@ -189,6 +194,30 @@ class _DiscoverTabState extends State<DiscoverTab> {
     );
   }
 
+  Future<void> _openCompletion() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileCompletionScreen()),
+    );
+    if (mounted) await _controller.refresh();
+  }
+
+  void _pass(UserModel user) {
+    unawaited(_controller.pass(user));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${user.username} hidden for a week'),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => unawaited(_controller.undoPass(user)),
+          ),
+        ),
+      );
+  }
+
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -204,39 +233,26 @@ class _DiscoverTabState extends State<DiscoverTab> {
   // BUILD METHOD
   // ===========================================================================
 
-  // More columns on tablets: 3 at >= 600dp, 4 at >= 900dp.
-  static SliverGridDelegate _gridDelegateFor(double width) {
-    final columns = width >= 900
-        ? 4
-        : width >= 600
-            ? 3
-            : 2;
-    return SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: columns,
-      childAspectRatio: 4 / 5,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final filterLabels = _activeFilterLabels();
     return Scaffold(
-      backgroundColor: AppColors.appBackground,
-      body: Stack(
-        children: [
-          _buildBackground(),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                _buildHeader(filterLabels.isNotEmpty),
-                Expanded(child: _buildFeed(filterLabels)),
-              ],
+      backgroundColor: AppColors.backgroundDarkest,
+      body: DeckBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                children: [
+                  _buildHeader(filterLabels.isNotEmpty),
+                  Expanded(child: _buildFeed(filterLabels)),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -276,94 +292,116 @@ class _DiscoverTabState extends State<DiscoverTab> {
   // UI COMPONENTS
   // ===========================================================================
 
-  Widget _buildBackground() {
-    return Stack(
-      children: [
-        // A still frame in its own layer: animating this full-screen Lottie
-        // repainted every frame (also while idle) and made scrolling jank on
-        // phones.
-        Positioned.fill(
-          child: RepaintBoundary(
-            child: Lottie.asset(
-              'assets/animations/space.json',
-              fit: BoxFit.cover,
-              animate: false,
-              errorBuilder: (context, error, stackTrace) {
-                return const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        AppColors.backgroundDeep,
-                        AppColors.backgroundDarkest,
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: ColoredBox(color: AppColors.black.withOpacity(0.3)),
-        ),
-      ],
-    );
-  }
-
   Widget _buildHeader(bool filtersActive) {
+    final me = _controller.currentUser;
+    final now = DateTime.now();
+    final moon = DiscoverPicks.moonPhase(now);
+    final name = (me?.username ?? '').trim();
+    final pct = _controller.profileCompletionPercentage;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 8, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 10, 4),
       child: Row(
         children: [
-          Expanded(
-            child: Semantics(
-              header: true,
-              child: Text(
-                'Discover',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Search users',
-            onPressed: _openSearch,
-            icon: const Icon(Icons.search_rounded, color: AppColors.white),
-          ),
-          IconButton(
-            tooltip: 'Discovery filters',
-            onPressed: _openDiscoverySettings,
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.tune_rounded, color: AppColors.white),
-                if (filtersActive)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: AppColors.brandPink,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.backgroundDeep,
-                          width: 2,
+          Semantics(
+            button: true,
+            label: 'Profile $pct% complete. Complete your profile',
+            excludeSemantics: true,
+            child: GestureDetector(
+              onTap: _openCompletion,
+              child: SizedBox(
+                width: 46,
+                height: 46,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CircularProgressIndicator(
+                        value: pct / 100,
+                        strokeWidth: 2.5,
+                        backgroundColor: Colors.white.withOpacity(.12),
+                        valueColor:
+                            const AlwaysStoppedAnimation(AppColors.gold),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: ClipOval(
+                          child: me == null
+                              ? const ColoredBox(color: AppColors.surface2)
+                              : DiscoverPhoto(user: me, memCacheWidth: 140),
                         ),
                       ),
                     ),
+                    if (pct < 100)
+                      Positioned(
+                        right: -6,
+                        bottom: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '$pct%',
+                            style: const TextStyle(
+                              color: Color(0xFF2A1700),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${moon.emoji} ${moon.name} · tonight',
+                  style: deckSerif(13, color: AppColors.gold, italic: true),
+                ),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    name.isEmpty || name == 'Unknown'
+                        ? DiscoverPicks.greeting(now)
+                        : '${DiscoverPicks.greeting(now)}, $name',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: deckSerif(21),
                   ),
+                ),
               ],
             ),
+          ),
+          _HeaderButton(
+            icon: Icons.search_rounded,
+            label: 'Search users',
+            onTap: _openSearch,
+          ),
+          const SizedBox(width: 8),
+          _HeaderButton(
+            icon: Icons.tune_rounded,
+            label: 'Discovery filters',
+            dot: filtersActive,
+            onTap: _openDiscoverySettings,
           ),
         ],
       ),
     );
   }
 
-  /// One scroll view: chips, nudge, online strip and grid all scroll together.
+  /// One scroll view: draw, nudge, orbit and match cards scroll together.
   Widget _buildFeed(List<String> filterLabels) {
     final filtersActive = filterLabels.isNotEmpty;
     return RefreshIndicator(
@@ -372,34 +410,56 @@ class _DiscoverTabState extends State<DiscoverTab> {
       backgroundColor: AppColors.surfaceCard,
       child: NotificationListener<ScrollNotification>(
         onNotification: _onFeedScroll,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final grid = _gridDelegateFor(constraints.maxWidth);
-            return CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                if (filtersActive)
-                  SliverToBoxAdapter(child: _buildFilterChips(filterLabels)),
-                ..._buildStateSlivers(filtersActive, grid),
-              ],
-            );
-          },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (filtersActive)
+              SliverToBoxAdapter(child: _buildFilterChips(filterLabels)),
+            ..._buildStateSlivers(filtersActive),
+          ],
         ),
       ),
     );
   }
 
-  // Paginated feed: fetch the next page near the end of the grid.
+  // Paginated feed: fetch the next page near the end of the list.
   bool _onFeedScroll(ScrollNotification n) {
     if (n.metrics.axis == Axis.vertical &&
-        n.metrics.extentAfter < 600 &&
+        n.metrics.extentAfter < 900 &&
         _controller.displayedUsers.isNotEmpty) {
       unawaited(_controller.loadMore());
     }
     return false;
   }
 
-  List<Widget> _buildStateSlivers(bool filtersActive, SliverGridDelegate grid) {
+  List<UserModel> _applyLens(List<UserModel> users) {
+    final me = _controller.currentUser;
+    final presence = PresenceWatch.instance;
+    switch (_lens) {
+      case _Lens.forYou:
+        return users;
+      case _Lens.bestMatch:
+        int score(UserModel u) =>
+            CompatibilityService.compatibilityScore(me, u) ?? -1;
+        return [...users]..sort((a, b) => score(b).compareTo(score(a)));
+      case _Lens.nearby:
+        int km(UserModel u) => _controller.distanceKmFor(u) ?? 1 << 30;
+        return [...users]..sort((a, b) => km(a).compareTo(km(b)));
+      case _Lens.online:
+        return users.where((u) => presence.isOnline(u.uid)).toList();
+      case _Lens.voice:
+        return users
+            .where((u) => (u.voiceIntroUrl ?? '').trim().isNotEmpty)
+            .toList();
+      case _Lens.signs:
+        final wanted = me?.preferredSigns.toSet() ?? const <String>{};
+        return users
+            .where((u) => wanted.contains(CompatibilityService.signOf(u)))
+            .toList();
+    }
+  }
+
+  List<Widget> _buildStateSlivers(bool filtersActive) {
     if (_controller.error != null) {
       return [
         SliverFillRemaining(
@@ -416,21 +476,15 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ];
     }
 
-    if (_controller.isLoading) return [_buildSkeletonGrid(grid)];
+    if (_controller.isLoading) return [_buildSkeleton()];
 
     // Online state comes from RTDB presence; the users' `online` field goes
     // stale when an app is killed.
     final presence = PresenceWatch.instance;
     final allUsers = _controller.displayedUsers;
-    var online = allUsers.where((u) => presence.isOnline(u.uid)).toList();
-    // Keep the "Online now" strip as it was while the tour is up, so the
-    // spotlighted widgets don't move under it.
-    if (HomeOnboarding.showing.value) {
-      online = _onlineDuringTour ??= online;
-    } else {
-      _onlineDuringTour = null;
-    }
-    final users = _controller.filters.onlineOnly ? online : allUsers;
+    final users = _controller.filters.onlineOnly
+        ? allUsers.where((u) => presence.isOnline(u.uid)).toList()
+        : allUsers;
     if (users.isEmpty) {
       return [
         SliverFillRemaining(
@@ -440,33 +494,81 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ];
     }
 
+    final me = _controller.currentUser;
+    final picks = DiscoverPicks.tonightsDraw(users, me, DateTime.now());
+    final matches = _applyLens(users);
+
     return [
-      if (_controller.showBanner)
-        SliverToBoxAdapter(
+      SliverToBoxAdapter(
+        child: KeyedSubtree(
+          key: _tourKeys.bubbles,
+          child: TonightsDraw(picks: picks, me: me, onOpen: _openProfile),
+        ),
+      ),
+      if (_controller.showBanner) SliverToBoxAdapter(child: _buildDeckNudge()),
+      SliverToBoxAdapter(
+        child: _buildSectionTitle(
+          'In your orbit',
+          'Pinch or slide to explore',
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: KeyedSubtree(
+          key: _tourKeys.firstGridItem,
+          child: OrbitZoom(
+            me: me,
+            people: users,
+            distanceKmOf: _controller.distanceKmFor,
+            onOpen: _openProfile,
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: _buildSectionTitle(
+          'Cosmic matches',
+          _lens == _Lens.forYou ? 'Recently active' : _lens.caption,
+        ),
+      ),
+      SliverToBoxAdapter(child: _buildLensChips(me)),
+      if (matches.isEmpty)
+        const SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: ProfileCompletionBanner(
-              completionPercentage: _controller.profileCompletionPercentage,
-              onDismiss: _controller.dismissBanner,
+            padding: EdgeInsets.fromLTRB(24, 28, 24, 8),
+            child: Text(
+              'No one matches this right now. Try another chip ✦',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.lavender, fontSize: 13),
             ),
           ),
-        ),
-      if (online.isNotEmpty) ...[
-        SliverToBoxAdapter(
-          child: _buildSectionTitle(
-            'Online now',
-            online.length == 1 ? '1 person' : '${online.length} people',
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverList.separated(
+            itemCount: matches.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final user = matches[index];
+              final card = CosmicMatchCard(
+                key: ValueKey('match-${user.uid}'),
+                user: user,
+                me: me,
+                distanceKm: _controller.distanceKmFor(user),
+                onView: () => _openProfile(user),
+                onSayHi: () => _navigateToChat(user),
+                onPass: () => _pass(user),
+              );
+              // Onboarding tour target ("hold for a quick look").
+              if (index == 0) {
+                return KeyedSubtree(key: _tourKeys.secondGridItem, child: card);
+              }
+              return card;
+            },
           ),
         ),
-        SliverToBoxAdapter(child: _buildOnlineStrip(online.take(20).toList())),
-      ],
-      SliverToBoxAdapter(
-        child: _buildSectionTitle('For you', 'Recently active'),
-      ),
-      _buildProfileGrid(users, grid),
       SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.fromLTRB(0, 22, 0, 120),
           child: _controller.isLoadingMore
               ? const Center(
                   child: SizedBox(
@@ -478,24 +580,130 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     ),
                   ),
                 )
-              : const SizedBox(height: 24),
+              : const Text(
+                  "✦ That's everyone for now. New stars rise every day.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
+                ),
         ),
       ),
     ];
   }
 
+  Widget _buildDeckNudge() {
+    final pct = _controller.profileCompletionPercentage;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _openCompletion,
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(colors: [
+                AppColors.gold.withOpacity(.14),
+                AppColors.brandPurple.withOpacity(.14),
+              ]),
+              border: Border.all(color: AppColors.gold.withOpacity(.3)),
+            ),
+            child: Row(
+              children: [
+                const Text('🃏', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Your profile is $pct% drawn', style: deckSerif(16)),
+                      const Text(
+                        'Finish your Destiny Deck to stand out in Discover',
+                        style: TextStyle(
+                            color: AppColors.lavender, fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss',
+                  onPressed: _controller.dismissBanner,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppColors.textSubtle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLensChips(UserModel? me) {
+    final lenses = [
+      for (final l in _Lens.values)
+        if (l != _Lens.signs || (me?.preferredSigns.isNotEmpty ?? false)) l,
+    ];
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: lenses.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final l = lenses[i];
+          final on = l == _lens;
+          return Semantics(
+            button: true,
+            selected: on,
+            label: l.label,
+            excludeSemantics: true,
+            child: GestureDetector(
+              onTap: () => setState(() => _lens = l),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  gradient: on ? deckGradient : null,
+                  color: on ? null : AppColors.surfaceCard.withOpacity(.85),
+                  border: Border.all(
+                    color: on ? Colors.transparent : AppColors.border,
+                  ),
+                ),
+                child: Text(
+                  l.label,
+                  style: TextStyle(
+                    color: on ? Colors.white : AppColors.lavenderLight,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildFilterChips(List<String> labels) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
         children: [
           for (final label in labels)
             Container(
-              constraints: const BoxConstraints(minHeight: 32),
+              constraints: const BoxConstraints(minHeight: 30),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: AppColors.brandPurpleMid.withOpacity(0.18),
                 borderRadius: BorderRadius.circular(999),
@@ -505,7 +713,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 label,
                 style: const TextStyle(
                   color: AppColors.brandPurpleLight,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -516,101 +724,58 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   Widget _buildSectionTitle(String title, String caption) {
-    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(
-                title,
-                style:
-                    textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
+              child: Text(title, style: deckSerif(23)),
             ),
           ),
-          Text(caption, style: textTheme.bodySmall),
+          Text(
+            caption,
+            style: const TextStyle(color: AppColors.textSubtle, fontSize: 11.5),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildOnlineStrip(List<UserModel> users) {
-    return SizedBox(
-      key: _tourKeys.bubbles,
-      height: 92,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: users.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          final user = users[index];
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ProfileBubble(
-              user: user,
-              onTap: () => _navigateToChat(user),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProfileGrid(List<UserModel> users, SliverGridDelegate grid) {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverGrid(
-        gridDelegate: grid,
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final user = users[index];
-            final card = ProfileCard(
-              user: user,
-              currentUser: _controller.currentUser,
-              distanceKm: _controller.distanceKmFor(user),
-              onTap: () => _openProfile(user),
-              onMessage: () => _navigateToChat(user),
-            );
-
-            // Onboarding tour targets.
-            if (index == 0) {
-              return KeyedSubtree(key: _tourKeys.firstGridItem, child: card);
-            }
-            if (index == 1) {
-              return KeyedSubtree(key: _tourKeys.secondGridItem, child: card);
-            }
-            return card;
-          },
-          childCount: users.length,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonGrid(SliverGridDelegate grid) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      sliver: SliverGrid(
-        gridDelegate: grid,
-        delegate: SliverChildBuilderDelegate(
-          (_, index) => Semantics(
-            label: index == 0 ? 'Loading people' : null,
-            child: const DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.all(Radius.circular(20)),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppColors.surfaceCard, AppColors.surface2],
-                ),
-              ),
+  Widget _buildSkeleton() {
+    Widget block(double h) => Container(
+          height: h,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.surfaceCard, AppColors.surface2],
             ),
           ),
-          childCount: 6,
+        );
+    return SliverToBoxAdapter(
+      child: Semantics(
+        label: 'Loading people',
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                children: [
+                  for (var i = 0; i < 3; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: block(196)),
+                  ],
+                ],
+              ),
+            ),
+            block(330),
+            block(420),
+          ],
         ),
       ),
     );
@@ -637,6 +802,82 @@ class _DiscoverTabState extends State<DiscoverTab> {
       onAction: _openDiscoverySettings,
       secondaryLabel: filtersActive ? 'Clear all filters' : null,
       onSecondary: filtersActive ? _clearFilters : null,
+    );
+  }
+}
+
+/// Quick views over the loaded feed.
+enum _Lens {
+  forYou('✦ For you', 'Recently active'),
+  bestMatch('💞 Best match', 'Most compatible first'),
+  nearby('📍 Nearby', 'Closest first'),
+  online('🟢 Online', 'Online now'),
+  voice('🎙️ Voice intro', 'Has a voice intro'),
+  signs('♎ Your signs', 'Signs you vibe with');
+
+  final String label;
+  final String caption;
+  const _Lens(this.label, this.caption);
+}
+
+class _HeaderButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool dot;
+  final VoidCallback onTap;
+  const _HeaderButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.dot = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: dot ? '$label, active' : label,
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.surfaceCard.withOpacity(.7),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, color: AppColors.lavenderLight, size: 20),
+                if (dot)
+                  Positioned(
+                    top: 9,
+                    right: 10,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: AppColors.brandPink,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.backgroundDeep,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
