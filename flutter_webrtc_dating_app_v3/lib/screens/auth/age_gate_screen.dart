@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/haptics.dart';
+import '../../services/session_service.dart';
 import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
@@ -82,8 +83,8 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
     setState(() => _saving = true);
     try {
       final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      // Presence may have created a bare doc; createdAt marks a real profile.
-      final exists = (await ref.get()).data()?['createdAt'] != null;
+      // Throws offline, which shows the retry error below.
+      final exists = await SessionService.instance.hasRealProfile(user.uid);
       final zodiac = AstrologyUtils.zodiacFromDob(
         AgePolicy.legacyDobFormat.format(dob),
       );

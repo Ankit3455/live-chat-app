@@ -178,6 +178,21 @@ class SessionService {
     }
   }
 
+  /// Whether `users/{uid}` is a real profile (has createdAt), read from the
+  /// server. Right after sign-in the cache is empty (cleared on sign-out) and
+  /// presence's pending online/lastSeen write makes a cached read look like a
+  /// bare doc, which would re-run onboarding defaults on a finished account.
+  /// Throws when the server can't be reached; callers must not write
+  /// defaults then.
+  Future<bool> hasRealProfile(String uid) async {
+    final snap = await _db
+        .collection('users')
+        .doc(uid)
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 8));
+    return snap.data()?['createdAt'] != null;
+  }
+
   /// Decides the landing screen from auth + `users/{uid}` state.
   /// Falls back to home when the profile cannot be read (offline, no cache)
   /// so a network blip never locks a user out.

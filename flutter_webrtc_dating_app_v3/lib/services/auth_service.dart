@@ -116,9 +116,16 @@ class AuthService {
 
     final ref = _firestore.collection('users').doc(user.uid);
     if (!created) {
-      final existing = await ref.get();
-      // A real profile (not just a presence write): normal login from signup.
-      if (existing.data()?['createdAt'] != null) return cred;
+      // A real profile (not just a presence write): normal login from
+      // signup. If the server can't say, don't overwrite; the router sends a
+      // user without a profile to setup.
+      try {
+        if (await SessionService.instance.hasRealProfile(user.uid)) {
+          return cred;
+        }
+      } catch (_) {
+        return cred;
+      }
     }
 
     final data = <String, dynamic>{
@@ -190,9 +197,8 @@ class AuthService {
     var needsDefaults = userCredential.additionalUserInfo?.isNewUser ?? false;
     if (!needsDefaults) {
       try {
-        // Presence may already have created a bare doc; createdAt marks a
-        // real profile.
-        needsDefaults = (await ref.get()).data()?['createdAt'] == null;
+        needsDefaults =
+            !await SessionService.instance.hasRealProfile(user.uid);
       } catch (_) {
         // Unknown: splash/router handles a missing doc.
       }
