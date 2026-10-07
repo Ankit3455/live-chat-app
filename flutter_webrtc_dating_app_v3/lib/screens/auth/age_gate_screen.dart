@@ -82,14 +82,13 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
 
     setState(() => _saving = true);
     try {
-      final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      // Throws offline, which shows the retry error below.
-      final exists = await SessionService.instance.hasRealProfile(user.uid);
       final zodiac = AstrologyUtils.zodiacFromDob(
         AgePolicy.legacyDobFormat.format(dob),
       );
-      await ref.set({
-        if (!exists) ...{
+      // Throws offline, which shows the retry error below.
+      await SessionService.instance.ensureProfileDefaults(
+        user.uid,
+        defaults: {
           'uid': user.uid,
           'email': user.email,
           'createdAt': FieldValue.serverTimestamp(),
@@ -98,8 +97,8 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
           'discoveryEnabled': false,
           'discoveryPendingOnboarding': true,
         },
-        ...AgePolicy.dobFields(dob, zodiac),
-      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
+        always: AgePolicy.dobFields(dob, zodiac),
+      );
 
       if (!mounted) return;
       await AuthRouter.routeCurrentUser(context);

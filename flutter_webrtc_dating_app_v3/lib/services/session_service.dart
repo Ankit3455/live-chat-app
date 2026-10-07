@@ -193,6 +193,28 @@ class SessionService {
     return snap.data()?['createdAt'] != null;
   }
 
+  /// Writes [always] and, only when `users/{uid}` has no createdAt yet, the
+  /// keys of [defaults] that are still missing. Runs in a transaction, so the
+  /// check is against the server, never the cache; an existing account's
+  /// onboarding flags are never overwritten. Throws offline.
+  Future<void> ensureProfileDefaults(
+    String uid, {
+    required Map<String, dynamic> defaults,
+    Map<String, dynamic> always = const {},
+  }) {
+    final ref = _db.collection('users').doc(uid);
+    return _db.runTransaction((tx) async {
+      final data = (await tx.get(ref)).data() ?? const <String, dynamic>{};
+      final update = <String, dynamic>{...always};
+      if (data['createdAt'] == null) {
+        defaults.forEach((key, value) {
+          if (!data.containsKey(key)) update[key] = value;
+        });
+      }
+      if (update.isNotEmpty) tx.set(ref, update, SetOptions(merge: true));
+    }).timeout(const Duration(seconds: 10));
+  }
+
   /// Decides the landing screen from auth + `users/{uid}` state.
   /// Falls back to home when the profile cannot be read (offline, no cache)
   /// so a network blip never locks a user out.

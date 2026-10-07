@@ -193,38 +193,25 @@ class AuthService {
     final user = userCredential.user;
     if (user == null) return userCredential;
 
-    final ref = _firestore.collection('users').doc(user.uid);
-    var needsDefaults = userCredential.additionalUserInfo?.isNewUser ?? false;
-    if (!needsDefaults) {
-      try {
-        needsDefaults =
-            !await SessionService.instance.hasRealProfile(user.uid);
-      } catch (_) {
-        // Unknown: splash/router handles a missing doc.
-      }
-    }
-
     // Best-effort: a failed write must not fail an already successful
     // sign-in; the start router sends a user without a profile to setup.
     try {
-      if (needsDefaults) {
-        await ref.set({
-        'uid': user.uid,
-        'email': user.email,
-        'createdAt': FieldValue.serverTimestamp(),
-        'online': true,
-        'lastSeen': FieldValue.serverTimestamp(),
-        'signupCompleted': false,
-        'mandatoryCompleted': false,
-        'discoveryEnabled': false,
-        'discoveryPendingOnboarding': true,
-      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
-      } else {
-        await ref.set({
+      await SessionService.instance.ensureProfileDefaults(
+        user.uid,
+        defaults: {
+          'uid': user.uid,
+          'email': user.email,
+          'createdAt': FieldValue.serverTimestamp(),
+          'signupCompleted': false,
+          'mandatoryCompleted': false,
+          'discoveryEnabled': false,
+          'discoveryPendingOnboarding': true,
+        },
+        always: {
           'online': true,
           'lastSeen': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
-      }
+        },
+      );
     } catch (_) {}
 
     return userCredential;
