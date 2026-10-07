@@ -66,6 +66,10 @@ class PublicProfile {
     'loveLanguage',
     'languages',
     'countryCode',
+    'prefGender',
+    'prefAgeMin',
+    'prefAgeMax',
+    'prefMaxKm',
   ];
 
   /// Builds the public map from a private `users/{uid}` map. Used for the

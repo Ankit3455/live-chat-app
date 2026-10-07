@@ -25,7 +25,7 @@ const PUBLIC_FIELDS = [
   'personalityPriority', 'believesInAstrology', 'astrologyBeliefLevel',
   'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
   'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages',
-  'countryCode',
+  'countryCode', 'prefGender', 'prefAgeMin', 'prefAgeMax', 'prefMaxKm',
 ];
 
 function encodeGeohash(lat, lng, precision = GEOHASH_PRECISION) {

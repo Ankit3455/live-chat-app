@@ -230,7 +230,7 @@ service cloud.firestore {
         'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
         'gender', 'avatarProperties', 'age', 'geohash', 'discoveryEnabled',
         'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages',
-        'countryCode'
+        'countryCode', 'prefGender', 'prefAgeMin', 'prefAgeMax', 'prefMaxKm'
       ];
     }
 
@@ -260,6 +260,10 @@ service cloud.firestore {
         && strMax(d, k, 'hereFor', 200)
         && strMax(d, k, 'gender', 50)
         && strMax(d, k, 'countryCode', 2)
+        && strMax(d, k, 'prefGender', 10)
+        && fieldOk(d, k, 'prefAgeMin', d.get('prefAgeMin', null) is int && d.get('prefAgeMin', 0) >= 18 && d.get('prefAgeMin', 0) <= 120)
+        && fieldOk(d, k, 'prefAgeMax', d.get('prefAgeMax', null) is int && d.get('prefAgeMax', 0) >= 18 && d.get('prefAgeMax', 0) <= 120)
+        && fieldOk(d, k, 'prefMaxKm', d.get('prefMaxKm', null) is int && d.get('prefMaxKm', 0) >= 0 && d.get('prefMaxKm', 0) <= 20000)
         && strMax(d, k, 'profileImage', 2048)
         && strMax(d, k, 'avatar', 2048)
         && strMax(d, k, 'voiceIntroUrl', 2048)

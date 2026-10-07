@@ -18,6 +18,9 @@ class DiscoveryFilters {
   final int distanceKm;
   final bool onlineOnly;
 
+  /// Skip people whose own published filters exclude me (two-way filter).
+  final bool mutualOnly;
+
   const DiscoveryFilters({
     this.applyFilters = false,
     this.gender = 'everyone',
@@ -25,6 +28,7 @@ class DiscoveryFilters {
     this.ageMax = FilterPreferences.maxAllowedAge,
     this.distanceKm = FilterPreferences.defaultDistanceKm,
     this.onlineOnly = false,
+    this.mutualOnly = true,
   });
 
   static Future<DiscoveryFilters> load() async {
@@ -37,6 +41,7 @@ class DiscoveryFilters {
         ageMax: p.ageMax,
         distanceKm: p.distanceKm,
         onlineOnly: p.onlineOnly,
+        mutualOnly: p.mutualOnly,
       );
     } catch (e) {
       if (kDebugMode) debugPrint('Discovery filters load failed: $e');
@@ -46,7 +51,8 @@ class DiscoveryFilters {
 }
 
 /// Paginated discovery feed (DEST-028). Reads `public_profiles` ordered by
-/// most recent activity, 30 per page. Until the profile mirror Function is
+/// most recent activity, 30 per page: people in my country first, then
+/// everyone else. Until the profile mirror Function is
 /// deployed and backfilled, it falls back to `users` and strips every
 /// private field through [PublicProfile.fromUserData] before use.
 class DiscoveryFeed {
@@ -67,6 +73,10 @@ class DiscoveryFeed {
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
   bool _exhausted = false;
   bool _ordered = true;
+
+  /// While set, pages are limited to this country; cleared when it runs out.
+  String? _countryPhase;
+  bool _countryPhaseStarted = false;
   final Set<String> _seen = {};
   final Map<String, int> _distanceKm = {};
 
@@ -78,6 +88,8 @@ class DiscoveryFeed {
   void reset() {
     _cursor = null;
     _exhausted = false;
+    _countryPhase = null;
+    _countryPhaseStarted = false;
     _seen.clear();
     _distanceKm.clear();
   }
@@ -107,12 +119,27 @@ class DiscoveryFeed {
   }) async {
     final out = <UserModel>[];
     final usePublic = await _isPublicReady();
+    if (!_countryPhaseStarted) {
+      _countryPhaseStarted = true;
+      final country = me?.countryCode;
+      if (usePublic && country != null && country.length == 2) {
+        _countryPhase = country;
+      }
+    }
     var scanned = 0;
     while (!_exhausted && out.length < pageSize && scanned < _maxScanPages) {
       scanned++;
       final snap = await _fetchRaw(filters, usePublic);
-      if (snap.docs.length < pageSize) _exhausted = true;
       if (snap.docs.isNotEmpty) _cursor = snap.docs.last;
+      if (snap.docs.length < pageSize) {
+        if (_countryPhase != null) {
+          // My country is done: continue with everyone (seen ones skipped).
+          _countryPhase = null;
+          _cursor = null;
+        } else {
+          _exhausted = true;
+        }
+      }
 
       final batch = <UserModel>[];
       for (final doc in snap.docs) {
@@ -121,12 +148,13 @@ class DiscoveryFeed {
         if (user == null) continue;
         final distance = approxDistanceKm(me, user);
         if (!_passes(user, filters, distance, hiddenUids)) continue;
+        if (filters.mutualOnly && !wouldShowMe(user, me, distance)) continue;
         if (distance != null) _distanceKm[doc.id] = distance;
         batch.add(user);
       }
       if (!_ordered) {
-        batch.sort((a, b) => (b.lastSeen ?? DateTime(0))
-            .compareTo(a.lastSeen ?? DateTime(0)));
+        batch.sort((a, b) =>
+            (b.lastSeen ?? DateTime(0)).compareTo(a.lastSeen ?? DateTime(0)));
       }
       out.addAll(batch);
     }
@@ -158,6 +186,32 @@ class DiscoveryFeed {
     return true;
   }
 
+  /// Whether [other]'s published filters (gender, age range, max distance)
+  /// include [me]. Missing filters, or my missing data, count as a yes.
+  static bool wouldShowMe(UserModel other, UserModel? me, int? distanceKm) {
+    if (me == null) return true;
+    final wantGender = (other.prefGender ?? 'everyone').toLowerCase();
+    final myGender = (me.gender ?? '').toLowerCase();
+    if (wantGender != 'everyone' &&
+        myGender.isNotEmpty &&
+        myGender != wantGender) {
+      return false;
+    }
+    final myAge = me.age;
+    if (myAge != null) {
+      if (other.prefAgeMin != null && myAge < other.prefAgeMin!) return false;
+      if (other.prefAgeMax != null && myAge > other.prefAgeMax!) return false;
+    }
+    final maxKm = other.prefMaxKm;
+    if (maxKm != null &&
+        maxKm > 0 &&
+        distanceKm != null &&
+        distanceKm > maxKm) {
+      return false;
+    }
+    return true;
+  }
+
   Future<QuerySnapshot<Map<String, dynamic>>> _fetchRaw(
     DiscoveryFilters f,
     bool usePublic,
@@ -184,6 +238,8 @@ class DiscoveryFeed {
     if (usePublic && f.applyFilters && f.gender != 'everyone') {
       q = q.where('gender', isEqualTo: f.gender);
     }
+    final country = _countryPhase;
+    if (country != null) q = q.where('countryCode', isEqualTo: country);
     // Old users docs may lack lastSeen, and orderBy drops docs without the
     // field, so only the public feed is ordered by recent activity.
     if (_ordered && usePublic) q = q.orderBy('lastSeen', descending: true);
@@ -235,7 +291,8 @@ class DiscoveryFeed {
 
   /// One profile for display: own doc for me, else the public profile,
   /// else (interim) the sanitized users doc.
-  static Future<UserModel?> fetchProfile(String uid, {required String myUid}) async {
+  static Future<UserModel?> fetchProfile(String uid,
+      {required String myUid}) async {
     final db = FirebaseFirestore.instance;
     try {
       if (uid == myUid) {

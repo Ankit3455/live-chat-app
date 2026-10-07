@@ -11,6 +11,7 @@ class FilterPreferences {
   static const String _keyAgeMax = 'filter_age_max';
   static const String _keyDistanceKm = 'filter_distance_km';
   static const String _keyOnlineOnly = 'filter_online_only';
+  static const String _keyMutualOnly = 'filter_mutual_only';
 
   static const int minAllowedAge = 18;
   static const int maxAllowedAge = 60;
@@ -51,6 +52,9 @@ class FilterPreferences {
 
   bool get onlineOnly => _prefs.getBool(_k(_keyOnlineOnly)) ?? false;
 
+  /// Hide people whose own filters exclude me (on by default).
+  bool get mutualOnly => _prefs.getBool(_k(_keyMutualOnly)) ?? true;
+
   // ==================== SETTERS ====================
 
   Future<void> setApplyFilters(bool value) async =>
@@ -59,17 +63,20 @@ class FilterPreferences {
   Future<void> setShowMeGender(String value) async =>
       _prefs.setString(_k(_keyShowMeGender), value);
 
-  Future<void> setAgeMin(int value) async => _prefs.setInt(
-      _k(_keyAgeMin), value.clamp(minAllowedAge, maxAllowedAge));
+  Future<void> setAgeMin(int value) async =>
+      _prefs.setInt(_k(_keyAgeMin), value.clamp(minAllowedAge, maxAllowedAge));
 
-  Future<void> setAgeMax(int value) async => _prefs.setInt(
-      _k(_keyAgeMax), value.clamp(minAllowedAge, maxAllowedAge));
+  Future<void> setAgeMax(int value) async =>
+      _prefs.setInt(_k(_keyAgeMax), value.clamp(minAllowedAge, maxAllowedAge));
 
   Future<void> setDistanceKm(int value) async =>
       _prefs.setInt(_k(_keyDistanceKm), value);
 
   Future<void> setOnlineOnly(bool value) async =>
       _prefs.setBool(_k(_keyOnlineOnly), value);
+
+  Future<void> setMutualOnly(bool value) async =>
+      _prefs.setBool(_k(_keyMutualOnly), value);
 
   /// Saves every filter in one go.
   Future<void> saveAll({
@@ -79,6 +86,7 @@ class FilterPreferences {
     required int ageMax,
     required int distanceKm,
     required bool onlineOnly,
+    required bool mutualOnly,
   }) async {
     await setApplyFilters(applyFilters);
     await setShowMeGender(showMeGender);
@@ -86,6 +94,7 @@ class FilterPreferences {
     await setAgeMax(ageMax);
     await setDistanceKm(distanceKm);
     await setOnlineOnly(onlineOnly);
+    await setMutualOnly(mutualOnly);
   }
 
   // ==================== RESET ====================
@@ -98,6 +107,7 @@ class FilterPreferences {
       _keyAgeMax,
       _keyDistanceKm,
       _keyOnlineOnly,
+      _keyMutualOnly,
     ]) {
       await _prefs.remove(_k(key));
     }

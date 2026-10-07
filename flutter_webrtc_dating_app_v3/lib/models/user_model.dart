@@ -49,6 +49,12 @@ class UserModel {
   /// From reverse geocoding: city is private, countryCode (ISO) is public.
   final String? geoCity;
   final String? countryCode;
+
+  /// Who this user is looking for (published for the mutual filter).
+  final String? prefGender;
+  final int? prefAgeMin;
+  final int? prefAgeMax;
+  final int? prefMaxKm;
   final String? bio;
 
   // Discovery. Coordinates exist only on the user's own doc; other users are
@@ -131,6 +137,10 @@ class UserModel {
     this.location,
     this.geoCity,
     this.countryCode,
+    this.prefGender,
+    this.prefAgeMin,
+    this.prefAgeMax,
+    this.prefMaxKm,
     this.bio,
     this.userLatitude,
     this.userLongitude,
@@ -196,7 +206,10 @@ class UserModel {
   static List<String> _safeListConversion(dynamic value) {
     if (value == null) return [];
     if (value is List) {
-      return value.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      return value
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
     return [];
   }
@@ -204,7 +217,10 @@ class UserModel {
   static List<String>? _safeNullableListConversion(dynamic value) {
     if (value == null) return null;
     if (value is List) {
-      final list = value.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      final list = value
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
       return list.isEmpty ? null : list;
     }
     return null;
@@ -331,7 +347,8 @@ class UserModel {
       preferredSigns: _safeListConversion(map['preferredSigns']),
       personalityPriority: _str(map['personalityPriority']),
       believesInAstrology: _safeBoolConversion(map['believesInAstrology']),
-      astrologyBeliefLevel: _parseAstrologyBeliefLevel(map['astrologyBeliefLevel']),
+      astrologyBeliefLevel:
+          _parseAstrologyBeliefLevel(map['astrologyBeliefLevel']),
       relationshipPriority: _str(map['relationshipPriority']),
       vibePreference: _str(map['vibePreference']),
       lifestyle: _str(map['lifestyle']) ?? _str(map['sleepSchedule']),
@@ -343,6 +360,10 @@ class UserModel {
       birthLocation: _str(map['birthLocation']) ?? _str(map['placeOfBirth']),
       geoCity: _str(map['geoCity']),
       countryCode: _str(map['countryCode']),
+      prefGender: _str(map['prefGender']),
+      prefAgeMin: _int(map['prefAgeMin']),
+      prefAgeMax: _int(map['prefAgeMax']),
+      prefMaxKm: _int(map['prefMaxKm']),
       location: _str(map['location']),
       bio: _str(map['bio']),
       userLatitude: _double(map['userLatitude']),
@@ -434,6 +455,10 @@ class UserModel {
       'location': location,
       'geoCity': geoCity,
       'countryCode': countryCode,
+      'prefGender': prefGender,
+      'prefAgeMin': prefAgeMin,
+      'prefAgeMax': prefAgeMax,
+      'prefMaxKm': prefMaxKm,
       'bio': bio,
       'userLatitude': userLatitude,
       'userLongitude': userLongitude,
@@ -507,6 +532,10 @@ class UserModel {
     String? location,
     String? geoCity,
     String? countryCode,
+    String? prefGender,
+    int? prefAgeMin,
+    int? prefAgeMax,
+    int? prefMaxKm,
     String? bio,
     double? userLatitude,
     double? userLongitude,
@@ -561,7 +590,7 @@ class UserModel {
       zodiacSign: zodiacSign ?? this.zodiacSign,
       voiceIntroUrl: voiceIntroUrl ?? this.voiceIntroUrl,
       voiceIntroDurationSeconds:
-      voiceIntroDurationSeconds ?? this.voiceIntroDurationSeconds,
+          voiceIntroDurationSeconds ?? this.voiceIntroDurationSeconds,
       preferredSigns: preferredSigns ?? this.preferredSigns,
       personalityPriority: personalityPriority ?? this.personalityPriority,
       believesInAstrology: believesInAstrology ?? this.believesInAstrology,
@@ -577,6 +606,10 @@ class UserModel {
       location: location ?? this.location,
       geoCity: geoCity ?? this.geoCity,
       countryCode: countryCode ?? this.countryCode,
+      prefGender: prefGender ?? this.prefGender,
+      prefAgeMin: prefAgeMin ?? this.prefAgeMin,
+      prefAgeMax: prefAgeMax ?? this.prefAgeMax,
+      prefMaxKm: prefMaxKm ?? this.prefMaxKm,
       bio: bio ?? this.bio,
       userLatitude: userLatitude ?? this.userLatitude,
       userLongitude: userLongitude ?? this.userLongitude,
@@ -606,7 +639,8 @@ class UserModel {
       musicGenres: musicGenres ?? this.musicGenres,
       movieGenres: movieGenres ?? this.movieGenres,
       tvGenres: tvGenres ?? this.tvGenres,
-      profileCompletionPercentage: profileCompletionPercentage ?? this.profileCompletionPercentage,
+      profileCompletionPercentage:
+          profileCompletionPercentage ?? this.profileCompletionPercentage,
       fcmTokens: fcmTokens ?? this.fcmTokens,
       lastSeen: lastSeen ?? this.lastSeen,
       sleepSchedule: sleepSchedule ?? this.sleepSchedule,

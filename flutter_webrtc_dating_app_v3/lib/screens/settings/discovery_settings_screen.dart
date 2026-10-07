@@ -26,6 +26,7 @@ class _DiscoveryForm {
   final RangeValues ageRange;
   final double distanceKm;
   final bool onlineOnly;
+  final bool mutualOnly;
 
   const _DiscoveryForm({
     required this.discoveryEnabled,
@@ -34,6 +35,7 @@ class _DiscoveryForm {
     required this.ageRange,
     required this.distanceKm,
     required this.onlineOnly,
+    required this.mutualOnly,
   });
 
   @override
@@ -44,7 +46,8 @@ class _DiscoveryForm {
       other.showMeGender == showMeGender &&
       other.ageRange == ageRange &&
       other.distanceKm == distanceKm &&
-      other.onlineOnly == onlineOnly;
+      other.onlineOnly == onlineOnly &&
+      other.mutualOnly == mutualOnly;
 
   @override
   int get hashCode => Object.hash(
@@ -54,6 +57,7 @@ class _DiscoveryForm {
         ageRange,
         distanceKm,
         onlineOnly,
+        mutualOnly,
       );
 }
 
@@ -74,6 +78,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
   RangeValues _ageRange = const RangeValues(_minAge, _maxAge);
   double _distanceKm = _maxDistance;
   bool _onlineOnly = false;
+  bool _mutualOnly = true;
 
   _DiscoveryForm? _saved;
 
@@ -84,6 +89,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
         ageRange: _ageRange,
         distanceKm: _distanceKm,
         onlineOnly: _onlineOnly,
+        mutualOnly: _mutualOnly,
       );
 
   bool get _dirty => _saved != null && _saved != _current;
@@ -114,6 +120,7 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
             _maxDistance,
           );
       _onlineOnly = prefs.onlineOnly;
+      _mutualOnly = prefs.mutualOnly;
       _saved = _current;
       _loading = false;
     });
@@ -156,9 +163,32 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
         ageMax: _ageRange.end.round(),
         distanceKm: _distanceKm.round(),
         onlineOnly: _onlineOnly,
+        mutualOnly: _mutualOnly,
       );
 
       final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && saved != _current) {
+        // Published (via the public mirror) so other people's mutual filter
+        // can respect who I'm looking for. No filters = open to everyone.
+        final write =
+            FirebaseFirestore.instance.collection('users').doc(uid).set(
+                  _applyFilters
+                      ? {
+                          'prefGender': _showMeGender,
+                          'prefAgeMin': _ageRange.start.round(),
+                          'prefAgeMax': _ageRange.end.round(),
+                          'prefMaxKm': _distanceKm.round(),
+                        }
+                      : {
+                          'prefGender': FieldValue.delete(),
+                          'prefAgeMin': FieldValue.delete(),
+                          'prefAgeMax': FieldValue.delete(),
+                          'prefMaxKm': FieldValue.delete(),
+                        },
+                  SetOptions(merge: true),
+                );
+        await write.timeout(const Duration(seconds: 5), onTimeout: () {});
+      }
       if (uid != null && saved?.discoveryEnabled != _discoveryEnabled) {
         // An explicit choice replaces the "turn on after onboarding" flag.
         final write =
@@ -563,6 +593,25 @@ class _DiscoverySettingsScreenState extends State<DiscoverySettingsScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: _SwitchRow(
+                    leading: const Icon(
+                      Icons.favorite_border_rounded,
+                      color: AppColors.brandPink,
+                      size: 20,
+                    ),
+                    title: 'Mutual match only',
+                    subtitle: "Hide people whose own filters don't include you",
+                    value: _mutualOnly,
+                    onChanged: (v) => setState(() => _mutualOnly = v),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 CustomButton(
