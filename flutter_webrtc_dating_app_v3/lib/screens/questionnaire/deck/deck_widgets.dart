@@ -425,7 +425,9 @@ class OptionFan extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       final gap = math.min(
           many ? 58.0 : 78.0, (box.maxWidth - cardW) / math.max(n - 1, 1));
+      // Full width: cards outside the Stack's bounds would not get taps.
       return SizedBox(
+        width: box.maxWidth,
         height: cardH + 26,
         child: Stack(
           clipBehavior: Clip.none,
