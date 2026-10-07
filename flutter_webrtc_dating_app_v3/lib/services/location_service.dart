@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:availchat/core/utils/geohash.dart';
 
@@ -48,6 +49,31 @@ class LocationService {
   DateTime? _lastAttempt;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
+
+  static const String _askedKey = 'location_permission_asked';
+
+  /// Shows the location prompt once per install (right after the
+  /// notification prompt, when the user first reaches the app), then saves
+  /// a first position if allowed. Marked as asked only once the prompt has
+  /// completed, so a failed attempt is retried on the next launch.
+  Future<void> requestOnce() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_askedKey) ?? false) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      await prefs.setBool(_askedKey, true);
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        await updateCurrentLocation(force: true);
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Location prompt failed: $e');
+    }
+  }
 
   /// Asks for permission if needed and saves the current position.
   /// [force] ignores the refresh interval (explicit user action).

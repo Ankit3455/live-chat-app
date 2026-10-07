@@ -567,7 +567,7 @@ class _ScaleDialState extends State<ScaleDial> {
 
   void _set(int i) {
     if (i == _index) return;
-    Haptics.selection();
+    Haptics.light();
     setState(() => _index = i);
   }
 
@@ -796,7 +796,12 @@ class DeckButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       child: GestureDetector(
-        onTap: onPressed,
+        onTap: onPressed == null
+            ? null
+            : () {
+                Haptics.light();
+                onPressed!();
+              },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           height: height,
@@ -907,7 +912,7 @@ class _DeckWriteFieldState extends State<DeckWriteField> {
       text: clipped,
       selection: TextSelection.collapsed(offset: clipped.length),
     );
-    Haptics.selection();
+    Haptics.light();
     setState(() {});
   }
 
@@ -1139,7 +1144,7 @@ class _SignDot extends StatelessWidget {
       excludeSemantics: true,
       child: GestureDetector(
         onTap: () {
-          Haptics.selection();
+          Haptics.pick();
           onTap();
         },
         child: AnimatedContainer(

@@ -26,6 +26,7 @@ import 'services/auth_service.dart';
 import 'services/call/webrtc/signaling_service.dart';
 import 'services/call/call_intent_channel.dart';
 import 'services/call/call_service.dart';
+import 'services/location_service.dart';
 import 'services/navigation/pending_intent.dart';
 import 'services/safety_service.dart';
 import 'services/session_service.dart';
@@ -392,18 +393,19 @@ class _AvailChatAppState extends State<AvailChatApp>
     );
   }
 
-  /// Asked once per install, after sign-in and once the user is in the app.
+  /// Notification, then location, prompts: each asked once per install,
+  /// after sign-in and once the user is in the app.
   Future<void> _maybeAskNotificationPermission() async {
     if (!_router.ready.value || !_inForeground) return;
     if (FirebaseAuth.instance.currentUser == null) return;
-    if (_askingPermission || await NotificationChannels.permissionAsked()) {
-      return;
-    }
+    if (_askingPermission) return;
     _askingPermission = true;
     try {
-      if (await _canRouteIntents()) {
+      if (!await NotificationChannels.permissionAsked() &&
+          await _canRouteIntents()) {
         await NotificationChannels.requestPermissionOnce();
       }
+      await LocationService.instance.requestOnce();
     } finally {
       _askingPermission = false;
     }

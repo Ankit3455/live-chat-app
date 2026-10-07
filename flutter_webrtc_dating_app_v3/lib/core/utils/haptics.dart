@@ -9,6 +9,10 @@ import 'package:flutter/services.dart';
 class Haptics {
   Haptics._();
 
+  /// An answer was picked (questionnaire cards, chips, signs). Medium so it
+  /// is felt on phones where selectionClick/lightImpact barely register.
+  static void pick() => unawaited(HapticFeedback.mediumImpact());
+
   /// Tab, chip, switch and other selection changes.
   static void selection() => unawaited(HapticFeedback.selectionClick());
 

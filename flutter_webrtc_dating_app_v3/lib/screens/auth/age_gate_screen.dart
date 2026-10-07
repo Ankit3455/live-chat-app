@@ -344,7 +344,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
             onTap: _saving || _revealed
                 ? null
                 : () {
-                    Haptics.selection();
+                    Haptics.pick();
                     setState(() {
                       _confirmedAdult = !_confirmedAdult;
                       _error = null;

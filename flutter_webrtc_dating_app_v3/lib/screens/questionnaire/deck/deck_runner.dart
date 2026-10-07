@@ -144,7 +144,7 @@ class DeckRunnerState extends State<DeckRunner> with TickerProviderStateMixin {
   }) async {
     if (_busy || widget.busy) return;
     _busy = true;
-    Haptics.light();
+    Haptics.pick();
     if (save) _answer(field, value ?? answer);
     setState(() => _revealed = (answer: answer, emoji: emoji, quip: quip));
     await _flip.forward(from: 0);
@@ -179,7 +179,7 @@ class DeckRunnerState extends State<DeckRunner> with TickerProviderStateMixin {
         list.add(option);
       }
     }
-    Haptics.selection();
+    Haptics.pick();
     _answer(q.fieldName, list);
   }
 
