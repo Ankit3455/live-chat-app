@@ -10,8 +10,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/app_links.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/utils/astrology_utils.dart';
-import '../../../core/utils/auth_validators.dart';
 
 /// Gradient rounded square with the sparkle icon.
 class BrandMark extends StatelessWidget {
@@ -155,87 +153,6 @@ class AuthLabel extends StatelessWidget {
   }
 }
 
-/// Tappable read-only field that opens a picker (date / time).
-class AuthPickerField extends StatelessWidget {
-  final String? value;
-  final String placeholder;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final String semanticLabel;
-
-  const AuthPickerField({
-    super.key,
-    required this.value,
-    required this.placeholder,
-    required this.icon,
-    required this.onTap,
-    required this.semanticLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final v = value;
-    return Semantics(
-      button: true,
-      label: '$semanticLabel, ${v ?? placeholder}, opens picker',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: InputDecorator(
-          isEmpty: v == null,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            prefixIcon: Icon(icon, size: 20),
-          ),
-          child: Text(
-            v ?? '',
-            style: const TextStyle(color: AppColors.white, fontSize: 15),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// "27 · Scorpio ♏" helper in gold, shown once a DOB is picked.
-class ZodiacHelper extends StatelessWidget {
-  final DateTime dob;
-
-  const ZodiacHelper({super.key, required this.dob});
-
-  static String summary(DateTime dob) {
-    final sign = AstrologyUtils.zodiacFromDate(dob);
-    final glyph = AstrologyUtils.zodiacEmoji[sign];
-    final age = AgePolicy.ageOn(dob);
-    return glyph == null ? '$age · $sign' : '$age · $sign $glyph';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, left: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_awesome, size: 14, color: AppColors.gold),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              summary(dob),
-              style: const TextStyle(
-                color: AppColors.gold,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Thin "or" divider between auth options.
 class AuthOrDivider extends StatelessWidget {
   const AuthOrDivider({super.key});
@@ -357,75 +274,6 @@ class _LegalTextState extends State<LegalText> {
       ),
       style: widget.style,
       textAlign: widget.textAlign,
-    );
-  }
-}
-
-/// Checkbox with a 48dp target; tapping the label toggles it too (links
-/// inside the label win their own taps).
-class AuthCheckRow extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-  final Widget label;
-  final String? errorText;
-
-  const AuthCheckRow({
-    super.key,
-    required this.value,
-    required this.onChanged,
-    required this.label,
-    this.errorText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final change = onChanged;
-    final error = errorText;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: Checkbox(
-                value: value,
-                onChanged: change == null ? null : (v) => change(v ?? false),
-                activeColor: AppColors.brandPurple,
-                checkColor: AppColors.white,
-                side: BorderSide(
-                  color:
-                      error == null ? AppColors.borderStrong : AppColors.error,
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-            ),
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: change == null ? null : () => change(!value),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 13, bottom: 8),
-                  child: label,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 48),
-            child: Text(
-              error,
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
-            ),
-          ),
-      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/astrology_view_model.dart';
@@ -9,6 +10,7 @@ import 'package:availchat/models/question_type.dart';
 import 'package:availchat/screens/questionnaire/deck/deck_models.dart';
 import 'package:availchat/screens/questionnaire/deck/deck_runner.dart';
 import 'package:availchat/screens/questionnaire/deck/deck_widgets.dart';
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 
 /// "Your Stars": the astrology deck. Sun sign from DOB, belief level and
@@ -154,12 +156,33 @@ class _AstrologyQuestionnaireScreenState
                     _ => 'Slide to your spot',
                   },
                   customZone: _customZone,
+                  artBuilder: _art,
                 ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// The sun-sign and zodiac cards keep the animations the old astrology
+  /// screens had; the belief card uses its icon.
+  Widget? _art(BuildContext context, DeckCard card) {
+    final asset = switch (card.lead.fieldName) {
+      _sunField => AppAssets.starAnimation,
+      'preferredSigns' => AppAssets.zodiacAnimation,
+      _ => null,
+    };
+    if (asset == null) return null;
+    return Lottie.asset(
+      asset,
+      width: 92,
+      height: 92,
+      fit: BoxFit.contain,
+      animate: !MediaQuery.disableAnimationsOf(context),
+      errorBuilder: (context, error, stackTrace) =>
+          Text(card.lead.icon ?? '✦', style: const TextStyle(fontSize: 48)),
     );
   }
 

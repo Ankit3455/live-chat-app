@@ -137,10 +137,10 @@ class ProfileHeader extends StatelessWidget {
   // 36px visual inside a 48dp target.
   Widget _cameraButton() {
     return Tooltip(
-      message: 'Change photo or avatar',
+      message: 'Change photo',
       child: Semantics(
         button: true,
-        label: 'Change photo or avatar',
+        label: 'Change photo',
         excludeSemantics: true,
         onTap: busy ? null : onChangePhoto,
         child: InkResponse(

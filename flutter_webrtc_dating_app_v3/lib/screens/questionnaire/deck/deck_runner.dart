@@ -43,8 +43,9 @@ class DeckRunner extends StatefulWidget {
   /// Caller is saving: input is disabled.
   final bool busy;
 
-  /// Art in the card's circle; defaults to the question icon.
-  final Widget Function(BuildContext context, DeckCard card)? artBuilder;
+  /// Art in the card's circle; null (or returning null) shows the
+  /// question icon.
+  final Widget? Function(BuildContext context, DeckCard card)? artBuilder;
 
   /// Controls for cards that are not plain questions (e.g. a zodiac wheel).
   /// Return null to use the standard controls.

@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/utils/astrology_utils.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/haptics.dart';
 import '../../services/auth_service.dart';
@@ -26,13 +25,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _birthDateController = TextEditingController();
-  final _birthTimeController = TextEditingController();
-  final _birthLocationController = TextEditingController();
 
-  DateTime? _dob;
-  bool _confirmedAdult = false;
-  bool _adultError = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
@@ -43,108 +36,30 @@ class _SignupScreenState extends State<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _birthDateController.dispose();
-    _birthTimeController.dispose();
-    _birthLocationController.dispose();
     super.dispose();
-  }
-
-  // Pick Birth Date
-  Future<void> _pickBirthDate() async {
-    final latest = AgePolicy.latestAllowedDob();
-    final fallback = DateTime(2000);
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _dob ?? (fallback.isAfter(latest) ? latest : fallback),
-      firstDate: DateTime(1920),
-      lastDate: latest,
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.brandPurple,
-              surface: AppColors.surfaceCard,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && mounted) {
-      setState(() {
-        _dob = picked;
-        _birthDateController.text = AgePolicy.legacyDobFormat.format(picked);
-      });
-    }
-  }
-
-  // Pick Birth Time
-  Future<void> _pickBirthTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.brandPurple,
-              surface: AppColors.surfaceCard,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && mounted) {
-      _birthTimeController.text = picked.format(context);
-    }
-  }
-
-  String? _validateDob(String? _) {
-    final dob = _dob;
-    if (dob == null) return 'Please choose your birth date';
-    if (!AgePolicy.isAdult(dob)) {
-      return 'You must be 18 or older to use Destined';
-    }
-    return null;
   }
 
   // Handle Signup
   Future<void> _handleSignup() async {
     if (_isLoading) return;
-    setState(() {
-      _error = null;
-      _adultError = !_confirmedAdult;
-    });
+    setState(() => _error = null);
     final formValid = _formKey.currentState?.validate() ?? false;
-    if (!formValid || !_confirmedAdult) {
+    if (!formValid) {
       Haptics.error();
       return;
     }
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final dob = _dob!;
-    final time = _birthTimeController.text.trim();
-    final birthLocation = _birthLocationController.text.trim();
-    final zodiac = AstrologyUtils.zodiacFromDob(
-      AgePolicy.legacyDobFormat.format(dob),
-    );
-
     setState(() => _isLoading = true);
 
     try {
       await context.read<AuthService>().signUp(
         email: email,
         password: password,
-        profile: {
-          ...AgePolicy.dobFields(dob, zodiac),
-          if (time.isNotEmpty) 'birthTime': time,
-          'birthLocation': birthLocation,
-          'termsAcceptedAt': FieldValue.serverTimestamp(),
-        },
+        // Birth date and the 18+ check come next, on the same birth card
+        // Google sign-ups see (AuthRouter routes there while DOB is missing).
+        profile: {'termsAcceptedAt': FieldValue.serverTimestamp()},
       );
 
       if (!mounted) return;
@@ -197,7 +112,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dob = _dob;
     final error = _error;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -250,8 +164,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            'Two quick parts: your login details, then the birth details '
-                            'we use to read your chart.',
+                            'Your login details. Next, your birth card: the same '
+                            'quick start as signing up with Google.',
                             style: TextStyle(
                               color: AppColors.lavender,
                               fontSize: 14,
@@ -302,61 +216,7 @@ class _SignupScreenState extends State<SignupScreen> {
                               _passwordController.text,
                             ),
                           ),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(),
                           const SizedBox(height: 16),
-                          const AuthLabel('Birth date', required: true),
-                          _buildTextField(
-                            controller: _birthDateController,
-                            hint: 'DD/MM/YYYY',
-                            icon: Icons.calendar_today_outlined,
-                            readOnly: true,
-                            onTap: _isLoading ? null : _pickBirthDate,
-                            validator: _validateDob,
-                          ),
-                          if (dob != null) ZodiacHelper(dob: dob),
-                          const SizedBox(height: 16),
-                          const AuthLabel('Birth time', optional: true),
-                          _buildTextField(
-                            controller: _birthTimeController,
-                            hint: 'HH:MM',
-                            icon: Icons.access_time,
-                            readOnly: true,
-                            onTap: _isLoading ? null : _pickBirthTime,
-                            helper: "Makes your chart more precise. Skip it if "
-                                "you're not sure.",
-                          ),
-                          const SizedBox(height: 16),
-                          const AuthLabel('Birth location', required: true),
-                          _buildTextField(
-                            controller: _birthLocationController,
-                            hint: 'City, Country',
-                            icon: Icons.location_on_outlined,
-                            validator: (v) => (v ?? '').trim().isEmpty
-                                ? 'Please enter the city where you were born'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          AuthCheckRow(
-                            value: _confirmedAdult,
-                            onChanged: _isLoading
-                                ? null
-                                : (v) => setState(() {
-                                      Haptics.selection();
-                                      _confirmedAdult = v;
-                                      if (v) _adultError = false;
-                                    }),
-                            errorText: _adultError
-                                ? 'Please confirm you are 18 or older'
-                                : null,
-                            label: const Text(
-                              'I confirm I am 18 or older',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
                           const SizedBox(height: 8),
                           Wrap(
                             alignment: WrapAlignment.center,
@@ -441,51 +301,6 @@ class _SignupScreenState extends State<SignupScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.brandPurple.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.auto_awesome,
-            size: 18,
-            color: AppColors.brandPurpleLight,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  'Your natal chart details',
-                  style: GoogleFonts.montserrat(
-                    color: AppColors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                'This helps us find your destined match.',
-                style: TextStyle(color: AppColors.lavender, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 

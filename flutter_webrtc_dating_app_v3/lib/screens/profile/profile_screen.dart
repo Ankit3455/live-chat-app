@@ -262,83 +262,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showChangeAvatarSheet() {
-    final user = _currentUser;
-    if (user == null || _avatarBusy) return;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        void choose(Future<Object?> Function() action, String message) {
-          Navigator.pop(sheetContext);
-          _runAvatarAction(action, successMessage: message);
-        }
-
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                UserAvatar(user: user, size: 88, borderRadius: 44),
-                const SizedBox(height: 12),
-                Semantics(
-                  header: true,
-                  child: Text(
-                    'Change photo or avatar',
-                    style: GoogleFonts.montserrat(
-                      color: AppColors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ListTile(
-                  leading: const Icon(
-                    Icons.photo_library_outlined,
-                    color: AppColors.brandPurpleLight,
-                  ),
-                  title: const Text(
-                    'Upload a photo',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  subtitle: const Text(
-                    'Choose from your gallery',
-                    style: TextStyle(color: AppColors.lavender),
-                  ),
-                  onTap: () => choose(
-                    ProfilePhotoService.pickAndUploadPhoto,
-                    'Profile photo updated',
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.face_outlined,
-                    color: AppColors.brandPurpleLight,
-                  ),
-                  title: const Text(
-                    'Use my avatar',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  subtitle: const Text(
-                    'Switch back to your generated avatar',
-                    style: TextStyle(color: AppColors.lavender),
-                  ),
-                  onTap: () => choose(
-                    ProfilePhotoService.resetToAvatar,
-                    'Avatar restored',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  /// Camera button: straight to the photo picker.
+  void _changePhoto() {
+    if (_currentUser == null || _avatarBusy) return;
+    _runAvatarAction(
+      ProfilePhotoService.pickAndUploadPhoto,
+      successMessage: 'Profile photo updated',
     );
   }
 
@@ -577,7 +506,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ProfileHeader(
         user: user,
         busy: _avatarBusy,
-        onChangePhoto: _showChangeAvatarSheet,
+        onChangePhoto: _changePhoto,
         onAvatarStoryTap:
             avatarTraitsFor(user).isEmpty ? null : _showAvatarStorySheet,
       ),
