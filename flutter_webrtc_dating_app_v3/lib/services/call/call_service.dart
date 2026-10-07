@@ -562,11 +562,25 @@ class CallService {
         _beautyLoaded = true;
       }
     }
+    // Level 0 detaches the native processor. The native side can miss a
+    // track it has not registered yet, so retry briefly; stop if the track
+    // changed meanwhile (its own _applyBeauty takes over).
     final id = _beautyTrackId;
     if (id == null) return;
-    // Level 0 detaches the native processor.
-    await BeautyFilter.setBeauty(id, _beautyLevel.value);
+    for (var attempt = 1; ; attempt++) {
+      final ok = await BeautyFilter.setBeauty(id, _beautyLevel.value);
+      if (ok || _beautyTrackId != id) return;
+      if (attempt >= _beautyRetries) {
+        debugPrint('CallService: beauty not applied, track $id not found');
+        return;
+      }
+      await Future<void>.delayed(_beautyRetryDelay);
+      if (_beautyTrackId != id) return;
+    }
   }
+
+  static const _beautyRetries = 5;
+  static const _beautyRetryDelay = Duration(milliseconds: 400);
 
   void _stopFilterSync() {
     _filterSub?.cancel();

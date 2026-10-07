@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'services/ludo_game_service.dart';
 import 'ludo_wrapper_screen.dart';
+import '../game_identity.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../widgets/app_states.dart';
@@ -53,10 +54,15 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   int _selectedPlayerCount = 2;
   int _playersFound = 0;
 
+  GameIdentity? _me = GameIdentity.current;
+
   @override
   void initState() {
     super.initState();
     _loadResumableMatch();
+    GameIdentity.mine().then((me) {
+      if (mounted) setState(() => _me = me);
+    });
   }
 
   @override
@@ -138,6 +144,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     try {
       debugPrint('🔍 Looking for ${_selectedPlayerCount}P game...');
 
+      final me = await GameIdentity.mine();
+      if (!_searching || _navigated || !mounted) return;
+      if (_me != me) setState(() => _me = me);
+
       // A match created by another player claims (deletes) our queue entry,
       // so listen for matches we are part of before entering the queue.
       _matchListener = _newMatchesFor(user.uid).snapshots().listen((snapshot) {
@@ -147,8 +157,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
       final entry = await _service.enqueue(
         user.uid,
-        user.displayName ?? 'Player',
-        user.photoURL,
+        me.name,
+        me.avatar,
         playerCount: _selectedPlayerCount,
       );
       final queueRef = entry.ref;
@@ -262,20 +272,23 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
 
       if (opponents.length < needed || _navigated || !_searching) return;
 
+      final me = await GameIdentity.mine();
+      if (_navigated || !_searching) return;
+
       final matchRef = await _service.createMatchFromQueue(
         hostQueueRef: _service.queueRef(user.uid),
         opponentRefs: opponents.map((o) => o.reference).toList(),
         opponentUids:
             opponents.map((o) => o.data()?['uid']?.toString() ?? '').toList(),
         opponentNames: opponents
-            .map((o) => o.data()?['displayName']?.toString() ?? 'Player')
+            .map((o) => GameIdentity.shown(o.data()?['displayName'], 'Player'))
             .toList(),
         opponentAvatars: opponents
             .map((o) => o.data()?['avatar']?.toString() ?? '')
             .toList(),
         hostUid: user.uid,
-        hostName: user.displayName ?? 'Player',
-        hostAvatar: user.photoURL ?? '',
+        hostName: me.name,
+        hostAvatar: me.avatar ?? '',
         playerCount: _selectedPlayerCount,
       );
 
@@ -605,7 +618,6 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   }
 
   Widget _buildSearchingView() {
-    final user = _auth.currentUser;
     final multi = _selectedPlayerCount > 2;
     final mins = _waitSeconds ~/ 60;
     final secs = (_waitSeconds % 60).toString().padLeft(2, '0');
@@ -616,8 +628,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
         child: Column(
           children: [
             _SearchPulse(
-              photoUrl: user?.photoURL,
-              name: user?.displayName,
+              photoUrl: _me?.avatar,
+              name: _me?.name,
               accent: AppColors.brandPurpleLight,
             ),
             const SizedBox(height: 16),

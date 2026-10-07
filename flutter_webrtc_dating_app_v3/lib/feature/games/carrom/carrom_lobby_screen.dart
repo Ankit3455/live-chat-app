@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_match_screen.dart';
+import '../game_identity.dart';
 import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../core/constants/app_colors.dart';
@@ -30,6 +31,7 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   int _waitingSeconds = 0;
   Timer? _waitingTimer;
   String? _myQueueDocId;
+  GameIdentity? _me = GameIdentity.current;
 
   // Animation Controllers
   late AnimationController _pulseController;
@@ -56,6 +58,9 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   void initState() {
     super.initState();
     _initAnimations();
+    GameIdentity.mine().then((me) {
+      if (mounted) setState(() => _me = me);
+    });
   }
 
   void _initAnimations() {
@@ -145,8 +150,6 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     });
 
     final uid = _auth.currentUser?.uid;
-    final displayName = _auth.currentUser?.displayName ?? 'Player';
-    final avatar = _auth.currentUser?.photoURL;
 
     if (uid == null) {
       _handleError('Log in to play Carrom.');
@@ -154,7 +157,10 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
     }
 
     try {
-      final matchDocRef = await _createOrPair(uid, displayName, avatar);
+      final me = await GameIdentity.mine();
+      if (!mounted || !_searching) return;
+      if (_me != me) setState(() => _me = me);
+      final matchDocRef = await _createOrPair(uid, me.name, me.avatar);
 
       if (matchDocRef != null) {
         _stopAnimations();
@@ -353,7 +359,8 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
             'players': {
               uid: {'displayName': displayName, 'avatar': avatar},
               candUid: {
-                'displayName': candData['displayName'] ?? 'Opponent',
+                'displayName':
+                    GameIdentity.shown(candData['displayName'], 'Opponent'),
                 'avatar': candData['avatar'],
               },
             },
@@ -554,9 +561,8 @@ class _CarromLobbyScreenState extends State<CarromLobbyScreen>
   }
 
   Widget _buildSearchingState() {
-    final user = _auth.currentUser;
-    final photo = user?.photoURL;
-    final name = user?.displayName?.trim() ?? '';
+    final photo = _me?.avatar;
+    final name = _me?.name ?? '';
     final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
     final fallback = Center(
       child: Text(

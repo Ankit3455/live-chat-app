@@ -10,6 +10,7 @@ import '../../../core/utils/haptics.dart';
 import '../../../screens/chat/chat_screen.dart';
 import '../../../widgets/app_states.dart';
 import '../../../widgets/custom_button.dart';
+import '../game_identity.dart';
 import 'carrom_lobby_screen.dart';
 import 'carrom_match_screen.dart';
 import 'common/carrom_rank_badge.dart';
@@ -161,10 +162,11 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     if (user == null) return;
 
     try {
+      final me = await GameIdentity.mine();
       final saved = await CarromStatsService.saveGameResult(
         odZ: user.uid,
-        odZName: user.displayName ?? 'Player',
-        odZAvatar: user.photoURL,
+        odZName: me.name,
+        odZAvatar: me.avatar,
         opponentUid: widget.opponentUid,
         opponentName: widget.opponentName,
         myScore: widget.myScore,
@@ -225,6 +227,8 @@ class _CarromResultScreenState extends State<CarromResultScreen>
     if (_rematchCreating) return;
     _rematchCreating = true;
     try {
+      final me = await GameIdentity.mine();
+      final myUid = _auth.currentUser?.uid;
       await FirebaseFirestore.instance.runTransaction((tx) async {
         final d = (await tx.get(_matchRef)).data();
         if (d == null || d['rematchMatchId'] != null) return;
@@ -234,6 +238,19 @@ class _CarromResultScreenState extends State<CarromResultScreen>
             !players.keys.every((u) => rematch[u] == true)) {
           return;
         }
+        // Mine is refreshed; an email left by an old app version is trimmed.
+        players.updateAll((uid, info) {
+          if (info is! Map) return info;
+          final entry = Map<String, dynamic>.from(info);
+          if (uid == myUid) {
+            entry['displayName'] = me.name;
+            entry['avatar'] = me.avatar;
+          } else {
+            entry['displayName'] =
+                GameIdentity.shown(entry['displayName'], 'Opponent');
+          }
+          return entry;
+        });
         final oldHost = d['host'] as String?;
         final newHost = players.keys.firstWhere(
           (u) => u != oldHost,

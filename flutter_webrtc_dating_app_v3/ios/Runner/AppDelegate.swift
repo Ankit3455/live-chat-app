@@ -110,7 +110,8 @@ final class VideoBeautyChannel {
 /// capture queue while it holds its lock.
 ///
 /// Blur, then blend it back only where the image is flat: an edge mask keeps
-/// eyes, brows, lips and hair sharp.
+/// eyes, brows, lips and hair sharp. Then a small midtone lift and warm shift.
+/// Sits on the camera source, so the local preview gets it too.
 final class BeautyVideoProcessor: NSObject {
   private static let context: CIContext = {
     let options: [CIContextOption: Any] = [.cacheIntermediates: false]
@@ -167,21 +168,25 @@ final class BeautyVideoProcessor: NSObject {
 
     let image = CIImage(cvPixelBuffer: input)
     let extent = image.extent
-    let sizeScale = max(Double(width) / 640.0, 0.5)
+    // Same scale and strengths as BeautyFrameProcessor.kt so both platforms
+    // look alike: radius grows with the shorter side (1.0 at 360p).
+    let sizeScale = max(Double(min(width, height)) / 360.0, 0.5)
     let s = Double(strength)
 
     let blurred = image.clampedToExtent()
-      .applyingGaussianBlur(sigma: (1.5 + 3.5 * s) * sizeScale)
+      .applyingGaussianBlur(sigma: (2.5 + 2.2 * s) * sizeScale)
       .cropped(to: extent)
 
-    // Mask = s on flat areas, falling to 0 on edges.
-    let gain = 4.0 * s
+    // Mask = maxMix on flat areas (skin), falling to 0 on edges (eyes, brows,
+    // lips, hair). The edge map is blurred first so skin texture specks do
+    // not punch holes in the mask.
+    let gain = 3.0
     let lumaRow = CIVector(x: CGFloat(-gain * 0.30), y: CGFloat(-gain * 0.59), z: CGFloat(-gain * 0.11), w: 0)
-    let maxMix = CGFloat(0.9 * s)
+    let maxMix = CGFloat(0.6 + 0.35 * s)
     let mask = image
-      .applyingFilter("CIEdges", parameters: [kCIInputIntensityKey: 6.0])
+      .applyingFilter("CIEdges", parameters: [kCIInputIntensityKey: 5.0])
       .clampedToExtent()
-      .applyingGaussianBlur(sigma: 1.5 * sizeScale)
+      .applyingGaussianBlur(sigma: 2.0 * sizeScale)
       .applyingFilter("CIColorMatrix", parameters: [
         "inputRVector": lumaRow,
         "inputGVector": lumaRow,
@@ -192,15 +197,19 @@ final class BeautyVideoProcessor: NSObject {
       .applyingFilter("CIColorClamp")
       .cropped(to: extent)
 
+    // Midtone lift (black and white stay put) and a slight warm shift.
+    let warm = CGFloat(0.025 * s)
     let smoothed = blurred
       .applyingFilter("CIBlendWithMask", parameters: [
         kCIInputBackgroundImageKey: image,
         kCIInputMaskImageKey: mask,
       ])
-      .applyingFilter("CIColorControls", parameters: [
-        kCIInputBrightnessKey: 0.02 * s,
-        kCIInputSaturationKey: 1.0,
-        kCIInputContrastKey: 1.0,
+      .applyingFilter("CIGammaAdjust", parameters: ["inputPower": 1.0 - 0.18 * s])
+      .applyingFilter("CIColorMatrix", parameters: [
+        "inputRVector": CIVector(x: 1 + warm, y: 0, z: 0, w: 0),
+        "inputGVector": CIVector(x: 0, y: 1, z: 0, w: 0),
+        "inputBVector": CIVector(x: 0, y: 0, z: 1 - 1.4 * warm, w: 0),
+        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
       ])
       .cropped(to: extent)
 

@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/ludo_game_service.dart';
 import '../constants.dart';
+import '../../game_identity.dart';
 import '../../../../core/constants/app_colors.dart';
 
 class GameChatWidget extends StatefulWidget {
@@ -88,11 +89,12 @@ class _GameChatWidgetState extends State<GameChatWidget> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    final me = await GameIdentity.mine();
 
     await _service.sendChatMessage(
       matchId: widget.matchId,
       senderUid: user.uid,
-      senderName: user.displayName ?? 'Player',
+      senderName: me.name,
       senderColor: widget.localColor,
       message: message.trim(),
       type: type,
@@ -339,7 +341,7 @@ class _GameChatWidgetState extends State<GameChatWidget> {
 
   Widget _buildMessageBubble(Map<String, dynamic> data) {
     final senderColor = data['senderColor']?.toString() ?? 'green';
-    final senderName = data['senderName']?.toString() ?? 'Player';
+    final senderName = GameIdentity.shown(data['senderName'], 'Player');
     final message = data['message']?.toString() ?? '';
     final type = data['type']?.toString() ?? 'text';
     final senderUid = data['senderUid']?.toString();

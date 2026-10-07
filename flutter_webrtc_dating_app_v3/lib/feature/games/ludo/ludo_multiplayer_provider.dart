@@ -11,6 +11,7 @@ import 'ludo_player.dart';
 import 'ludo_rules.dart';
 import 'audio.dart';
 import 'services/ludo_game_service.dart';
+import '../game_identity.dart';
 
 /// An opponent who backgrounded the app or lost connection.
 class LudoAwayPlayer {
@@ -139,7 +140,7 @@ class LudoMultiplayerProvider extends ChangeNotifier {
           observed == null ? 0 : now.difference(observed.observedAt).inSeconds;
       result.add(LudoAwayPlayer(
         uid: uid,
-        name: info['displayName']?.toString() ?? 'Player',
+        name: GameIdentity.shown(info['displayName'], 'Player'),
         color: info['color']?.toString() ?? '',
         secondsLeft: (graceSeconds - elapsed).clamp(0, graceSeconds),
         skipped: info['skipped'] == true,
@@ -161,7 +162,7 @@ class LudoMultiplayerProvider extends ChangeNotifier {
           if (e.key != _localUid &&
               (e.value['status'] == 'left' ||
                   e.value['status'] == 'away'))
-            e.value['displayName']?.toString() ?? 'Player',
+            GameIdentity.shown(e.value['displayName'], 'Player'),
       ];
 
   bool get _localIsParticipant {

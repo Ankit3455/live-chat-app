@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../services/presence_watch.dart';
+import '../game_identity.dart';
 import 'carrom_board_view.dart';
 import 'carrom_physics.dart';
 import 'carrom_result_screen.dart';
@@ -644,8 +645,8 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
     String opponentName = 'Opponent';
     final players = Map<String, dynamic>.from(data['players'] ?? {});
     final userData = players[_opponentUid];
-    if (userData is Map && userData['displayName'] != null) {
-      opponentName = userData['displayName'].toString();
+    if (userData is Map) {
+      opponentName = GameIdentity.shown(userData['displayName'], opponentName);
     }
 
     Navigator.pushReplacement(
@@ -925,7 +926,7 @@ class _CarromGameScreenState extends State<CarromGameScreen> {
       if (uid == null) return defaultName;
       final userData = players[uid];
       if (userData != null && userData is Map) {
-        return userData['displayName']?.toString() ?? defaultName;
+        return GameIdentity.shown(userData['displayName'], defaultName);
       }
       return defaultName;
     }

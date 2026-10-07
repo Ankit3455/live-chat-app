@@ -4,6 +4,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../game_identity.dart';
+
 class CarromStatsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -318,7 +320,7 @@ class MatchHistory {
     return MatchHistory(
       matchId: id,
       opponentUid: map['opponentUid'] ?? '',
-      opponentName: map['opponentName'] ?? 'Unknown',
+      opponentName: GameIdentity.shown(map['opponentName'], 'Unknown'),
       myScore: map['myScore'] ?? 0,
       opponentScore: map['opponentScore'] ?? 0,
       won: map['won'] ?? false,
@@ -351,7 +353,7 @@ class LeaderboardEntry {
   factory LeaderboardEntry.fromMap(Map<String, dynamic> map, int rank) {
     return LeaderboardEntry(
       odZ: map['odZ'] ?? '',
-      displayName: map['displayName'] ?? 'Unknown',
+      displayName: GameIdentity.shown(map['displayName'], 'Unknown'),
       avatar: map['avatar'] ?? '',
       score: map['score'] ?? 0,
       wins: map['wins'] ?? 0,

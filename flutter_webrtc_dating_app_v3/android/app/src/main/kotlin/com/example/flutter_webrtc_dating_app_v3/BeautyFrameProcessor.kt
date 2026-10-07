@@ -12,7 +12,15 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Edge-preserving skin smoothing on the luma plane of outgoing camera frames.
+ * Edge-preserving skin smoothing for outgoing camera frames.
+ *
+ * Luma: each pixel is pulled towards a two-pass box blur unless it differs a
+ * lot from it (eyes, brows, lips, hairline), then midtones are lifted a little.
+ * Chroma: the same edge-preserving pull with a tighter threshold evens out
+ * blotchy skin tone, plus a slight warm shift.
+ *
+ * Sits on the camera source, so the local preview and the encoder both get
+ * the processed frames.
  *
  * Runs on the camera thread inside LocalVideoTrack's processor lock, so
  * [onFrame] is never concurrent with itself or with removeProcessor.
@@ -38,10 +46,14 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
     private var colSums = IntArray(0)
     private var outY = ByteArray(0)
     private var chroma = ByteArray(0)
+    private var chromaBlur = IntArray(0)
 
     // delta[d + 255]: how far a pixel moves towards the blur when blur - y == d.
     private val delta = IntArray(511)
+    private val chromaDelta = IntArray(511)
     private val tone = IntArray(256)
+    private var warmU = 0
+    private var warmV = 0
     private var lutLevel = -1f
 
     // The frame returned last time. LocalVideoTrack hands it to the sink but
@@ -104,11 +116,15 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
 
         readPlane(src.dataY, src.strideY, width, height, luma)
 
-        // Box blur on a half-size copy for HD frames: a quarter of the work,
-        // and the blur is smooth enough that nearest upsampling is invisible.
+        // Blur a half-size copy for HD frames: a quarter of the work, and the
+        // blur is smooth enough that nearest upsampling is invisible. Two box
+        // passes are close to a Gaussian, so no blocky halos.
         downscale(width, height)
-        val radius = ((2f + 3f * strength) * width / 640f / scale).roundToInt().coerceIn(1, 12)
-        boxBlur(radius)
+        val sizeScale = min(width, height) / 360f
+        val fullRadius = (3.5f + 6.5f * strength) * sizeScale
+        val radius = (fullRadius * 0.6f / scale).roundToInt().coerceIn(1, 16)
+        boxBlur(small, smallW, smallH, radius)
+        boxBlur(small, smallW, smallH, radius)
 
         val sw = smallW
         val s = scale
@@ -123,7 +139,7 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
             for (x in 0 until width) {
                 val yv = lumaA[i].toInt() and 0xFF
                 val b = blurA[rowBase + min(x / s, sw - 1)]
-                var o = toneA[yv] + deltaA[b - yv + 255]
+                var o = toneA[yv + deltaA[b - yv + 255]]
                 if (o < 0) o = 0 else if (o > 255) o = 255
                 outA[i] = o.toByte()
                 i++
@@ -133,17 +149,21 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
         val planes = obtainPlanes(width, height)
         val cw = (width + 1) / 2
         val ch = (height + 1) / 2
+        // Chroma is already half-size; a smaller radius covers the same area.
+        val chromaRadius = (fullRadius * 0.3f).roundToInt().coerceIn(1, 8)
 
         planes.y.clear()
         planes.y.put(outY, 0, width * height)
         planes.y.rewind()
 
         readPlane(src.dataU, src.strideU, cw, ch, chroma)
+        smoothChroma(cw * ch, cw, ch, chromaRadius, warmU)
         planes.u.clear()
         planes.u.put(chroma, 0, cw * ch)
         planes.u.rewind()
 
         readPlane(src.dataV, src.strideV, cw, ch, chroma)
+        smoothChroma(cw * ch, cw, ch, chromaRadius, warmV)
         planes.v.clear()
         planes.v.put(chroma, 0, cw * ch)
         planes.v.rewind()
@@ -157,6 +177,21 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
         return VideoFrame(buffer, rotation, timestampNs)
     }
 
+    /** Edge-preserving pull of [chroma] towards its blur, plus [shift], in place. */
+    private fun smoothChroma(n: Int, w: Int, h: Int, r: Int, shift: Int) {
+        val c = chroma
+        val blur = chromaBlur
+        for (i in 0 until n) blur[i] = c[i].toInt() and 0xFF
+        boxBlur(blur, w, h, r)
+        val deltaA = chromaDelta
+        for (i in 0 until n) {
+            val v = c[i].toInt() and 0xFF
+            var o = v + deltaA[blur[i] - v + 255] + shift
+            if (o < 0) o = 0 else if (o > 255) o = 255
+            c[i] = o.toByte()
+        }
+    }
+
     private fun ensureScratch(width: Int, height: Int) {
         if (width == frameW && height == frameH) return
         frameW = width
@@ -164,29 +199,48 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
         scale = if (width * height > 640 * 480) 2 else 1
         smallW = (width + scale - 1) / scale
         smallH = (height + scale - 1) / scale
+        val cw = (width + 1) / 2
+        val ch = (height + 1) / 2
         luma = ByteArray(width * height)
         outY = ByteArray(width * height)
-        chroma = ByteArray(((width + 1) / 2) * ((height + 1) / 2))
+        chroma = ByteArray(cw * ch)
+        chromaBlur = IntArray(cw * ch)
         small = IntArray(smallW * smallH)
-        rowSums = IntArray(smallW * smallH)
-        colSums = IntArray(smallW)
+        rowSums = IntArray(max(smallW * smallH, cw * ch))
+        colSums = IntArray(max(smallW, cw))
         synchronized(pool) { pool.clear() }
     }
 
     private fun ensureLuts(strength: Float) {
         if (strength == lutLevel) return
         lutLevel = strength
-        // Differences above the threshold are edges (eyes, lips, hairline)
-        // and are left alone; small ones (skin texture) are pulled to the blur.
-        val threshold = 24f + 16f * strength
-        val k = 0.9f * strength
-        for (d in -255..255) {
-            val keep = max(0f, 1f - abs(d) / threshold)
-            delta[d + 255] = (d * k * keep).roundToInt()
-        }
-        val lift = 6f * strength
+        // Differences below `full` (skin texture, pores) are pulled almost all
+        // the way to the blur; the pull fades out by `edge`, so larger ones
+        // (eyes, lips, hairline) stay sharp.
+        fillPull(delta, 0.6f + 0.35f * strength, 10f + 12f * strength, 26f + 24f * strength)
+        // Skin blotches are a few chroma steps; lips and background colours
+        // are well past the threshold.
+        fillPull(chromaDelta, 0.5f + 0.4f * strength, 3f + 3f * strength, 10f + 6f * strength)
+
+        // Midtone lift that leaves black and white where they are.
+        val lift = 4f + 10f * strength
         for (v in 0..255) {
-            tone[v] = v + (lift * (255 - v) / 255f).roundToInt()
+            tone[v] = v + (lift * 4f * v * (255 - v) / (255f * 255f)).roundToInt()
+        }
+        // Slightly warmer: a bit less blue (U), a bit more red (V).
+        warmU = -(2.5f * strength).roundToInt()
+        warmV = (2.5f * strength).roundToInt()
+    }
+
+    private fun fillPull(lut: IntArray, pull: Float, full: Float, edge: Float) {
+        for (d in -255..255) {
+            val a = abs(d).toFloat()
+            val keep = when {
+                a <= full -> 1f
+                a >= edge -> 0f
+                else -> 1f - (a - full) / (edge - full)
+            }
+            lut[d + 255] = (d * pull * keep).roundToInt()
         }
     }
 
@@ -224,11 +278,8 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
         }
     }
 
-    /** Separable running-sum box blur of [small], in place. Edges are clamped. */
-    private fun boxBlur(r: Int) {
-        val w = smallW
-        val h = smallH
-        val src = small
+    /** Separable running-sum box blur of [src] (w x h), in place. Edges are clamped. */
+    private fun boxBlur(src: IntArray, w: Int, h: Int, r: Int) {
         val rows = rowSums
 
         for (y in 0 until h) {
@@ -248,14 +299,16 @@ class BeautyFrameProcessor : LocalVideoTrack.ExternalVideoFrameProcessing {
             cols[x] = sum
         }
         val side = 2 * r + 1
-        val inv = (1 shl 16) / (side * side)
+        val area = side * side
+        // 20-bit reciprocal: exact enough to not darken, and sum * inv fits an Int.
+        val inv = ((1 shl 20) + area / 2) / area
         for (y in 0 until h) {
             val base = y * w
             val addRow = min(y + r + 1, h - 1) * w
             val subRow = max(y - r, 0) * w
             for (x in 0 until w) {
                 val sum = cols[x]
-                src[base + x] = (sum * inv) ushr 16
+                src[base + x] = min((sum * inv + (1 shl 19)) ushr 20, 255)
                 cols[x] = sum + rows[addRow + x] - rows[subRow + x]
             }
         }

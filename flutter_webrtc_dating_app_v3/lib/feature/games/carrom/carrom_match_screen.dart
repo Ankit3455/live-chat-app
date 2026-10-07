@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'carrom_game_screen.dart';
+import '../game_identity.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../widgets/custom_button.dart';
@@ -203,10 +204,11 @@ class _CarromMatchScreenState extends State<CarromMatchScreen>
       players.forEach((uid, info) {
         final playerInfo = info as Map<String, dynamic>? ?? {};
         if (uid == myUid) {
-          _myName = playerInfo['displayName']?.toString() ?? 'You';
+          _myName = GameIdentity.shown(playerInfo['displayName'], 'You');
           _myAvatar = playerInfo['avatar']?.toString() ?? '';
         } else {
-          _opponentName = playerInfo['displayName']?.toString() ?? 'Opponent';
+          _opponentName =
+              GameIdentity.shown(playerInfo['displayName'], 'Opponent');
           _opponentAvatar = playerInfo['avatar']?.toString() ?? '';
         }
       });

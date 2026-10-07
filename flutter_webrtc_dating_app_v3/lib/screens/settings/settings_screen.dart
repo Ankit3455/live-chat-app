@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
@@ -135,7 +136,7 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.support_agent,
                     title: 'Contact support',
                     subtitle: 'Get help from the Destined team',
-                    onTap: () => _openUrl(context, AppLinks.support),
+                    onTap: () => _contactSupport(context),
                   ),
                 ],
               ),
@@ -246,6 +247,48 @@ class SettingsScreen extends StatelessWidget {
       messenger.showSnackBar(
         const SnackBar(
           content: Text("Couldn't open this page. Please try again later."),
+        ),
+      );
+    }
+  }
+
+  /// Opens the mail app with a prefilled support email. Falls back to a
+  /// snackbar with the address and a Copy action.
+  Future<void> _contactSupport(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'signed out';
+    final platform = kIsWeb ? 'web' : defaultTargetPlatform.name;
+    final body = '\n\n'
+        '---\n'
+        'Please keep the details below, they help us find your account.\n'
+        'App version: $_appVersion\n'
+        'Platform: $platform\n'
+        'User ID: $uid\n';
+    // Encoded by hand: Uri(queryParameters:) turns spaces into '+', which
+    // some mail apps show literally.
+    final uri = Uri.parse(
+      'mailto:${AppLinks.supportEmail}'
+      '?subject=${Uri.encodeComponent('Destined support')}'
+      '&body=${Uri.encodeComponent(body)}',
+    );
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!opened) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            "Couldn't open your email app. Write to us at "
+            '${AppLinks.supportEmail}',
+          ),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Copy',
+            onPressed: () => Clipboard.setData(
+              const ClipboardData(text: AppLinks.supportEmail),
+            ),
+          ),
         ),
       );
     }

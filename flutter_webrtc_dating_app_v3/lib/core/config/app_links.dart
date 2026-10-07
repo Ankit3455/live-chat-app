@@ -1,14 +1,19 @@
 // lib/core/config/app_links.dart
 
-/// Public legal and support URLs, in one place for Settings, signup and the
-/// age gate. Placeholders: the owner must publish these pages and replace the
-/// values before release (O-11). Play also requires the web deletion page.
+/// Public legal and support links, in one place for Settings, signup and the
+/// age gate. Privacy and Terms are static pages in web/ served by Firebase
+/// Hosting. FAQ and web account deletion are still placeholders (O-11).
 class AppLinks {
   AppLinks._();
 
-  static const String privacyPolicy = 'https://example.com/destined/privacy';
-  static const String terms = 'https://example.com/destined/terms';
-  static const String support = 'https://example.com/destined/support';
+  static const String privacyPolicy =
+      'https://availchatproject.web.app/privacy.html';
+  static const String terms = 'https://availchatproject.web.app/terms.html';
+
+  /// Inbox for "Contact support" and the legal pages. Change it here and in
+  /// web/privacy.html + web/terms.html.
+  static const String supportEmail = 'tairtable531@gmail.com';
+
   static const String faq = 'https://example.com/destined/faq';
   static const String accountDeletion =
       'https://example.com/destined/delete-account';
