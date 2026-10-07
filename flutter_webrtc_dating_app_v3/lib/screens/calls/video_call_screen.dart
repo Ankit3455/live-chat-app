@@ -6,7 +6,6 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/call_model.dart';
-import '../../services/call/beauty_filter.dart';
 import '../../services/call/call_service.dart';
 import '../../services/call/video_filters.dart';
 import '../../widgets/app_states.dart';
@@ -285,15 +284,10 @@ class _VideoCallScreenState extends State<VideoCallScreen>
           ),
           const SizedBox(width: 8),
           AnimatedBuilder(
-            animation: Listenable.merge([
-              callService.localFilterListenable,
-              callService.beautyLevelListenable,
-            ]),
+            animation: callService.localFilterListenable,
             builder: (context, _) => Material(
               color:
-                  callService.localFilterListenable.value ==
-                          VideoFilter.normal &&
-                      callService.beautyLevelListenable.value <= 0
+                  callService.localFilterListenable.value == VideoFilter.normal
                   ? AppColors.backgroundDeep.withOpacity(0.45)
                   : AppColors.brandPurple.withOpacity(0.85),
               shape: const CircleBorder(),
@@ -508,7 +502,6 @@ class _FilterPickerSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (BeautyFilter.isSupported) ..._beautyRow(),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
@@ -546,71 +539,6 @@ class _FilterPickerSheet extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  List<Widget> _beautyRow() {
-    return [
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20),
-        child: Text(
-          'Beauty',
-          style: TextStyle(
-            color: AppColors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      const Padding(
-        padding: EdgeInsets.fromLTRB(20, 4, 20, 10),
-        child: Text(
-          'Smooths skin in the video you send.',
-          style: TextStyle(color: AppColors.lavender, fontSize: 13),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-        child: ValueListenableBuilder<double>(
-          valueListenable: callService.beautyLevelListenable,
-          builder: (context, current, _) => Wrap(
-            spacing: 10,
-            children: [
-              for (final (label, level) in BeautyFilter.levels)
-                _beautyChip(
-                  label,
-                  level,
-                  selected: (current - level).abs() < 0.01,
-                ),
-            ],
-          ),
-        ),
-      ),
-    ];
-  }
-
-  Widget _beautyChip(String label, double level, {required bool selected}) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      avatar: level > 0
-          ? Icon(
-              Icons.face_retouching_natural,
-              size: 18,
-              color: selected ? AppColors.white : AppColors.lavender,
-            )
-          : null,
-      selectedColor: AppColors.brandPurple,
-      backgroundColor: AppColors.surfaceCard,
-      side: BorderSide(
-        color: selected ? AppColors.brandPink : AppColors.border,
-      ),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.white : AppColors.lavender,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-      ),
-      onSelected: (_) => callService.setBeautyLevel(level),
     );
   }
 

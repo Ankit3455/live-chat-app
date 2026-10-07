@@ -229,32 +229,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => choose(
-                      ProfilePhotoService.regenerateAvatar,
-                      'New avatar created',
-                    ),
-                    icon: const Icon(Icons.autorenew, size: 20),
-                    label: const Text(
-                      'Generate a new one',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      backgroundColor: AppColors.brandPurple,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () => choose(
                       ProfilePhotoService.pickAndUploadPhoto,
@@ -279,12 +253,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'A new one still follows your answers and stays unique to you.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -364,24 +332,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => choose(
                     ProfilePhotoService.resetToAvatar,
                     'Avatar restored',
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.autorenew,
-                    color: AppColors.pinkLight,
-                  ),
-                  title: const Text(
-                    'Generate a new avatar',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  subtitle: const Text(
-                    'Based on your profile answers',
-                    style: TextStyle(color: AppColors.lavender),
-                  ),
-                  onTap: () => choose(
-                    ProfilePhotoService.regenerateAvatar,
-                    'New avatar created',
                   ),
                 ),
               ],

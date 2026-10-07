@@ -86,9 +86,6 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
-    // org.webrtc types for BeautyFrameProcessor.kt. flutter_webrtc ships the
-    // runtime copy but declares it `implementation`, so keep its version.
-    compileOnly("io.github.webrtc-sdk:android:137.7151.04")
 }
 
 flutter {
