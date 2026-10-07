@@ -377,6 +377,8 @@ class SignalingService {
 
     if (status != CallConstants.inboxRinging || isStale) {
       // Ghost entry (caller hung up, failed, or app was offline): drop it.
+      debugPrint('Signaling: dropped inbox call $callId '
+          '(status=$status, stale=$isStale)');
       _inboxRef(uid).child(callId).remove().catchError((_) {});
       return null;
     }

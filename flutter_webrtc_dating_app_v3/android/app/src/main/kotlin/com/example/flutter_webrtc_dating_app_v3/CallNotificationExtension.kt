@@ -17,10 +17,12 @@ class CallNotificationExtension : INotificationServiceExtension {
         val data = event.notification.additionalData ?: return
         when (data.optString("type")) {
             "call" -> {
-                // Restored after a reboot/update (the call is long over), or in
-                // the foreground, where Flutter shows its own incoming-call screen.
+                // Restored after a reboot/update: the call is long over. In the
+                // foreground it rings too, unless Flutter's incoming-call screen
+                // already took the call (it marks the call handled), so a missed
+                // in-app listener can never swallow a call.
                 val result = when {
-                    event.restoring || MainActivity.isInForeground -> CallNotifier.Result.SKIPPED
+                    event.restoring -> CallNotifier.Result.SKIPPED
                     else -> CallNotifier.IncomingCall.fromJson(data)
                         ?.let { CallNotifier.showRinging(event.context, it) }
                         ?: CallNotifier.Result.FAILED

@@ -114,11 +114,17 @@ void _onLocalNotificationTap(String? payload) {
   if (intent != null) PendingIntentRouter.instance.add(intent);
 }
 
-/// In the foreground the in-app UI already shows calls (incoming screen)
-/// and the open chat, so their pushes would only duplicate it.
+/// In the foreground the in-app UI already shows the open chat, and the
+/// incoming screen shows a call once it has been admitted; a call it hasn't
+/// shown still notifies.
 bool _suppressForegroundPush(Map<String, dynamic>? data) {
   final type = data?['type'];
-  if (type == 'call') return FirebaseAuth.instance.currentUser != null;
+  if (type == 'call') {
+    final callId = data?['callId'];
+    final calls = CallService();
+    return callId is String &&
+        (calls.ringingCall?.id == callId || calls.currentCall?.id == callId);
+  }
   if (type == 'new_message') {
     final sender = data?['senderId'];
     if (sender is String &&
@@ -354,7 +360,9 @@ class _AvailChatAppState extends State<AvailChatApp>
       await calls.rejectCall(callId);
       return;
     }
-    if (_incomingCallSub == null &&
+    // Re-listening replays the inbox, so a call the listener missed or
+    // failed to admit gets another try.
+    if (calls.ringingCall?.id != callId &&
         FirebaseAuth.instance.currentUser != null &&
         !calls.isInCall) {
       _listenForIncomingCalls();
