@@ -12,7 +12,7 @@ class AppLinks {
 
   /// Inbox for "Contact support" and the legal pages. Change it here and in
   /// web/privacy.html + web/terms.html.
-  static const String supportEmail = 'tairtable531@gmail.com';
+  static const String supportEmail = 'test@gmail.com';
 
   static const String faq = 'https://example.com/destined/faq';
   static const String accountDeletion =

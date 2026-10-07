@@ -176,4 +176,4 @@ We are always improving Destined, so we may add, change or remove features, or s
 
 ## 16. Contact us
 
-Questions about these Terms, or want to report a problem? Email [tairtable531@gmail.com](mailto:tairtable531@gmail.com) or use **Settings → Contact support** in the App. This address is also our grievance contact for complaints about content or conduct on Destined; we aim to acknowledge complaints within 24 to 48 hours and resolve them within 15 days.
+Questions about these Terms, or want to report a problem? Email [test@gmail.com](mailto:test@gmail.com) or use **Settings → Contact support** in the App. This address is also our grievance contact for complaints about content or conduct on Destined; we aim to acknowledge complaints within 24 to 48 hours and resolve them within 15 days.

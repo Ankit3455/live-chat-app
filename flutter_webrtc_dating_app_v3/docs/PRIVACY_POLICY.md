@@ -4,13 +4,13 @@
 
 Effective date: 7 October 2026
 
-This Privacy Policy explains how Destined ("Destined", "we", "us" or "our") collects, uses, shares and protects your personal information when you use the Destined mobile and web app (the "App"). We have tried to write it in plain English. If anything is unclear, contact us at [tairtable531@gmail.com](mailto:tairtable531@gmail.com).
+This Privacy Policy explains how Destined ("Destined", "we", "us" or "our") collects, uses, shares and protects your personal information when you use the Destined mobile and web app (the "App"). We have tried to write it in plain English. If anything is unclear, contact us at [test@gmail.com](mailto:test@gmail.com).
 
 > **The short version.** Destined is free and has no ads. We do not sell your personal information and we do not share it for advertising. We use your information to run the App: to show you to other members, match you, let you chat and call, and keep the community safe. You can delete your account at any time from inside the App.
 
 ## 1. Who we are
 
-Destined is a free dating and chat app operated by an independent developer based in India. For the purposes of data protection law, we are the party responsible for (the "controller" or "data fiduciary" of) the personal information described in this policy. You can reach us at [tairtable531@gmail.com](mailto:tairtable531@gmail.com).
+Destined is a free dating and chat app operated by an independent developer based in India. For the purposes of data protection law, we are the party responsible for (the "controller" or "data fiduciary" of) the personal information described in this policy. You can reach us at [test@gmail.com](mailto:test@gmail.com).
 
 ## 2. Information we collect
 
@@ -146,7 +146,7 @@ Depending on where you live (including under India's Digital Personal Data Prote
 
 - **Complain** to us first, and then, if you are not satisfied, to your local data protection authority (in India, the Data Protection Board of India).
 
-To use any of these rights, email [tairtable531@gmail.com](mailto:tairtable531@gmail.com) from the email address linked to your account. We may need to confirm your identity. We will reply within 30 days, and we will not charge you for a reasonable request.
+To use any of these rights, email [test@gmail.com](mailto:test@gmail.com) from the email address linked to your account. We may need to confirm your identity. We will reply within 30 days, and we will not charge you for a reasonable request.
 
 ## 9. Deleting your account
 
@@ -170,4 +170,4 @@ We may update this policy from time to time, for example when we add new feature
 
 ## 14. Contact us
 
-Questions, requests or complaints about privacy? Email us at [tairtable531@gmail.com](mailto:tairtable531@gmail.com), or use **Settings → Contact support** in the App. This address also acts as our grievance contact under Indian law; we aim to acknowledge complaints within 7 days and resolve them within 30 days.
+Questions, requests or complaints about privacy? Email us at [test@gmail.com](mailto:test@gmail.com), or use **Settings → Contact support** in the App. This address also acts as our grievance contact under Indian law; we aim to acknowledge complaints within 7 days and resolve them within 30 days.
