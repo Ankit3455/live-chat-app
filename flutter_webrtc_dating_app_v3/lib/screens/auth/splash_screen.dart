@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/session_service.dart' show StartDestination;
 import 'auth_router.dart';
@@ -106,7 +108,23 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fadeAnimation,
                 child: ScaleTransition(
                   scale: _scaleAnimation,
-                  child: const BrandHeader(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ExcludeSemantics(
+                        child: Lottie.asset(
+                          AppAssets.starAnimation,
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
+                          animate: !MediaQuery.disableAnimationsOf(context),
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const BrandHeader(),
+                    ],
+                  ),
                 ),
               ),
             ),

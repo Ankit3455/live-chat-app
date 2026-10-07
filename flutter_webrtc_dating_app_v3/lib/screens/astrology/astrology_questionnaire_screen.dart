@@ -166,17 +166,12 @@ class _AstrologyQuestionnaireScreenState
     );
   }
 
-  /// The sun-sign and zodiac cards keep the animations the old astrology
-  /// screens had; the belief card uses its icon.
+  /// The sun-sign card keeps the star animation the old astrology screen
+  /// had; the other cards use their icon.
   Widget? _art(BuildContext context, DeckCard card) {
-    final asset = switch (card.lead.fieldName) {
-      _sunField => AppAssets.starAnimation,
-      'preferredSigns' => AppAssets.zodiacAnimation,
-      _ => null,
-    };
-    if (asset == null) return null;
+    if (card.lead.fieldName != _sunField) return null;
     return Lottie.asset(
-      asset,
+      AppAssets.starAnimation,
       width: 92,
       height: 92,
       fit: BoxFit.contain,
