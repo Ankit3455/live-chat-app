@@ -121,6 +121,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               LocationService.locationFields(
                 list.first.latitude,
                 list.first.longitude,
+                source: LocationService.sourceCity,
               ),
             );
           }

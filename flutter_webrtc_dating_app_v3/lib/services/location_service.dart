@@ -23,6 +23,9 @@ enum LocationUpdateResult {
 /// Single place that captures the user's location (DEST-081).
 /// Writes to the user's own doc only: coordinates rounded to ~1 km plus a
 /// precision-5 geohash. The public mirror publishes only the geohash.
+///
+/// A device fix ('gps') wins over a typed city ('city'): the city's centre
+/// only fills in when there is no recent device fix.
 class LocationService {
   LocationService._();
   static final LocationService instance = LocationService._();
@@ -30,13 +33,20 @@ class LocationService {
   /// Background refreshes (e.g. on resume) run at most this often.
   static const Duration refreshInterval = Duration(minutes: 30);
 
+  /// A device fix younger than this is not replaced by a typed city.
+  static const Duration gpsTrumpsCityFor = Duration(days: 7);
+
+  static const String sourceGps = 'gps';
+  static const String sourceCity = 'city';
+
   DateTime? _lastAttempt;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   /// Asks for permission if needed and saves the current position.
   /// [force] ignores the refresh interval (explicit user action).
-  Future<LocationUpdateResult> updateCurrentLocation({bool force = false}) async {
+  Future<LocationUpdateResult> updateCurrentLocation(
+      {bool force = false}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return LocationUpdateResult.notSignedIn;
 
@@ -59,11 +69,9 @@ class LocationService {
       }
 
       _lastAttempt = DateTime.now();
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 15),
-      );
-      await _save(uid, position.latitude, position.longitude);
+      final position = await _currentPosition();
+      if (position == null) return LocationUpdateResult.failed;
+      await _save(uid, position.latitude, position.longitude, sourceGps);
       return LocationUpdateResult.updated;
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
@@ -89,17 +97,24 @@ class LocationService {
     }
   }
 
-  /// Geocodes a typed city and saves its approximate position. Call whenever
-  /// the city text changes so coordinates never go stale. Returns false when
-  /// the city cannot be resolved (the city text is still kept by the caller).
+  /// Geocodes a typed city and saves its centre, unless a device fix from the
+  /// last [gpsTrumpsCityFor] exists (the device knows better than a city
+  /// name). Returns false when the city cannot be resolved; the city text is
+  /// still kept by the caller.
   Future<bool> updateFromCity(String city) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final query = city.trim();
     if (uid == null || query.isEmpty) return false;
     try {
+      if (await _hasRecentGpsFix(uid)) return true;
       final results = await locationFromAddress(query);
       if (results.isEmpty) return false;
-      await _save(uid, results.first.latitude, results.first.longitude);
+      await _save(
+        uid,
+        results.first.latitude,
+        results.first.longitude,
+        sourceCity,
+      );
       return true;
     } catch (e) {
       if (kDebugMode) debugPrint('Geocoding "$query" failed: $e');
@@ -109,13 +124,47 @@ class LocationService {
 
   /// Fields to merge into users/{uid} for a position. Also usable by screens
   /// that save the profile in one write.
-  static Map<String, dynamic> locationFields(double lat, double lng) {
+  static Map<String, dynamic> locationFields(
+    double lat,
+    double lng, {
+    String source = sourceGps,
+  }) {
     return {
       'userLatitude': _round(lat),
       'userLongitude': _round(lng),
       'geohash': Geohash.encode(lat, lng),
       'lastLocationUpdate': DateTime.now().millisecondsSinceEpoch,
+      'locationSource': source,
     };
+  }
+
+  /// A balanced (cell/Wi-Fi, ~100 m) fix, falling back to the last known
+  /// position when a fresh one times out (e.g. indoors). Low-power accuracy
+  /// can be several km off, enough to land in the wrong 5 km cell.
+  Future<Position?> _currentPosition() async {
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 15),
+      );
+    } catch (e) {
+      if (kDebugMode)
+        debugPrint('Fresh position failed, trying last known: $e');
+      return Geolocator.getLastKnownPosition();
+    }
+  }
+
+  Future<bool> _hasRecentGpsFix(String uid) async {
+    try {
+      final data = (await _db.collection('users').doc(uid).get()).data();
+      final ms = data?['lastLocationUpdate'];
+      if (data?['locationSource'] != sourceGps || ms is! num) return false;
+      final age = DateTime.now()
+          .difference(DateTime.fromMillisecondsSinceEpoch(ms.toInt()));
+      return age < gpsTrumpsCityFor;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> openAppSettings() => Geolocator.openAppSettings();
@@ -144,13 +193,16 @@ class LocationService {
     return true;
   }
 
-  Future<void> _save(String uid, double lat, double lng) async {
+  Future<void> _save(String uid, double lat, double lng, String source) async {
     // Offline writes resolve only on server ack; the local cache is updated
     // immediately, so do not block the UI for long.
     await _db
         .collection('users')
         .doc(uid)
-        .set(locationFields(lat, lng), SetOptions(merge: true))
+        .set(
+          locationFields(lat, lng, source: source),
+          SetOptions(merge: true),
+        )
         .timeout(const Duration(seconds: 6), onTimeout: () {});
   }
 

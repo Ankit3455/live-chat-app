@@ -11,7 +11,8 @@ class Geohash {
   /// Precision used for public profiles.
   static const int publicPrecision = 5;
 
-  static String encode(double lat, double lng, {int precision = publicPrecision}) {
+  static String encode(double lat, double lng,
+      {int precision = publicPrecision}) {
     var latMin = -90.0, latMax = 90.0;
     var lngMin = -180.0, lngMax = 180.0;
     final out = StringBuffer();
@@ -77,6 +78,37 @@ class Geohash {
       }
     }
     return (lat: (latMin + latMax) / 2, lng: (lngMin + lngMax) / 2);
+  }
+
+  /// Height and width in degrees of a cell at [precision].
+  static ({double lat, double lng}) cellSize(int precision) {
+    final bits = precision * 5;
+    final lngBits = (bits + 1) ~/ 2;
+    final latBits = bits ~/ 2;
+    return (
+      lat: 180 / math.pow(2, latBits),
+      lng: 360 / math.pow(2, lngBits),
+    );
+  }
+
+  /// [hash] and its 8 surrounding cells (fewer next to the poles), for
+  /// prefix range queries that cover "nearby" without exact coordinates.
+  static List<String> withNeighbors(String hash) {
+    final centre = decode(hash);
+    if (centre == null) return const [];
+    final size = cellSize(hash.length);
+    final out = <String>{};
+    for (var dy = -1; dy <= 1; dy++) {
+      for (var dx = -1; dx <= 1; dx++) {
+        final lat = centre.lat + dy * size.lat;
+        if (lat <= -90 || lat >= 90) continue;
+        var lng = centre.lng + dx * size.lng;
+        if (lng >= 180) lng -= 360;
+        if (lng < -180) lng += 360;
+        out.add(encode(lat, lng, precision: hash.length));
+      }
+    }
+    return out.toList();
   }
 
   /// Great-circle distance in km.

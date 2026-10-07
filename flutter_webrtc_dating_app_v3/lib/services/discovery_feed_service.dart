@@ -209,10 +209,11 @@ class DiscoveryFeed {
   }
 
   /// public_profiles is written by each user's own app (no Cloud Functions on
-  /// the free plan), so it only fills up as users open the new version. Until
-  /// every existing user has one, read the sanitised users docs instead
-  /// (allowed by config/rules.legacyUsersRead). Flip to true after that.
-  static const bool _publicFeedEnabled = false;
+  /// the free plan). Every account since the 7 Oct 2026 reset has one, so the
+  /// feed reads it; the sanitised `users` fallback only runs while it is
+  /// empty. Once this build is out, set config/rules.legacyUsersRead to false
+  /// so other users' private docs are no longer readable at all.
+  static const bool _publicFeedEnabled = true;
 
   Future<bool> _isPublicReady() async {
     if (!_publicFeedEnabled) return false;
