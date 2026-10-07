@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../core/config/auth_config.dart';
 import 'session_service.dart';
 
 class AuthService {
@@ -135,7 +136,7 @@ class AuthService {
       'createdAt': FieldValue.serverTimestamp(),
       'online': true,
       'lastSeen': FieldValue.serverTimestamp(),
-      'emailVerificationRequired': true,
+      'emailVerificationRequired': AuthConfig.requireEmailVerification,
       'signupCompleted': false,
       'mandatoryCompleted': false,
       'discoveryEnabled': false,
@@ -169,9 +170,11 @@ class AuthService {
       );
     }
 
-    try {
-      await user.sendEmailVerification();
-    } catch (_) {}
+    if (AuthConfig.requireEmailVerification) {
+      try {
+        await user.sendEmailVerification();
+      } catch (_) {}
+    }
 
     return cred;
   }

@@ -12,6 +12,7 @@ import '../../widgets/app_states.dart';
 import '../../widgets/custom_button.dart';
 import 'auth_router.dart';
 import 'widgets/auth_widgets.dart';
+import '../../core/config/auth_config.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -149,7 +150,11 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
 
       Haptics.success();
-      _showSuccess('Account created! Check your inbox to verify your email.');
+      _showSuccess(
+        AuthConfig.requireEmailVerification
+            ? 'Account created! Check your inbox to verify your email.'
+            : 'Account created!',
+      );
       await AuthRouter.routeCurrentUser(context);
     } on FirebaseAuthException catch (e) {
       _showError(

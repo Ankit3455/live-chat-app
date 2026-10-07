@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/config/auth_config.dart';
 import '../core/utils/auth_validators.dart';
 import 'notification/push_token_service.dart';
 import 'call/webrtc/ice_servers.dart';
@@ -258,7 +259,9 @@ class SessionService {
     }
     final data = snap.data() ?? const <String, dynamic>{};
 
-    if (data['emailVerificationRequired'] == true && !user.emailVerified) {
+    if (AuthConfig.requireEmailVerification &&
+        data['emailVerificationRequired'] == true &&
+        !user.emailVerified) {
       try {
         await user.reload().timeout(_netTimeout);
       } catch (_) {}
