@@ -24,6 +24,7 @@ const PUBLIC_FIELDS = [
   'religiousViews', 'musicGenres', 'movieGenres', 'tvGenres', 'preferredSigns',
   'personalityPriority', 'believesInAstrology', 'astrologyBeliefLevel',
   'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
+  'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages',
 ];
 
 function encodeGeohash(lat, lng, precision = GEOHASH_PRECISION) {

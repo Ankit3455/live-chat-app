@@ -10,6 +10,7 @@ import 'package:availchat/core/constants/app_colors.dart';
 import 'package:availchat/core/utils/astrology_utils.dart';
 import 'package:availchat/core/utils/compatibility_utils.dart';
 import 'package:availchat/core/utils/haptics.dart';
+import 'package:availchat/core/utils/vibe_line.dart';
 import 'package:availchat/models/user_model.dart';
 import 'package:availchat/screens/chat/chat_screen.dart';
 import 'package:availchat/screens/chat/widgets/report_dialog.dart';
@@ -59,6 +60,12 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   static String? _clean(String? s) {
     final t = s?.trim();
     return (t == null || t.isEmpty) ? null : t;
+  }
+
+  /// Like [_clean], but hides "Prefer not to say".
+  static String? _shown(String? s) {
+    final t = _clean(s);
+    return t == 'Prefer not to say' ? null : t;
   }
 
   static List<String> _cleanList(Iterable<String>? items) {
@@ -512,6 +519,36 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         );
     }
 
+    final vibe = VibeLine.from(u.toMap());
+    if (vibe != null) {
+      children.add(
+        Container(
+          margin: const EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              colors: [
+                AppColors.brandPurple.withOpacity(.2),
+                AppColors.surfaceCard,
+              ],
+            ),
+            border: Border.all(color: AppColors.borderStrong),
+          ),
+          child: Text(
+            '✦ “$vibe”',
+            style: GoogleFonts.cormorantGaramond(
+              color: AppColors.gold,
+              fontSize: 18,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+        ),
+      );
+    }
+
     final lookingFor = _cleanList([
       ...?u.hereFor,
       if (_clean(u.relationshipGoal) case final goal?) goal,
@@ -533,6 +570,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         ('Sleep', v),
       if (_clean(u.habits) case final v?) ('Habits', v),
       if (_clean(u.personalityType) case final v?) ('Personality', v),
+      if (_shown(u.communicationStyle) case final v?) ('Talks by', v),
+      if (_shown(u.loveLanguage) case final v?) ('Love language', v),
+      if (_shown(u.religion) case final v?) ('Faith', v),
       if (_clean(u.religiousViews) case final v?) ('Religion', v),
       if (_clean(u.politicalViews) case final v?) ('Politics', v),
       if (_clean(u.idealDate) case final v?) ('Ideal date', v),
@@ -548,6 +588,13 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       children
         ..add(_sectionTitle('Interests'))
         ..add(_chipWrap(interests.map((t) => _Chip(t)).toList()));
+    }
+
+    final languages = _cleanList(u.languages);
+    if (languages.isNotEmpty) {
+      children
+        ..add(_sectionTitle('Languages'))
+        ..add(_chipWrap(languages.map((t) => _Chip(t)).toList()));
     }
 
     final genres = _cleanList([
@@ -571,6 +618,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       if (_clean(u.exerciseFrequency) case final v?)
         _Chip(v, icon: Icons.fitness_center_outlined),
       for (final pet in _cleanList(u.pets)) _Chip(pet, icon: Icons.pets),
+      if (_shown(u.hasChildren) case final v?)
+        _Chip(v, icon: Icons.family_restroom_outlined),
       if (_clean(u.wantsChildren) case final v?)
         _Chip(v, icon: Icons.child_friendly_outlined),
       if (_clean(u.partyingFrequency) case final v?)

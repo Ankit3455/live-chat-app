@@ -1,13 +1,18 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dart';
-import 'package:availchat/screens/questionnaire/widgets/question_widget.dart';
-import 'package:availchat/managers/profile_completion_manager.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/utils/haptics.dart';
-import '../../widgets/custom_button.dart';
+import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../core/utils/vibe_line.dart';
+import '../../managers/profile_completion_manager.dart';
+import 'deck/deck_models.dart';
+import 'deck/deck_widgets.dart';
+import 'deck/destiny_deck_screen.dart';
+
+/// "Complete your profile": the Lifestyle and Personality decks, profile
+/// strength and the vibe line.
 class ProfileCompletionScreen extends StatefulWidget {
   const ProfileCompletionScreen({Key? key}) : super(key: key);
 
@@ -17,463 +22,146 @@ class ProfileCompletionScreen extends StatefulWidget {
 }
 
 class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
-  final _sections = QuestionnaireHelper.getProfileSections();
-  final _lifestyleQuestions = QuestionnaireHelper.getLifestyleQuestions();
-  final _personalityQuestions = QuestionnaireHelper.getPersonalityQuestions();
   final Map<String, dynamic> _answers = {};
-  final Set<String> _completedSections = {};
-  bool _isSaving = false;
-  int _completionPercentage = 60;
-  // Section whose Save button briefly shows a check.
-  String? _savedSection;
+  bool _loading = true;
+  int? _percent;
 
   @override
   void initState() {
     super.initState();
-    _loadExistingData();
-    _loadCompletionPercentage();
-    _checkCompletedSections();
+    _load();
   }
 
-  /// Load existing user data from Firestore
-  Future<void> _loadExistingData() async {
+  Future<void> _load() async {
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
-
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (doc.exists && mounted) {
-        // Don't overwrite answers the user changed while this was loading.
-        setState(() {
-          (doc.data() ?? {}).forEach(
-            (k, v) => _answers.putIfAbsent(k, () => v),
-          );
-        });
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final doc =
+            await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        _answers
+          ..clear()
+          ..addAll(doc.data() ?? const {});
       }
     } catch (e) {
-      debugPrint('Error loading data: $e');
+      debugPrint('Error loading profile: $e');
     }
+    if (mounted) setState(() => _loading = false);
+    unawaited(_refreshPercent());
   }
 
-  /// Load current completion percentage
-  Future<void> _loadCompletionPercentage() async {
+  Future<void> _refreshPercent() async {
     try {
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
-      if (mounted) setState(() => _completionPercentage = percentage);
+      final pct = await ProfileCompletionManager().getCompletionPercentage();
+      if (mounted) setState(() => _percent = pct);
     } catch (e) {
       debugPrint('Error loading completion: $e');
     }
   }
 
-  /// Check which sections are already completed
-  Future<void> _checkCompletedSections() async {
-    final manager = ProfileCompletionManager();
-    try {
-      final lifestyle = await manager.isLifestyleComplete();
-      final personality = await manager.isPersonalityComplete();
-      if (!mounted) return;
-      setState(() {
-        if (lifestyle) _completedSections.add('Lifestyle Preferences');
-        if (personality) _completedSections.add('Personality & Views');
-      });
-    } catch (e) {
-      debugPrint('Error checking sections: $e');
-    }
-  }
-
-  /// Get questions for a specific section
-  List<dynamic> _getQuestionsForSection(String sectionTitle) {
-    if (sectionTitle == 'Lifestyle Preferences') {
-      return _lifestyleQuestions;
-    } else if (sectionTitle == 'Personality & Views') {
-      return _personalityQuestions;
-    }
-    return [];
-  }
-
-  /// ✅ FIXED: Validate and save section with proper checks
-  Future<void> _saveSection(
-    String sectionTitle,
-    List<dynamic> questions,
-  ) async {
-    if (_isSaving) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) {
-        throw const _SectionError('Please log in again.');
-      }
-
-      // ✅ Step 1: Collect ONLY answered questions for this section
-      final sectionData = <String, dynamic>{};
-
-      for (var question in questions) {
-        final fieldName = question.fieldName;
-        final answer = _answers[fieldName];
-
-        // ✅ Validate answer exists and is not empty
-        if (answer != null) {
-          if (answer is String) {
-            // For text answers, check if not empty after trimming
-            if (answer.trim().isNotEmpty) {
-              sectionData[fieldName] = answer.trim();
-            }
-          } else if (answer is List) {
-            // For multi-choice, check if list has items
-            if (answer.isNotEmpty) {
-              sectionData[fieldName] = answer;
-            }
-          } else {
-            // For other types (numbers, bools, etc.)
-            sectionData[fieldName] = answer;
-          }
-        }
-      }
-
-      // ✅ Step 2: Check if minimum answers provided
-      if (sectionData.isEmpty) {
-        throw const _SectionError(
-          'Please answer at least one question in this section',
-        );
-      }
-
-      final minimumRequired = (questions.length * 0.5).ceil(); // 50% threshold
-
-      if (sectionData.length < minimumRequired) {
-        throw _SectionError(
-          'Please answer at least $minimumRequired questions in this section. '
-          "You've answered ${sectionData.length} so far.",
-        );
-      }
-
-      // ✅ Step 3: Save to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set(sectionData, SetOptions(merge: true));
-
-      // ✅ Step 4: Mark section as complete ONLY if minimum met
-      if (sectionTitle == 'Lifestyle Preferences') {
-        await ProfileCompletionManager().markLifestyleComplete();
-      } else if (sectionTitle == 'Personality & Views') {
-        await ProfileCompletionManager().markPersonalityComplete();
-      }
-
-      // ✅ Step 5: Update completion percentage (also written back)
-      final percentage =
-          await ProfileCompletionManager().getCompletionPercentage();
-      if (!mounted) return;
-      Haptics.success();
-      setState(() {
-        _completedSections.add(sectionTitle);
-        _completionPercentage = percentage;
-        _savedSection = sectionTitle;
-      });
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted && _savedSection == sectionTitle) {
-          setState(() => _savedSection = null);
-        }
-      });
-
-      // ✅ Step 6: Show success message with answer count
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '$sectionTitle saved. Your profile is now '
-              '$_completionPercentage% complete.',
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Save section failed: $e');
-      if (mounted) {
-        Haptics.error();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e is _SectionError
-                  ? e.message
-                  : "We couldn't save this section. Check your connection and try again.",
-            ),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
+  Future<void> _open(DeckSection section) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DestinyDeckScreen(
+          section: section,
+          answers: _answers,
+          startPercent: _percent ?? 0,
+          startIndex: DestinyDeckScreen.firstOpen(section, _answers),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
+    unawaited(_refreshPercent());
   }
 
   @override
   Widget build(BuildContext context) {
-    final animDuration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 400);
+    final pct = _percent;
+    final vibe = VibeLine.from(_answers);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDeep,
-      appBar: AppBar(
-        title: const Text('Complete your profile'),
-        backgroundColor: AppColors.backgroundDeep,
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Text(
-                '$_completionPercentage%',
-                semanticsLabel: 'Profile $_completionPercentage% complete',
-                style: const TextStyle(
-                  color: AppColors.brandPurpleLight,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      backgroundColor: AppColors.backgroundDarkest,
+      body: DeckBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                child: Row(
+                  children: [
+                    DeckIconButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      label: 'Back',
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Complete your profile',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 40),
+                  ],
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        // Cap width on tablets so the form stays readable.
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Completion Progress Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.brandPurple.withOpacity(0.2),
-                        AppColors.brandPurple.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Flexible(
-                            child: Text(
-                              'Profile strength',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.brandPurpleLight,
+                        ),
+                      )
+                    : Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                            children: [
+                              Text(
+                                'Draw your cards',
+                                textAlign: TextAlign.center,
+                                style: deckSerif(32),
                               ),
-                            ),
-                          ),
-                          Text(
-                            '$_completionPercentage%',
-                            style: const TextStyle(
-                              color: AppColors.brandPurpleLight,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween<double>(
-                            end: _completionPercentage / 100,
-                          ),
-                          duration: animDuration,
-                          curve: Curves.easeOutCubic,
-                          builder: (context, value, _) =>
-                              LinearProgressIndicator(
-                            value: value,
-                            semanticsLabel: 'Profile strength',
-                            semanticsValue: '$_completionPercentage%',
-                            backgroundColor: AppColors.surface2,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.brandPurpleMid,
-                            ),
-                            minHeight: 10,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _completionPercentage == 100
-                            ? '🎉 Your profile is complete!'
-                            : 'Complete optional sections to boost your profile!',
-                        style: const TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Sections
-                ..._sections.map((section) {
-                  final questions = section.questions.isNotEmpty
-                      ? section.questions
-                      : _getQuestionsForSection(section.title);
-                  final isCompleted = _completedSections.contains(
-                    section.title,
-                  );
-
-                  // ✅ Count how many questions are currently answered
-                  final answeredCount = questions.where((q) {
-                    final answer = _answers[q.fieldName];
-                    if (answer == null) return false;
-                    if (answer is String) return answer.trim().isNotEmpty;
-                    if (answer is List) return answer.isNotEmpty;
-                    return true;
-                  }).length;
-
-                  return AnimatedContainer(
-                    duration: animDuration,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceCard,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isCompleted
-                            ? AppColors.brandPurpleMid
-                            : AppColors.border,
-                      ),
-                    ),
-                    child: Theme(
-                      data: Theme.of(
-                        context,
-                      ).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
-                        ),
-                        leading: ExcludeSemantics(
-                          child: Text(
-                            section.icon ?? '🌟',
-                            style: const TextStyle(fontSize: 28),
-                          ),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                section.title,
-                                style: const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Two short decks. Answer what feels right, skip the rest.\nEach card lights a star in your constellation.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.lavender,
+                                  fontSize: 13,
+                                  height: 1.5,
                                 ),
                               ),
-                            ),
-                            // ✅ Show answer count badge
-                            if (answeredCount > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brandPurple.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '$answeredCount/${questions.length}',
-                                  style: const TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          section.description,
-                          style: const TextStyle(
-                            color: AppColors.lavender,
-                            fontSize: 14,
-                          ),
-                        ),
-                        trailing: isCompleted
-                            ? const Icon(
-                                Icons.check_circle,
-                                color: AppColors.brandPurpleLight,
-                              )
-                            : const Icon(
-                                Icons.expand_more,
-                                color: AppColors.lavender,
-                              ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Column(
-                              children: [
-                                // Questions
-                                ...questions.map((question) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 24.0,
+                              const SizedBox(height: 26),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  for (final s in DeckSection.values)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7),
+                                      child: _DeckStack(
+                                        section: s,
+                                        answers: _answers,
+                                        onTap: () => _open(s),
+                                      ),
                                     ),
-                                    child: QuestionWidget(
-                                      dense: true,
-                                      question: question,
-                                      answer: _answers[question.fieldName],
-                                      onAnswerChanged: (answer) {
-                                        setState(() {
-                                          _answers[question.fieldName] = answer;
-                                        });
-                                      },
-                                    ),
-                                  );
-                                }).toList(),
-                                const SizedBox(height: 16),
-
-                                CustomButton(
-                                  text: _savedSection == section.title
-                                      ? 'Saved'
-                                      : isCompleted
-                                          ? 'Update ${section.title}'
-                                          : 'Save ${section.title}',
-                                  onPressed: _isSaving
-                                      ? null
-                                      : () => _saveSection(
-                                            section.title,
-                                            questions,
-                                          ),
-                                  isLoading: _isSaving &&
-                                      _savedSection != section.title,
-                                  isSuccess: _savedSection == section.title,
-                                ),
-                              ],
-                            ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              _StrengthCard(percent: pct),
+                              const SizedBox(height: 12),
+                              _VibeCard(vibe: vibe),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -481,7 +169,199 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   }
 }
 
-class _SectionError implements Exception {
-  final String message;
-  const _SectionError(this.message);
+class _DeckStack extends StatelessWidget {
+  final DeckSection section;
+  final Map<String, dynamic> answers;
+  final VoidCallback onTap;
+  const _DeckStack({
+    required this.section,
+    required this.answers,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = section.cards;
+    final lit = cards.where((c) => c.isDone(answers)).length;
+    final done = section.isComplete(answers);
+    const card = SizedBox(
+        width: 132,
+        height: 180,
+        child: TarotFrame(radius: 16, child: SizedBox.expand()));
+    return Semantics(
+      button: true,
+      label: '${section.title} deck, $lit of ${cards.length} answered',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 150,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 196,
+                child: Stack(
+                  alignment: Alignment.topCenter,
+                  children: [
+                    Transform.translate(
+                      offset: const Offset(-14, 0),
+                      child: Transform.rotate(angle: -.157, child: card),
+                    ),
+                    Transform.translate(
+                      offset: const Offset(14, 0),
+                      child: Transform.rotate(angle: .122, child: card),
+                    ),
+                    SizedBox(
+                      width: 132,
+                      height: 180,
+                      child: TarotFrame(
+                        radius: 16,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              section.roman,
+                              style: deckSerif(12,
+                                      color: AppColors.gold, italic: true)
+                                  .copyWith(letterSpacing: 1.6),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(section.emoji,
+                                style: const TextStyle(fontSize: 38)),
+                            const SizedBox(height: 8),
+                            Text(section.title, style: deckSerif(20)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text.rich(
+                lit == 0
+                    ? TextSpan(text: '${cards.length} cards · ~1 min')
+                    : TextSpan(children: [
+                        TextSpan(
+                          text: '$lit/${cards.length}',
+                          style: const TextStyle(
+                            color: deckGoldLight,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        TextSpan(text: ' stars lit${done ? ' · ✓ done' : ''}'),
+                      ]),
+                style: const TextStyle(color: AppColors.lavender, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StrengthCard extends StatelessWidget {
+  final int? percent;
+  const _StrengthCard({required this.percent});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = percent;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard.withOpacity(.75),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 76,
+            child: Text(
+              p == null ? '–' : '$p%',
+              semanticsLabel: p == null ? null : 'Profile $p% complete',
+              style: deckSerif(34),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p == 100
+                      ? 'Your profile is complete. It stands out in Discover.'
+                      : 'Profile strength. Complete profiles stand out in Discover.',
+                  style: const TextStyle(
+                      color: AppColors.lavender, fontSize: 12, height: 1.45),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(end: (p ?? 0) / 100),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 600),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, v, _) => LinearProgressIndicator(
+                      value: v,
+                      minHeight: 6,
+                      backgroundColor: AppColors.surface2,
+                      valueColor:
+                          const AlwaysStoppedAnimation(AppColors.brandMagenta),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VibeCard extends StatelessWidget {
+  final String? vibe;
+  const _VibeCard({required this.vibe});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.brandPurple.withOpacity(.2),
+            AppColors.surfaceCard.withOpacity(.85),
+          ],
+        ),
+        border: Border.all(color: AppColors.borderStrong),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '✦ YOUR VIBE LINE',
+            style: TextStyle(
+              color: AppColors.gold,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            vibe ?? 'Draw a deck to reveal it…',
+            style: deckSerif(18, italic: true).copyWith(height: 1.3),
+          ),
+        ],
+      ),
+    );
+  }
 }

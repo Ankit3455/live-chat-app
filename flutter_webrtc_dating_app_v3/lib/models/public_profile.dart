@@ -60,6 +60,11 @@ class PublicProfile {
     'idealDate',
     'online',
     'lastSeen',
+    'hasChildren',
+    'religion',
+    'communicationStyle',
+    'loveLanguage',
+    'languages',
   ];
 
   /// Builds the public map from a private `users/{uid}` map. Used for the

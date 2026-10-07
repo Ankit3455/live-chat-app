@@ -127,6 +127,7 @@ class ProfileQuickSheet extends StatelessWidget {
                         if (user.pets?.isNotEmpty == true) ...user.pets!
                             .where((e) => e.trim().isNotEmpty)
                             .map((e) => e.trim()),
+                        if (_shown(user.hasChildren)) user.hasChildren!.trim(),
                         if (_notEmpty(user.wantsChildren)) user.wantsChildren!.trim(),
                         if (_notEmpty(user.partyingFrequency)) user.partyingFrequency!.trim(),
                         if (_notEmpty(user.tattoos)) user.tattoos!.trim(),
@@ -144,6 +145,12 @@ class ProfileQuickSheet extends StatelessWidget {
                     _chipWrap(
                       items: [
                         if (_notEmpty(user.personalityType)) user.personalityType!.trim(),
+                        if (_shown(user.communicationStyle)) user.communicationStyle!.trim(),
+                        if (_shown(user.loveLanguage)) user.loveLanguage!.trim(),
+                        if (_shown(user.religion)) user.religion!.trim(),
+                        if (user.languages?.isNotEmpty == true) ...user.languages!
+                            .where((e) => e.trim().isNotEmpty)
+                            .map((e) => e.trim()),
                         if (_notEmpty(user.relationshipGoal)) user.relationshipGoal!.trim(),
                         if (_notEmpty(user.relationshipStatus)) user.relationshipStatus!.trim(),
                         if (user.hereFor?.isNotEmpty == true) ...user.hereFor!
@@ -378,6 +385,8 @@ class ProfileQuickSheet extends StatelessWidget {
 
   // ---------- Helpers ----------
   bool _notEmpty(String? s) => s != null && s.trim().isNotEmpty;
+  // "Prefer not to say" answers stay off other people's view.
+  bool _shown(String? s) => _notEmpty(s) && s!.trim() != 'Prefer not to say';
   String _safe(String? s) => s?.trim().isNotEmpty == true ? s!.trim() : "Unknown";
 
   String? get _zodiac => _notEmpty(user.zodiacSign)
@@ -390,6 +399,7 @@ class ProfileQuickSheet extends StatelessWidget {
           _notEmpty(user.smokingHabits) ||
           _notEmpty(user.exerciseFrequency) ||
           (user.pets?.isNotEmpty ?? false) ||
+          _shown(user.hasChildren) ||
           _notEmpty(user.wantsChildren) ||
           _notEmpty(user.partyingFrequency) ||
           _notEmpty(user.tattoos) ||
@@ -398,6 +408,10 @@ class ProfileQuickSheet extends StatelessWidget {
 
   bool get _hasPersonalityData =>
       _notEmpty(user.personalityType) ||
+          _shown(user.communicationStyle) ||
+          _shown(user.loveLanguage) ||
+          _shown(user.religion) ||
+          (user.languages?.isNotEmpty ?? false) ||
           _notEmpty(user.relationshipGoal) ||
           _notEmpty(user.relationshipStatus) ||
           (user.hereFor?.isNotEmpty ?? false) ||

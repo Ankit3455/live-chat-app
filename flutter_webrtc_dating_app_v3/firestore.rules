@@ -226,7 +226,8 @@ service cloud.firestore {
         'religiousViews', 'musicGenres', 'movieGenres', 'tvGenres', 'preferredSigns',
         'personalityPriority', 'believesInAstrology', 'astrologyBeliefLevel',
         'relationshipPriority', 'vibePreference', 'idealDate', 'online', 'lastSeen',
-        'gender', 'avatarProperties', 'age', 'geohash', 'discoveryEnabled'
+        'gender', 'avatarProperties', 'age', 'geohash', 'discoveryEnabled',
+        'hasChildren', 'religion', 'communicationStyle', 'loveLanguage', 'languages'
       ];
     }
 
@@ -265,6 +266,7 @@ service cloud.firestore {
         && listMax(d, k, 'musicGenres', 30)
         && listMax(d, k, 'movieGenres', 30)
         && listMax(d, k, 'tvGenres', 30)
+        && listMax(d, k, 'languages', 30)
         && listMax(d, k, 'preferredSigns', 12)
         && fieldOk(d, k, 'avatarProperties', d.get('avatarProperties', null) is map
             && d.avatarProperties.keys().hasOnly(['avatarImageUrl'])

@@ -68,6 +68,7 @@ class UserModel {
   final String? exerciseFrequency;
   final List<String>? pets;
   final String? wantsChildren;
+  final String? hasChildren;
   final String? partyingFrequency;
   final String? tattoos;
 
@@ -75,6 +76,10 @@ class UserModel {
   final String? personalityType;
   final String? politicalViews;
   final String? religiousViews;
+  final String? religion;
+  final String? communicationStyle;
+  final String? loveLanguage;
+  final List<String>? languages;
   final List<String>? musicGenres;
   final List<String>? movieGenres;
   final List<String>? tvGenres;
@@ -136,11 +141,16 @@ class UserModel {
     this.exerciseFrequency,
     this.pets,
     this.wantsChildren,
+    this.hasChildren,
     this.partyingFrequency,
     this.tattoos,
     this.personalityType,
     this.politicalViews,
     this.religiousViews,
+    this.religion,
+    this.communicationStyle,
+    this.loveLanguage,
+    this.languages,
     this.musicGenres,
     this.movieGenres,
     this.tvGenres,
@@ -345,11 +355,16 @@ class UserModel {
       exerciseFrequency: _str(map['exerciseFrequency']),
       pets: _safeNullableListConversion(map['pets']),
       wantsChildren: _str(map['wantsChildren']),
+      hasChildren: _str(map['hasChildren']),
       partyingFrequency: _str(map['partyingFrequency']),
       tattoos: _str(map['tattoos']),
       personalityType: _str(map['personalityType']),
       politicalViews: _str(map['politicalViews']),
       religiousViews: _str(map['religiousViews']),
+      religion: _str(map['religion']),
+      communicationStyle: _str(map['communicationStyle']),
+      loveLanguage: _str(map['loveLanguage']),
+      languages: _safeNullableListConversion(map['languages']),
       musicGenres: _safeNullableListConversion(map['musicGenres']),
       movieGenres: _safeNullableListConversion(map['movieGenres']),
       tvGenres: _safeNullableListConversion(map['tvGenres']),
@@ -425,11 +440,16 @@ class UserModel {
       'exerciseFrequency': exerciseFrequency,
       'pets': pets,
       'wantsChildren': wantsChildren,
+      'hasChildren': hasChildren,
       'partyingFrequency': partyingFrequency,
       'tattoos': tattoos,
       'personalityType': personalityType,
       'politicalViews': politicalViews,
       'religiousViews': religiousViews,
+      'religion': religion,
+      'communicationStyle': communicationStyle,
+      'loveLanguage': loveLanguage,
+      'languages': languages,
       'musicGenres': musicGenres,
       'movieGenres': movieGenres,
       'tvGenres': tvGenres,
@@ -491,11 +511,16 @@ class UserModel {
     String? exerciseFrequency,
     List<String>? pets,
     String? wantsChildren,
+    String? hasChildren,
     String? partyingFrequency,
     String? tattoos,
     String? personalityType,
     String? politicalViews,
     String? religiousViews,
+    String? religion,
+    String? communicationStyle,
+    String? loveLanguage,
+    List<String>? languages,
     List<String>? musicGenres,
     List<String>? movieGenres,
     List<String>? tvGenres,
@@ -554,11 +579,16 @@ class UserModel {
       exerciseFrequency: exerciseFrequency ?? this.exerciseFrequency,
       pets: pets ?? this.pets,
       wantsChildren: wantsChildren ?? this.wantsChildren,
+      hasChildren: hasChildren ?? this.hasChildren,
       partyingFrequency: partyingFrequency ?? this.partyingFrequency,
       tattoos: tattoos ?? this.tattoos,
       personalityType: personalityType ?? this.personalityType,
       politicalViews: politicalViews ?? this.politicalViews,
       religiousViews: religiousViews ?? this.religiousViews,
+      religion: religion ?? this.religion,
+      communicationStyle: communicationStyle ?? this.communicationStyle,
+      loveLanguage: loveLanguage ?? this.loveLanguage,
+      languages: languages ?? this.languages,
       musicGenres: musicGenres ?? this.musicGenres,
       movieGenres: movieGenres ?? this.movieGenres,
       tvGenres: tvGenres ?? this.tvGenres,

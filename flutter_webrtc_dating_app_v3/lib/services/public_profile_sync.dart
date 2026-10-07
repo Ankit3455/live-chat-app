@@ -125,6 +125,7 @@ class PublicProfileSync {
     'musicGenres': 30,
     'movieGenres': 30,
     'tvGenres': 30,
+    'languages': 30,
     'preferredSigns': 12,
   };
 
