@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:availchat/core/constants/app_colors.dart';
@@ -6,15 +9,16 @@ import 'package:availchat/core/utils/haptics.dart';
 import 'package:availchat/managers/profile_completion_manager.dart';
 import 'package:availchat/models/question_model.dart';
 import 'package:availchat/services/session_service.dart';
-import 'package:availchat/widgets/custom_button.dart';
 import '../auth/auth_router.dart';
 import '../profile/voice_intro_screen.dart';
 import 'helpers/questionnaire_helper.dart';
-import 'widgets/progress_header.dart';
-import 'widgets/question_widget.dart';
+import 'deck/deck_models.dart';
+import 'deck/deck_runner.dart';
+import 'deck/deck_widgets.dart';
 
-/// Post-signup mandatory questions (5 questions)
-/// Converted from PostSignupQuestionsActivity.kt
+/// Chapter II of signup: relationship status, here for, height, body type,
+/// education (required) and an optional opening line. Each answer is saved as
+/// it is given so a resumed flow keeps it.
 class PostSignupQuestionsScreen extends StatefulWidget {
   const PostSignupQuestionsScreen({super.key});
 
@@ -24,13 +28,14 @@ class PostSignupQuestionsScreen extends StatefulWidget {
 }
 
 class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
-  final _pageController = PageController();
+  final _runner = GlobalKey<DeckRunnerState>();
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
-  int _currentPage = 0;
   final Map<String, dynamic> _answers = {};
   late final List<Question> _questions;
+  late final List<DeckCard> _cards;
+  bool _intro = true;
   bool _isLoading = false;
   bool _completed = false;
 
@@ -38,13 +43,8 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
   void initState() {
     super.initState();
     _questions = QuestionnaireHelper.getMandatoryQuestions();
+    _cards = DeckCard.fromQuestions(_questions);
     _loadSavedAnswers();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
   }
 
   /// Prefills answers saved before the app was closed mid-flow.
@@ -75,56 +75,27 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
     return true;
   }
 
-  Duration get _pageDuration => MediaQuery.disableAnimationsOf(context)
-      ? const Duration(milliseconds: 1)
-      : const Duration(milliseconds: 300);
-
-  void _nextPage() {
-    if (_isLoading || _completed) return;
-    if (!_validateCurrentQuestion()) {
-      _showError('Please answer this question to continue.');
-      return;
-    }
-    if (_currentPage < _questions.length - 1) {
-      _saveCurrentAnswer();
-      _pageController.nextPage(
-        duration: _pageDuration,
-        curve: Curves.easeInOut,
-      );
-    } else {
-      _saveAndProceed();
-    }
-  }
-
-  void _previousPage() {
-    if (_currentPage > 0) {
-      _pageController.previousPage(
-        duration: _pageDuration,
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  bool _validateCurrentQuestion() {
-    final question = _questions[_currentPage];
-    if (!question.isMandatory) return true;
-    return _isAnswered(_answers[question.fieldName]);
+  void _onAnswer(String field, Object? answer) {
+    setState(() {
+      if (_isAnswered(answer)) {
+        _answers[field] = answer;
+      } else {
+        _answers.remove(field);
+      }
+    });
+    _saveAnswer(field, answer);
   }
 
   /// Best-effort incremental save so a resumed flow keeps earlier answers.
-  Future<void> _saveCurrentAnswer() async {
-    final question = _questions[_currentPage];
-    final answer = _answers[question.fieldName];
-
+  Future<void> _saveAnswer(String field, Object? answer) async {
     final userId = _auth.currentUser?.uid;
-    if (userId != null && answer != null) {
-      try {
-        await _firestore.collection('users').doc(userId).set({
-          question.fieldName: answer,
-        }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint('Error saving answer: $e');
-      }
+    if (userId == null) return;
+    try {
+      await _firestore.collection('users').doc(userId).set({
+        field: answerWriteValue(answer),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error saving answer: $e');
     }
   }
 
@@ -143,7 +114,7 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
       );
       if (missing != -1) {
         setState(() => _isLoading = false);
-        _pageController.jumpToPage(missing);
+        _runner.currentState?.goTo(missing);
         _showError('Please answer this question to continue.');
         return;
       }
@@ -195,70 +166,102 @@ class _PostSignupQuestionsScreenState extends State<PostSignupQuestionsScreen> {
   @override
   Widget build(BuildContext context) {
     final busy = _isLoading || _completed;
-    // This screen is the root of its step; back steps through the questions.
+    // Root of its step: back steps through the cards, then leaves the app.
     return PopScope(
-      canPop: _currentPage == 0 && !busy,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !busy) _previousPage();
+        if (didPop || busy) return;
+        final runner = _runner.currentState;
+        if (!_intro && runner != null && runner.canGoBack) {
+          runner.back();
+        } else if (!_intro) {
+          setState(() => _intro = true);
+        } else {
+          unawaited(SystemNavigator.pop());
+        }
       },
       child: Scaffold(
-        backgroundColor: AppColors.backgroundDeep,
-        body: SafeArea(
-          // Cap width on tablets so the form stays readable.
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                children: [
-                  ProgressHeader(
-                    currentStep: _currentPage + 1,
-                    totalSteps: _questions.length,
-                    onBack: _currentPage > 0 && !busy ? _previousPage : null,
-                  ),
-
-                  // Questions
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      physics: const NeverScrollableScrollPhysics(),
-                      onPageChanged: (index) {
-                        setState(() => _currentPage = index);
-                      },
-                      itemCount: _questions.length,
-                      itemBuilder: (context, index) {
-                        final question = _questions[index];
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: QuestionWidget(
-                            question: question,
-                            answer: _answers[question.fieldName],
-                            onAnswerChanged: (value) {
-                              setState(() {
-                                _answers[question.fieldName] = value;
-                              });
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    child: CustomButton(
-                      text: _currentPage == _questions.length - 1
-                          ? 'Finish'
-                          : 'Continue',
-                      onPressed: busy ? null : _nextPage,
-                      isLoading: _isLoading,
-                    ),
-                  ),
-                ],
+        backgroundColor: AppColors.backgroundDarkest,
+        body: DeckBackground(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: _intro ? _buildIntro() : _buildDeck(busy),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildIntro() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
+      child: Column(
+        children: [
+          const Spacer(),
+          const Text('💞', style: TextStyle(fontSize: 64)),
+          const SizedBox(height: 14),
+          Text(
+            'CHAPTER II',
+            style: deckSerif(15, color: AppColors.gold, italic: true)
+                .copyWith(letterSpacing: 4),
+          ),
+          const SizedBox(height: 6),
+          Semantics(
+            header: true,
+            child: Text('What you seek', style: deckSerif(38)),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Six cards about the kind of connection you want. Five are needed to continue.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.lavender,
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          const Spacer(),
+          DeckButton(
+            label: 'Draw the cards ✦',
+            height: 52,
+            onPressed: () => setState(() => _intro = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeck(bool busy) {
+    final firstOpen = _cards.indexWhere((c) => !c.isDone(_answers));
+    return Stack(
+      children: [
+        DeckRunner(
+          key: _runner,
+          eyebrow: 'Chapter II · What you seek',
+          cards: _cards,
+          answers: _answers,
+          startIndex: firstOpen < 0 ? _cards.length - 1 : firstOpen,
+          leading: DeckLeading.back,
+          busy: busy,
+          savedToast: '✦ Saved',
+          onAnswer: _onAnswer,
+          onFinish: _saveAndProceed,
+          onClose: () => setState(() => _intro = true),
+        ),
+        if (busy)
+          const Positioned.fill(
+            child: ColoredBox(
+              color: Color(0xB30B0614),
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.gold),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -11,6 +11,9 @@ enum DeckStyle {
 
   /// Chips; multi-select unless the question is singleChoice.
   stickers,
+
+  /// Free text written under the card.
+  write,
 }
 
 /// Question model for questionnaire
@@ -45,6 +48,14 @@ class Question {
   /// Row label inside a grouped card.
   final String? deckLabel;
 
+  // Write cards.
+  final int? maxLength;
+  final int minLength;
+  final String? placeholder;
+
+  /// Starter phrases appended on tap.
+  final List<String> ideas;
+
   const Question({
     required this.text,
     this.options = const [],
@@ -61,6 +72,10 @@ class Question {
     this.exclusiveOptions = const [],
     this.deckGroup,
     this.deckLabel,
+    this.maxLength,
+    this.minLength = 1,
+    this.placeholder,
+    this.ideas = const [],
   });
 
   String? emojiFor(String option) {
@@ -99,6 +114,10 @@ class Question {
       exclusiveOptions: exclusiveOptions,
       deckGroup: deckGroup,
       deckLabel: deckLabel,
+      maxLength: maxLength,
+      minLength: minLength,
+      placeholder: placeholder,
+      ideas: ideas,
     );
   }
 

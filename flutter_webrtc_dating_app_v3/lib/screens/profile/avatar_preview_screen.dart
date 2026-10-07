@@ -13,6 +13,7 @@ import 'package:availchat/widgets/avatar_story.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/haptics.dart';
+import '../questionnaire/deck/deck_widgets.dart';
 
 /// Safe cache-busting helper
 String cacheBustedUrl(String url, int? version) {
@@ -141,206 +142,177 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDeep,
-      body: SafeArea(
-        child: uid == null || _userStream == null
-            ? _buildError('You\'re logged out. Please log in again.')
-            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: _userStream,
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting &&
-                      !snap.hasData) {
-                    return _buildLoading();
-                  }
+      backgroundColor: AppColors.backgroundDarkest,
+      body: DeckBackground(
+        child: SafeArea(
+          child: uid == null || _userStream == null
+              ? _buildError('You\'re logged out. Please log in again.')
+              : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: _userStream,
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        !snap.hasData) {
+                      return _buildLoading();
+                    }
 
-                  if (snap.hasError) {
-                    debugPrint(
-                      'Avatar preview profile stream error: ${snap.error}',
-                    );
-                    return _buildError('Check your connection and try again.');
-                  }
+                    if (snap.hasError) {
+                      debugPrint(
+                        'Avatar preview profile stream error: ${snap.error}',
+                      );
+                      return _buildError(
+                          'Check your connection and try again.');
+                    }
 
-                  final data = snap.data?.data() ?? <String, dynamic>{};
-                  final user = UserModel.fromMap({...data, 'uid': uid});
+                    final data = snap.data?.data() ?? <String, dynamic>{};
+                    final user = UserModel.fromMap({...data, 'uid': uid});
 
-                  final avatarUrl = user.profileImage.isNotEmpty
-                      ? cacheBustedUrl(user.profileImage, user.avatarVersion)
-                      : null;
-                  final hasImage = avatarUrl != null;
-                  final isPhoto = data['isCustomAvatar'] == true;
-                  final avatarProps = data['avatarProperties'] is Map
-                      ? Map<String, dynamic>.from(
-                          data['avatarProperties'] as Map,
-                        )
-                      : const <String, dynamic>{};
-                  final ready = hasImage && !_generating && !_uploading;
-                  final String? readyUrl = ready ? avatarUrl : null;
-                  final traits = ready && !isPhoto
-                      ? AvatarTraits.explain(avatarProps)
-                      : const <AvatarTrait>[];
-                  final unique =
-                      ready && !isPhoto && avatarProps['avatarUnique'] == true;
+                    final avatarUrl = user.profileImage.isNotEmpty
+                        ? cacheBustedUrl(user.profileImage, user.avatarVersion)
+                        : null;
+                    final hasImage = avatarUrl != null;
+                    final isPhoto = data['isCustomAvatar'] == true;
+                    final avatarProps = data['avatarProperties'] is Map
+                        ? Map<String, dynamic>.from(
+                            data['avatarProperties'] as Map,
+                          )
+                        : const <String, dynamic>{};
+                    final ready = hasImage && !_generating && !_uploading;
+                    final String? readyUrl = ready ? avatarUrl : null;
+                    final traits = ready && !isPhoto
+                        ? AvatarTraits.explain(avatarProps)
+                        : const <AvatarTrait>[];
+                    final unique = ready &&
+                        !isPhoto &&
+                        avatarProps['avatarUnique'] == true;
 
-                  return Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                24,
-                                20,
-                                16,
+                    final sign = (data['zodiacSign'] ?? data['sunSign'])
+                        ?.toString()
+                        .trim();
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  24,
+                                  20,
+                                  16,
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      isPhoto
+                                          ? 'YOUR PHOTO'
+                                          : 'YOUR DESTINY CARD',
+                                      style: deckSerif(
+                                        14,
+                                        color: AppColors.gold,
+                                        italic: true,
+                                      ).copyWith(letterSpacing: 3),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Semantics(
+                                      header: true,
+                                      liveRegion: true,
+                                      child: Text(
+                                        _title(
+                                          hasImage: hasImage,
+                                          isPhoto: isPhoto,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        style: deckSerif(30),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _DestinyCard(
+                                      sign: sign == null || sign.isEmpty
+                                          ? null
+                                          : sign,
+                                      name: user.username,
+                                      child: _AvatarCircle(
+                                        child: AnimatedSwitcher(
+                                          duration:
+                                              MediaQuery.disableAnimationsOf(
+                                            context,
+                                          )
+                                                  ? Duration.zero
+                                                  : const Duration(
+                                                      milliseconds: 250),
+                                          child: readyUrl != null
+                                              ? Semantics(
+                                                  key: ValueKey(readyUrl),
+                                                  image: true,
+                                                  label: isPhoto
+                                                      ? 'Your profile photo'
+                                                      : 'Your avatar',
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: readyUrl,
+                                                    memCacheWidth: 600,
+                                                    fit: BoxFit.cover,
+                                                    errorWidget: (_, __, ___) =>
+                                                        _avatarPlaceholder(),
+                                                  ),
+                                                )
+                                              : _avatarGenerating(
+                                                  generating:
+                                                      _generating || _uploading,
+                                                  error: _error,
+                                                  onRetry: _generateAvatar,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (unique) ...[
+                                      const SizedBox(height: 14),
+                                      const AvatarUniqueBadge(),
+                                    ],
+                                    if (traits.isNotEmpty) ...[
+                                      const SizedBox(height: 18),
+                                      AvatarWhyCard(traits: traits),
+                                    ],
+                                  ],
+                                ),
                               ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                               child: Column(
                                 children: [
-                                  Text(
-                                    isPhoto ? 'YOUR PHOTO' : 'YOUR AVATAR',
-                                    style: const TextStyle(
-                                      color: AppColors.brandPink,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.2,
+                                  DeckButton(
+                                    label: _busy
+                                        ? 'Please wait…'
+                                        : isPhoto
+                                            ? 'Continue to Chapter II ✦'
+                                            : 'Use this avatar ✦',
+                                    height: 52,
+                                    onPressed: _busy ? null : _continue,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: DeckButton(
+                                      label: isPhoto
+                                          ? 'Choose a different photo'
+                                          : 'Upload a photo instead',
+                                      ghost: true,
+                                      height: 52,
+                                      onPressed:
+                                          _busy ? null : _chooseProfilePhoto,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Semantics(
-                                    header: true,
-                                    liveRegion: true,
-                                    child: Text(
-                                      _title(
-                                        hasImage: hasImage,
-                                        isPhoto: isPhoto,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  _AvatarCircle(
-                                    child: AnimatedSwitcher(
-                                      duration: MediaQuery.disableAnimationsOf(
-                                        context,
-                                      )
-                                          ? Duration.zero
-                                          : const Duration(milliseconds: 250),
-                                      child: readyUrl != null
-                                          ? Semantics(
-                                              key: ValueKey(readyUrl),
-                                              image: true,
-                                              label: isPhoto
-                                                  ? 'Your profile photo'
-                                                  : 'Your avatar',
-                                              child: CachedNetworkImage(
-                                                imageUrl: readyUrl,
-                                                memCacheWidth: 600,
-                                                fit: BoxFit.cover,
-                                                errorWidget: (_, __, ___) =>
-                                                    _avatarPlaceholder(),
-                                              ),
-                                            )
-                                          : _avatarGenerating(
-                                              generating:
-                                                  _generating || _uploading,
-                                              error: _error,
-                                              onRetry: _generateAvatar,
-                                            ),
-                                    ),
-                                  ),
-                                  if (unique) ...[
-                                    const SizedBox(height: 14),
-                                    const AvatarUniqueBadge(),
-                                  ],
-                                  if (traits.isNotEmpty) ...[
-                                    const SizedBox(height: 18),
-                                    AvatarWhyCard(traits: traits),
-                                  ],
                                 ],
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _busy ? null : _continue,
-                                    icon: _busy
-                                        ? const SizedBox.shrink()
-                                        : const Icon(Icons.check, size: 20),
-                                    label: Text(
-                                      _busy
-                                          ? 'Please wait…'
-                                          : isPhoto
-                                              ? 'Continue'
-                                              : 'Use this avatar',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(52),
-                                      backgroundColor: AppColors.brandPurple,
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          AppColors.surfaceCard,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(28),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    onPressed:
-                                        _busy ? null : _chooseProfilePhoto,
-                                    icon: const Icon(
-                                      Icons.photo_camera_outlined,
-                                      size: 20,
-                                    ),
-                                    label: Text(
-                                      isPhoto
-                                          ? 'Choose a different photo'
-                                          : 'Upload a photo instead',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(52),
-                                      foregroundColor: Colors.white,
-                                      side: BorderSide(
-                                        color: AppColors.lavender.withOpacity(
-                                          0.35,
-                                        ),
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(28),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
@@ -461,6 +433,45 @@ class _AvatarCircle extends StatelessWidget {
       child: RepaintBoundary(
         child: ClipOval(
           child: ColoredBox(color: AppColors.surfaceCard, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+/// Gold tarot frame around the avatar, with the sign above and name below.
+class _DestinyCard extends StatelessWidget {
+  final String? sign;
+  final String name;
+  final Widget child;
+  const _DestinyCard(
+      {required this.sign, required this.name, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 252,
+      height: 320,
+      child: TarotFrame(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                sign == null ? '✦' : '✦ ${sign!.toUpperCase()} ✦',
+                style: deckSerif(13, color: AppColors.gold, italic: true)
+                    .copyWith(letterSpacing: 2),
+              ),
+              Transform.scale(scale: .92, child: child),
+              Text(
+                name.trim().isEmpty || name == 'Unknown' ? 'You' : name.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: deckSerif(24),
+              ),
+            ],
+          ),
         ),
       ),
     );

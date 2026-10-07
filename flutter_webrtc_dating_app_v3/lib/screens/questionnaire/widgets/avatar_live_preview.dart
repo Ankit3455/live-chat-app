@@ -1,161 +1,20 @@
 // lib/screens/questionnaire/widgets/avatar_live_preview.dart
 //
-// Small avatar card at the top of the questionnaire that redraws after each
-// answer, so users see their answers building the face.
-
-import 'dart:async';
+// Round avatar image used by the signup deck's live avatar.
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../services/dicebear_avatar_service.dart';
 
-class AvatarLivePreview extends StatefulWidget {
-  /// Answers so far (plus dateOfBirth if known).
-  final Map<String, dynamic> answers;
-
-  /// Bumped by the parent on every answer change.
-  final int revision;
-
-  final String uid;
-
-  const AvatarLivePreview({
-    super.key,
-    required this.answers,
-    required this.revision,
-    required this.uid,
-  });
-
-  @override
-  State<AvatarLivePreview> createState() => _AvatarLivePreviewState();
-}
-
-class _AvatarLivePreviewState extends State<AvatarLivePreview> {
-  static const _debounce = Duration(milliseconds: 500);
-
-  Timer? _timer;
-  String? _url;
-  final List<String> _history = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-  }
-
-  @override
-  void didUpdateWidget(covariant AvatarLivePreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.revision != widget.revision) {
-      _timer?.cancel();
-      _timer = Timer(_debounce, _refresh);
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _refresh() {
-    if (!mounted) return;
-    final next = DiceBearAvatarService.preview(
-      widget.answers,
-      uniqueKey: widget.uid,
-    );
-    if (next.url == _url) return;
-    setState(() {
-      if (_url != null) {
-        _history.insert(0, _url!);
-        if (_history.length > 2) _history.removeLast();
-      }
-      _url = next.url;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      excludeSemantics: true,
-      label: 'Your avatar is taking shape',
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.lavender.withOpacity(0.18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _Face(url: _url, size: 64, ring: true),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Your avatar is taking shape',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Every answer adds something.',
-                        style: TextStyle(
-                          color: AppColors.lavender,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (_history.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Text(
-                              'Earlier: ',
-                              style: TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                            for (final h in _history)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: Opacity(
-                                  opacity: 0.55,
-                                  child: _Face(url: h, size: 22),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Face extends StatelessWidget {
+/// Round avatar image from a DiceBear URL.
+class AvatarFace extends StatelessWidget {
   final String? url;
   final double size;
   final bool ring;
 
-  const _Face({required this.url, required this.size, this.ring = false});
+  const AvatarFace(
+      {super.key, required this.url, required this.size, this.ring = false});
 
   @override
   Widget build(BuildContext context) {

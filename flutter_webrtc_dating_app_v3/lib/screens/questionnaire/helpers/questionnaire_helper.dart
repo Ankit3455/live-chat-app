@@ -7,21 +7,29 @@ import '../../../services/avatar_mapping.dart';
 /// Helper class containing all questionnaire questions
 /// Converted from QuestionnaireHelper.kt
 class QuestionnaireHelper {
-  // ==================== SIGNUP QUESTIONS (9 - Current) ====================
+  // ==================== SIGNUP QUESTIONS (Chapter I) ====================
+  // activityLevel moved to Lifestyle and relationshipGoal to the post-signup
+  // chapter; their stored values are unchanged.
   static List<Question> getSignupQuestions() {
     return [
       const Question(
-        text: 'Enter your username',
+        text: 'What should we call you?',
         inputType: QuestionType.text,
+        deckStyle: DeckStyle.write,
         fieldName: 'username',
         category: QuestionCategory.basic,
         icon: '👤',
+        placeholder: 'Your display name',
+        maxLength: 30,
+        minLength: 2,
         helperText:
             'This will be your display name. Choose something unique and memorable!',
       ),
       const Question(
-        text: 'What is your gender?',
+        text: 'You are…',
         options: ['Male', 'Female', 'Other'],
+        optionEmojis: ['👨', '👩', '🌈'],
+        optionQuips: ['Hello, gentleman', 'Hello, gorgeous', 'Wonderfully you'],
         inputType: QuestionType.singleChoice,
         fieldName: 'gender',
         category: QuestionCategory.basic,
@@ -30,7 +38,7 @@ class QuestionnaireHelper {
             'Helps us show you relevant matches based on your preferences',
       ),
       const Question(
-        text: 'What are your areas of interest?',
+        text: 'What lights you up?',
         options: [
           'Reading',
           'Music',
@@ -49,8 +57,17 @@ class QuestionnaireHelper {
           'Gaming',
           'Yoga',
           'Meditation',
+          'Movies',
+          'Fitness',
+          'Foodie',
+          'Nature',
+          'Fashion',
+          'Writing',
+          'Pets',
         ],
+        maxSelections: 8,
         inputType: QuestionType.multiChoice,
+        deckStyle: DeckStyle.stickers,
         fieldName: 'interests',
         category: QuestionCategory.entertainment,
         icon: '🎯',
@@ -58,81 +75,103 @@ class QuestionnaireHelper {
             'Find people who share your passions! Select all that apply.',
       ),
       const Question(
-        text: 'What are your habits?',
-        options: ['Early Riser', 'Night Owl', 'Balanced'],
+        text: 'Morning lark or night owl?',
+        options: ['Early Riser', 'Balanced', 'Night Owl'],
+        optionEmojis: ['🌅', '🌗', '🦉'],
+        optionQuips: [
+          'Up with the sun',
+          'Best of both',
+          'Alive after midnight',
+        ],
         inputType: QuestionType.singleChoice,
+        deckStyle: DeckStyle.scale,
         fieldName: 'habits',
         category: QuestionCategory.lifestyle,
         icon: '🌙',
         helperText: 'Connect with someone who\'s awake when you are!',
       ),
       const Question(
-        text: 'What is your profession?',
+        text: 'What do you do?',
         options: [
           'Student',
           'Engineer',
+          'IT / Software',
           'Doctor',
+          'Healthcare',
+          'Business',
+          'Finance',
+          'Design',
+          'Marketing',
+          'Teacher',
           'Artist',
+          'Government',
+          'Self-employed',
           'Astrology Consultant',
           'Other',
         ],
         inputType: QuestionType.singleChoice,
+        deckStyle: DeckStyle.stickers,
         fieldName: 'profession',
         category: QuestionCategory.basic,
         icon: '💼',
         helperText: 'Your profession says a lot about your lifestyle and goals',
       ),
       const Question(
-        text: 'What is your sexual activity level?',
-        options: ['Low', 'Moderate', 'High'],
-        inputType: QuestionType.singleChoice,
-        fieldName: 'activityLevel',
-        category: QuestionCategory.relationship,
-        icon: '💕',
-        helperText:
-            'Match with someone on the same wavelength for better compatibility',
-      ),
-      const Question(
-        text: 'Why did you choose this app?',
+        text: 'Which city are you in?',
         inputType: QuestionType.text,
-        fieldName: 'relationshipGoal',
-        category: QuestionCategory.relationship,
-        icon: '💭',
-        helperText:
-            'Let others know what you\'re looking for - honesty attracts the right people!',
-      ),
-      const Question(
-        text: 'Where are you located?',
-        inputType: QuestionType.text,
+        deckStyle: DeckStyle.write,
         fieldName: 'location',
         category: QuestionCategory.basic,
         icon: '📍',
+        placeholder: 'e.g. Pune',
+        maxLength: 100,
+        minLength: 2,
+        ideas: ['Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Pune', 'Chennai'],
         helperText:
             'Your current city. We\'ll show you people nearby for easier meetups!',
       ),
       const Question(
-        text: 'Tell us about yourself (short bio)',
+        text: 'Tell your story',
         inputType: QuestionType.text,
+        deckStyle: DeckStyle.write,
         fieldName: 'bio',
         category: QuestionCategory.basic,
         icon: '✍️',
+        placeholder: 'A few lines about you…',
+        maxLength: 500,
+        minLength: 10,
+        ideas: [
+          'My perfect Sunday is…',
+          'I\'m happiest when…',
+          'Two truths and a lie:',
+          'Swipe right if you…',
+          'My friends say I\'m…',
+        ],
         helperText:
             'Your bio is your first impression! Share what makes you unique. (Max 500 characters)',
       ),
     ];
   }
 
-  // ==================== POST-SIGNUP MANDATORY (5 Questions) ====================
+  // ==================== POST-SIGNUP (Chapter II) ====================
   static List<Question> getMandatoryQuestions() {
     return [
       const Question(
-        text: 'What\'s your relationship status?',
+        text: 'Your relationship status',
         options: [
           'Single',
           'In a relationship',
           'Divorced',
           'Widowed',
           'Complicated',
+        ],
+        optionEmojis: ['🙋', '💞', '🌱', '🕊️', '🌀'],
+        optionQuips: [
+          'Ready to mingle',
+          'Here for friends',
+          'New chapter',
+          'Carrying love',
+          'It\'s a story',
         ],
         inputType: QuestionType.singleChoice,
         fieldName: 'relationshipStatus',
@@ -143,7 +182,7 @@ class QuestionnaireHelper {
             'Transparency builds trust. We\'ll match you with compatible people.',
       ),
       const Question(
-        text: 'You\'re here for:',
+        text: 'You\'re here for…',
         options: [
           'Dating',
           'Long-term relationship',
@@ -152,6 +191,7 @@ class QuestionnaireHelper {
           'Casual dating',
         ],
         inputType: QuestionType.multiChoice,
+        deckStyle: DeckStyle.stickers,
         fieldName: 'hereFor',
         category: QuestionCategory.relationship,
         isMandatory: true,
@@ -160,7 +200,7 @@ class QuestionnaireHelper {
             'Select all that apply - find people looking for the same thing!',
       ),
       const Question(
-        text: 'Your height:',
+        text: 'How tall are you?',
         options: [
           'Below 5\'0"',
           '5\'0" - 5\'3"',
@@ -169,7 +209,17 @@ class QuestionnaireHelper {
           '6\'0" - 6\'3"',
           'Above 6\'3"',
         ],
+        optionEmojis: ['📏', '📏', '📏', '📏', '📏', '📏'],
+        optionQuips: [
+          'Fun-sized',
+          'Petite',
+          'Just right',
+          'Tall-ish',
+          'Tall',
+          'Sky high',
+        ],
         inputType: QuestionType.singleChoice,
+        deckStyle: DeckStyle.scale,
         fieldName: 'height',
         category: QuestionCategory.physical,
         isMandatory: true,
@@ -178,8 +228,16 @@ class QuestionnaireHelper {
             'Physical compatibility matters! Help others know what to expect.',
       ),
       const Question(
-        text: 'Your body type:',
+        text: 'Your body type',
         options: ['Slim', 'Athletic', 'Average', 'Curvy', 'Heavyset'],
+        optionEmojis: ['🌿', '💪', '🙂', '⏳', '🐻'],
+        optionQuips: [
+          'Lean & light',
+          'Built to move',
+          'Comfortably me',
+          'All the curves',
+          'Big & cosy',
+        ],
         inputType: QuestionType.singleChoice,
         fieldName: 'bodyType',
         category: QuestionCategory.physical,
@@ -189,16 +247,17 @@ class QuestionnaireHelper {
             'Be honest - confidence is attractive! This helps set realistic expectations.',
       ),
       const Question(
-        text: 'Your education:',
+        text: 'Your education',
         options: [
           'High School',
+          'Diploma',
           'Bachelor\'s',
           'Master\'s',
           'PhD',
-          'Diploma',
           'Self-taught',
         ],
         inputType: QuestionType.singleChoice,
+        deckStyle: DeckStyle.stickers,
         fieldName: 'education',
         category: QuestionCategory.basic,
         isMandatory: true,
@@ -206,10 +265,28 @@ class QuestionnaireHelper {
         helperText:
             'Education level helps find intellectually compatible matches',
       ),
+      const Question(
+        text: 'Your opening line',
+        inputType: QuestionType.text,
+        deckStyle: DeckStyle.write,
+        fieldName: 'relationshipGoal',
+        category: QuestionCategory.relationship,
+        isMandatory: false,
+        icon: '💭',
+        placeholder: 'What are you hoping to find?',
+        maxLength: 200,
+        ideas: [
+          'Looking for my person',
+          'A partner in crime for…',
+          'Someone who loves…',
+        ],
+        helperText:
+            'Let others know what you\'re looking for - honesty attracts the right people!',
+      ),
     ];
   }
 
-  // ==================== LIFESTYLE SECTION (9 Questions - Optional) ====================
+  // ==================== LIFESTYLE SECTION (10 Questions - Optional) ====================
   // Stored option strings must not change: existing answers and avatar
   // mapping match on them. Scale options are listed low to high.
   static List<Question> getLifestyleQuestions() {
@@ -311,6 +388,20 @@ class QuestionnaireHelper {
         category: QuestionCategory.preferences,
         icon: '🪩',
         helperText: 'Find someone who matches your social energy!',
+      ),
+      const Question(
+        text: 'Your pace in romance',
+        options: ['Low', 'Moderate', 'High'],
+        optionEmojis: ['🐢', '🌿', '🔥'],
+        optionQuips: ['Slow & steady', 'Go with the flow', 'All in'],
+        inputType: QuestionType.singleChoice,
+        deckStyle: DeckStyle.scale,
+        fieldName: 'activityLevel',
+        isMandatory: false,
+        category: QuestionCategory.relationship,
+        icon: '💕',
+        helperText:
+            'Match with someone on the same wavelength for better compatibility',
       ),
       const Question(
         text: 'Any ink?',

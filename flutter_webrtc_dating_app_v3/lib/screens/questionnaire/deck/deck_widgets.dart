@@ -271,11 +271,17 @@ class CardFront extends StatelessWidget {
   final int index;
   final Question question;
   final String hint;
+  final bool required;
+
+  /// Replaces the question icon in the circle.
+  final Widget? art;
   const CardFront({
     super.key,
     required this.index,
     required this.question,
     required this.hint,
+    this.required = false,
+    this.art,
   });
 
   @override
@@ -308,8 +314,9 @@ class CardFront extends StatelessWidget {
                 ]),
                 border: Border.all(color: AppColors.gold.withOpacity(.3)),
               ),
-              child: Text(question.icon ?? '✦',
-                  style: const TextStyle(fontSize: 48)),
+              child: art ??
+                  Text(question.icon ?? '✦',
+                      style: const TextStyle(fontSize: 48)),
             ),
             const Spacer(),
             Text(
@@ -326,6 +333,24 @@ class CardFront extends StatelessWidget {
               style: const TextStyle(color: AppColors.lavender, fontSize: 12),
             ),
             const SizedBox(height: 4),
+            if (required)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.gold.withOpacity(.4)),
+                ),
+                child: const Text(
+                  '✦ REQUIRED',
+                  style: TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -833,6 +858,333 @@ class DeckIconButton extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: Icon(icon, color: AppColors.lavenderLight, size: 20),
+        ),
+      ),
+    );
+  }
+}
+
+/// Free-text answer under a write card: counter, length check and idea
+/// chips (short ideas replace the text, long ones are appended).
+class DeckWriteField extends StatefulWidget {
+  final Question question;
+  final String initial;
+  final String submitLabel;
+  final ValueChanged<String> onSubmit;
+  const DeckWriteField({
+    super.key,
+    required this.question,
+    required this.initial,
+    required this.submitLabel,
+    required this.onSubmit,
+  });
+
+  @override
+  State<DeckWriteField> createState() => _DeckWriteFieldState();
+}
+
+class _DeckWriteFieldState extends State<DeckWriteField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  Question get _q => widget.question;
+  int get _max => _q.maxLength ?? 200;
+  bool get _multiline => _max > 120;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _useIdea(String idea) {
+    final current = _controller.text.trim();
+    final next = _multiline && current.isNotEmpty ? '$current $idea' : idea;
+    final clipped = next.length > _max ? next.substring(0, _max) : next;
+    _controller.value = TextEditingValue(
+      text: clipped,
+      selection: TextSelection.collapsed(offset: clipped.length),
+    );
+    Haptics.selection();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _controller.text.trim();
+    final tooShort = text.isNotEmpty && text.length < _q.minLength;
+    final valid = text.isEmpty ? !_q.isMandatory : !tooShort;
+    final String? message = tooShort
+        ? 'At least ${_q.minLength} characters'
+        : (text.isNotEmpty ? '✓ Looks good' : null);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard.withOpacity(.8),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              TextField(
+                controller: _controller,
+                maxLength: _max,
+                minLines: _multiline ? 3 : 1,
+                maxLines: _multiline ? 5 : 1,
+                textCapitalization: _q.fieldName == 'username'
+                    ? TextCapitalization.none
+                    : (_multiline
+                        ? TextCapitalization.sentences
+                        : TextCapitalization.words),
+                keyboardType: _multiline
+                    ? TextInputType.multiline
+                    : (_q.fieldName == 'username'
+                        ? TextInputType.name
+                        : TextInputType.text),
+                textInputAction:
+                    _multiline ? TextInputAction.newline : TextInputAction.done,
+                onSubmitted: valid && !_multiline
+                    ? (_) => widget.onSubmit(_controller.text.trim())
+                    : null,
+                onChanged: (_) => setState(() {}),
+                cursorColor: AppColors.gold,
+                style: _multiline
+                    ? const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.45,
+                      )
+                    : deckSerif(20),
+                decoration: InputDecoration(
+                  hintText: _q.placeholder,
+                  hintStyle: const TextStyle(color: Color(0xFF6F6490)),
+                  border: InputBorder.none,
+                  counterText: '',
+                ),
+              ),
+              Row(
+                children: [
+                  if (message != null)
+                    Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: tooShort ? AppColors.error : AppColors.success,
+                      ),
+                    ),
+                  const Spacer(),
+                  Text(
+                    '${_controller.text.length}/$_max',
+                    style: const TextStyle(
+                      color: AppColors.textSubtle,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (_q.ideas.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _q.ideas.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 7),
+              itemBuilder: (context, i) => ActionChip(
+                label: Text(_q.ideas[i]),
+                onPressed: () => _useIdea(_q.ideas[i]),
+                labelStyle: const TextStyle(
+                  color: deckGoldLight,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                backgroundColor: AppColors.gold.withOpacity(.08),
+                side: BorderSide(color: AppColors.gold.withOpacity(.3)),
+                shape: const StadiumBorder(),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        DeckButton(
+          label: text.isEmpty && !_q.isMandatory
+              ? 'Skip for now'
+              : widget.submitLabel,
+          onPressed: valid ? () => widget.onSubmit(text) : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// Twelve signs on a circle; tap to toggle. [ownSign] gets a gold ring.
+class ZodiacWheel extends StatelessWidget {
+  final List<String> signs;
+  final Map<String, String> glyphs;
+  final List<String> selected;
+  final String? ownSign;
+  final ValueChanged<String> onToggle;
+  const ZodiacWheel({
+    super.key,
+    required this.signs,
+    required this.glyphs,
+    required this.selected,
+    required this.ownSign,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 232.0;
+    const radius = 94.0;
+    const dot = 46.0;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.gold.withOpacity(.25)),
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: Container(
+              width: 96,
+              height: 96,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  AppColors.brandMagenta.withOpacity(.35),
+                  AppColors.surfaceCard.withOpacity(.9),
+                ]),
+                border: Border.all(color: AppColors.gold.withOpacity(.35)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${selected.length}', style: deckSerif(26)),
+                  const Text(
+                    'signs picked',
+                    style: TextStyle(color: AppColors.lavender, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          for (var i = 0; i < signs.length; i++)
+            Positioned(
+              left: size / 2 +
+                  radius *
+                      math.cos(i / signs.length * 2 * math.pi - math.pi / 2) -
+                  dot / 2,
+              top: size / 2 +
+                  radius *
+                      math.sin(i / signs.length * 2 * math.pi - math.pi / 2) -
+                  dot / 2,
+              child: _SignDot(
+                sign: signs[i],
+                glyph: glyphs[signs[i]] ?? '✦',
+                selected: selected.contains(signs[i]),
+                own: signs[i] == ownSign,
+                size: dot,
+                onTap: () => onToggle(signs[i]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SignDot extends StatelessWidget {
+  final String sign;
+  final String glyph;
+  final bool selected;
+  final bool own;
+  final double size;
+  final VoidCallback onTap;
+  const _SignDot({
+    required this.sign,
+    required this.glyph,
+    required this.selected,
+    required this.own,
+    required this.size,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: own ? '$sign, your sign' : sign,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () {
+          Haptics.selection();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: selected ? deckGradient : null,
+            color: selected ? null : AppColors.surfaceCard.withOpacity(.9),
+            border: Border.all(
+              color: own
+                  ? AppColors.gold
+                  : (selected ? Colors.transparent : AppColors.border),
+              width: own ? 2 : 1,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppColors.brandMagenta.withOpacity(.5),
+                      blurRadius: 16,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // U+FE0E asks for the text (not emoji) glyph.
+              Text(
+                '$glyph︎',
+                style: TextStyle(
+                  fontSize: 18,
+                  height: 1,
+                  color: selected ? Colors.white : deckGoldLight,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                sign.substring(0, 3),
+                style: TextStyle(
+                  fontSize: 8.5,
+                  color: selected ? Colors.white : AppColors.textSubtle,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
