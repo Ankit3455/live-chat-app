@@ -277,34 +277,60 @@ class _AvatarPreviewScreenState extends State<AvatarPreviewScreen> {
                                 ),
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                              child: Column(
-                                children: [
-                                  DeckButton(
-                                    label: _busy
-                                        ? 'Please wait…'
-                                        : isPhoto
-                                            ? 'Continue to Chapter II ✦'
-                                            : 'Use this avatar ✦',
-                                    height: 52,
-                                    onPressed: _busy ? null : _continue,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: DeckButton(
-                                      label: isPhoto
-                                          ? 'Choose a different photo'
-                                          : 'Upload a photo instead',
-                                      ghost: true,
-                                      height: 52,
-                                      onPressed:
-                                          _busy ? null : _chooseProfilePhoto,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            // The actions come in once the avatar is made;
+                            // if making it failed, a photo is the way on.
+                            AnimatedSwitcher(
+                              duration: MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 300),
+                              child: ready
+                                  ? Padding(
+                                      key: const ValueKey('actions'),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20, 8, 20, 20),
+                                      child: Column(
+                                        children: [
+                                          DeckButton(
+                                            label: isPhoto
+                                                ? 'Continue to Chapter II ✦'
+                                                : 'Use this avatar ✦',
+                                            height: 52,
+                                            onPressed: _continue,
+                                          ),
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: DeckButton(
+                                              label: isPhoto
+                                                  ? 'Choose a different photo'
+                                                  : 'Upload a photo instead',
+                                              ghost: true,
+                                              height: 52,
+                                              onPressed: _chooseProfilePhoto,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : !_busy && _error != null && !hasImage
+                                      ? Padding(
+                                          key: const ValueKey('fallback'),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              20, 8, 20, 20),
+                                          child: SizedBox(
+                                            width: double.infinity,
+                                            child: DeckButton(
+                                              label: 'Upload a photo instead',
+                                              ghost: true,
+                                              height: 52,
+                                              onPressed: _chooseProfilePhoto,
+                                            ),
+                                          ),
+                                        )
+                                      : const SizedBox(
+                                          key: ValueKey('none'),
+                                          height: 20,
+                                        ),
                             ),
                           ],
                         ),

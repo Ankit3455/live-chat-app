@@ -79,14 +79,33 @@ class LocationService {
   /// [force] ignores the refresh interval (explicit user action).
   Future<LocationUpdateResult> updateCurrentLocation(
       {bool force = false}) async {
+    return (await _capture(force: force)).result;
+  }
+
+  /// "Use my current location": saves the device position like
+  /// [updateCurrentLocation] and returns the city it is in (null when the
+  /// position or the city can't be found).
+  Future<({LocationUpdateResult result, String? city})> currentCity() async {
+    final (:result, :position) = await _capture(force: true);
+    if (position == null) return (result: result, city: null);
+    final place = await placeOf(position.latitude, position.longitude);
+    return (result: result, city: place.city);
+  }
+
+  Future<({LocationUpdateResult result, Position? position})> _capture(
+      {required bool force}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return LocationUpdateResult.notSignedIn;
+    if (uid == null) {
+      return (result: LocationUpdateResult.notSignedIn, position: null);
+    }
 
     try {
-      if (!force && !await _isStale(uid)) return LocationUpdateResult.fresh;
+      if (!force && !await _isStale(uid)) {
+        return (result: LocationUpdateResult.fresh, position: null);
+      }
 
       if (!await Geolocator.isLocationServiceEnabled()) {
-        return LocationUpdateResult.serviceDisabled;
+        return (result: LocationUpdateResult.serviceDisabled, position: null);
       }
 
       var permission = await Geolocator.checkPermission();
@@ -94,21 +113,23 @@ class LocationService {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        return LocationUpdateResult.permanentlyDenied;
+        return (result: LocationUpdateResult.permanentlyDenied, position: null);
       }
       if (permission == LocationPermission.denied) {
-        return LocationUpdateResult.denied;
+        return (result: LocationUpdateResult.denied, position: null);
       }
 
       _lastAttempt = DateTime.now();
       final position = await _currentPosition();
-      if (position == null) return LocationUpdateResult.failed;
+      if (position == null) {
+        return (result: LocationUpdateResult.failed, position: null);
+      }
       await _save(uid, position.latitude, position.longitude, sourceGps);
       unawaited(_savePlace(uid, position.latitude, position.longitude));
-      return LocationUpdateResult.updated;
+      return (result: LocationUpdateResult.updated, position: position);
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
-      return LocationUpdateResult.failed;
+      return (result: LocationUpdateResult.failed, position: null);
     }
   }
 

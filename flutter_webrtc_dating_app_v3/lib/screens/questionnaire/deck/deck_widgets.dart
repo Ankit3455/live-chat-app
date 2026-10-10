@@ -319,13 +319,7 @@ class CardFront extends StatelessWidget {
                       style: const TextStyle(fontSize: 48)),
             ),
             const Spacer(),
-            Text(
-              question.text,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: deckSerif(25),
-            ),
+            _FitTitle(question.text),
             const SizedBox(height: 8),
             Text(
               hint,
@@ -536,6 +530,40 @@ class _FanCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A card title in at most two lines: shrinks from 25 down to 17 to fit
+/// instead of cutting the question off.
+class _FitTitle extends StatelessWidget {
+  final String text;
+  const _FitTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final scaler = MediaQuery.textScalerOf(context);
+      var size = 25.0;
+      for (; size > 17; size -= 1) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: deckSerif(size)),
+          textAlign: TextAlign.center,
+          textDirection: Directionality.of(context),
+          textScaler: scaler,
+          maxLines: 2,
+        )..layout(maxWidth: box.maxWidth);
+        final fits = !painter.didExceedMaxLines;
+        painter.dispose();
+        if (fits) break;
+      }
+      return Text(
+        text,
+        textAlign: TextAlign.center,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: deckSerif(size),
+      );
+    });
   }
 }
 
@@ -878,12 +906,17 @@ class DeckWriteField extends StatefulWidget {
   final String initial;
   final String submitLabel;
   final ValueChanged<String> onSubmit;
+
+  /// Shows "Use my current location": fills in the city it returns, or
+  /// shows the problem under the field.
+  final Future<({String? city, String? problem})> Function()? locate;
   const DeckWriteField({
     super.key,
     required this.question,
     required this.initial,
     required this.submitLabel,
     required this.onSubmit,
+    this.locate,
   });
 
   @override
@@ -894,6 +927,9 @@ class _DeckWriteFieldState extends State<DeckWriteField> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initial);
 
+  bool _locating = false;
+  String? _locateProblem;
+
   Question get _q => widget.question;
   int get _max => _q.maxLength ?? 200;
   bool get _multiline => _max > 120;
@@ -902,6 +938,30 @@ class _DeckWriteFieldState extends State<DeckWriteField> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocation() async {
+    final locate = widget.locate;
+    if (locate == null || _locating) return;
+    Haptics.light();
+    setState(() {
+      _locating = true;
+      _locateProblem = null;
+    });
+    final (:city, :problem) = await locate();
+    if (!mounted) return;
+    setState(() {
+      _locating = false;
+      _locateProblem = problem;
+      if (city != null) {
+        final clipped = city.length > _max ? city.substring(0, _max) : city;
+        _controller.value = TextEditingValue(
+          text: clipped,
+          selection: TextSelection.collapsed(offset: clipped.length),
+        );
+      }
+    });
+    if (city != null) Haptics.pick();
   }
 
   void _useIdea(String idea) {
@@ -996,6 +1056,26 @@ class _DeckWriteFieldState extends State<DeckWriteField> {
             ],
           ),
         ),
+        if (widget.locate != null) ...[
+          const SizedBox(height: 10),
+          DeckButton(
+            label: _locating
+                ? 'Finding your city…'
+                : '📍  Use my current location',
+            ghost: true,
+            height: 44,
+            onPressed: _locating ? null : _useCurrentLocation,
+          ),
+          if (_locateProblem != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _locateProblem!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.warning, fontSize: 12),
+              ),
+            ),
+        ],
         if (_q.ideas.isNotEmpty) ...[
           const SizedBox(height: 10),
           SizedBox(

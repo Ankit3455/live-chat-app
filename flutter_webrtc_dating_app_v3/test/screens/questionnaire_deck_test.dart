@@ -1,5 +1,6 @@
 import 'package:availchat/core/utils/vibe_line.dart';
 import 'package:availchat/models/question_model.dart';
+import 'package:availchat/models/question_type.dart';
 import 'package:availchat/screens/questionnaire/deck/deck_models.dart';
 import 'package:availchat/screens/questionnaire/helpers/questionnaire_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -67,6 +68,20 @@ void main() {
       ]);
       expect(post.last.fieldName, 'relationshipGoal');
       expect(post.last.isMandatory, isFalse);
+    });
+
+    test('status has Married, "here for" is one pick, city can be located', () {
+      Question q(String f) => QuestionnaireHelper.getQuestionByFieldName(f)!;
+      final status = q('relationshipStatus');
+      expect(status.options, contains('Married'));
+      expect(status.optionEmojis.length, status.options.length);
+      expect(status.optionQuips.length, status.options.length);
+      expect(q('hereFor').inputType, QuestionType.singleChoice);
+      expect(q('location').offersCurrentLocation, isTrue);
+      expect(
+        all.where((x) => x.offersCurrentLocation).map((x) => x.fieldName),
+        ['location'],
+      );
     });
 
     test('write cards are text questions', () {

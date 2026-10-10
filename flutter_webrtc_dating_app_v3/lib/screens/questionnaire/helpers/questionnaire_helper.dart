@@ -127,6 +127,7 @@ class QuestionnaireHelper {
         maxLength: 100,
         minLength: 2,
         ideas: ['Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Pune', 'Chennai'],
+        offersCurrentLocation: true,
         helperText:
             'Your current city. We\'ll show you people nearby for easier meetups!',
       ),
@@ -161,13 +162,15 @@ class QuestionnaireHelper {
         options: [
           'Single',
           'In a relationship',
+          'Married',
           'Divorced',
           'Widowed',
           'Complicated',
         ],
-        optionEmojis: ['🙋', '💞', '🌱', '🕊️', '🌀'],
+        optionEmojis: ['🙋', '💞', '💍', '🌱', '🕊️', '🌀'],
         optionQuips: [
           'Ready to mingle',
+          'Here for friends',
           'Here for friends',
           'New chapter',
           'Carrying love',
@@ -190,14 +193,14 @@ class QuestionnaireHelper {
           'Open for everything',
           'Casual dating',
         ],
-        inputType: QuestionType.multiChoice,
+        inputType: QuestionType.singleChoice,
         deckStyle: DeckStyle.stickers,
         fieldName: 'hereFor',
         category: QuestionCategory.relationship,
         isMandatory: true,
         icon: '🎯',
         helperText:
-            'Select all that apply - find people looking for the same thing!',
+            'Pick the one that fits best - find people looking for the same thing!',
       ),
       const Question(
         text: 'How tall are you?',

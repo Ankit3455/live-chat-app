@@ -56,6 +56,10 @@ class Question {
   /// Starter phrases appended on tap.
   final List<String> ideas;
 
+  /// Write card with a "Use my current location" button that fills in the
+  /// city from the device position.
+  final bool offersCurrentLocation;
+
   const Question({
     required this.text,
     this.options = const [],
@@ -76,6 +80,7 @@ class Question {
     this.minLength = 1,
     this.placeholder,
     this.ideas = const [],
+    this.offersCurrentLocation = false,
   });
 
   String? emojiFor(String option) {
@@ -118,6 +123,7 @@ class Question {
       minLength: minLength,
       placeholder: placeholder,
       ideas: ideas,
+      offersCurrentLocation: offersCurrentLocation,
     );
   }
 

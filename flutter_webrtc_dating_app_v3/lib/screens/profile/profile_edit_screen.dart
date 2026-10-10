@@ -281,6 +281,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           a.toSet().containsAll(other) &&
           other.toSet().containsAll(a);
     }
+    // Older answers to a now single-choice question were stored as a list.
+    if (b is List) return b.length == 1 && b.first.toString() == a;
     return a == (b ?? '');
   }
 

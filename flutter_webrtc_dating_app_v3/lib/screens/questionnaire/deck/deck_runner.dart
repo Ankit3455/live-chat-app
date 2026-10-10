@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../models/question_model.dart';
 import '../../../models/question_type.dart';
+import '../../../services/location_service.dart';
 import 'deck_models.dart';
 import 'deck_widgets.dart';
 
@@ -270,6 +271,28 @@ class DeckRunnerState extends State<DeckRunner> with TickerProviderStateMixin {
     }
   }
 
+  /// "Use my current location" on a city card: saves the device position
+  /// and returns the city, or what went wrong in plain words.
+  static Future<({String? city, String? problem})> _locateCity() async {
+    final (:result, :city) = await LocationService.instance.currentCity();
+    switch (result) {
+      case LocationUpdateResult.updated:
+        return city == null
+            ? (city: null, problem: "Got your location but not the city name. Type it in.")
+            : (city: city, problem: null);
+      case LocationUpdateResult.serviceDisabled:
+        return (city: null, problem: 'Turn on location in your phone settings, then try again.');
+      case LocationUpdateResult.denied:
+        return (city: null, problem: 'Location permission is needed for this. You can also type your city.');
+      case LocationUpdateResult.permanentlyDenied:
+        return (city: null, problem: 'Location is blocked for Destined. Allow it in app settings, or type your city.');
+      case LocationUpdateResult.fresh:
+      case LocationUpdateResult.notSignedIn:
+      case LocationUpdateResult.failed:
+        return (city: null, problem: "Couldn't find your location. Try again or type your city.");
+    }
+  }
+
   // ---------- Build ----------
 
   @override
@@ -508,6 +531,7 @@ class DeckRunnerState extends State<DeckRunner> with TickerProviderStateMixin {
           question: q,
           initial: single ?? '',
           submitLabel: _i == _cards.length - 1 ? 'Finish ✦' : 'Continue ✦',
+          locate: q.offersCurrentLocation ? _locateCity : null,
           onSubmit: (text) {
             _answer(q.fieldName, text.isEmpty ? null : text);
             next();
