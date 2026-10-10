@@ -1,7 +1,8 @@
 // lib/feature/games/chat_games/thumb_war/thumb_rules.dart
 //
-// Thumb War as a duel (see duel/duel_game.dart). Each pick is
-// {'m': move, 'p': power}. Pure Dart.
+// Thumb War as a duel (see duel/duel_game.dart). The fight itself runs live
+// (thumb_live.dart); each finished round is stored as one shot where both
+// players pick the round winner's index (0 or 1). Pure Dart.
 
 import '../chat_game_logic.dart';
 import '../duel/duel_game.dart';
@@ -22,11 +23,15 @@ class ThumbRules extends DuelRules {
   @override
   String get title => displayTitle;
   @override
-  String get tagline => 'Pounce, guard or feint. Grip hard, pin them down.';
+  String get tagline => 'Hold to taunt, strike when they are down. Live!';
 
-  /// Stored as a plain map so Firestore and the rules can read it.
+  /// The round winner's player index.
   @override
-  Object? parsePick(Object? raw) => ThumbPick.parse(raw)?.toMap();
+  Object? parsePick(Object? raw) => raw == 0 || raw == 1 ? raw : null;
+
+  /// One shot per round.
+  @override
+  int get maxShots => 3;
 
   static ThumbReplay replayOf(DuelGame g) =>
       ThumbReplay.of(g.players, g.history, resignedBy: g.resignedBy);

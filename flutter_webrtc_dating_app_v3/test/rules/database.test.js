@@ -198,6 +198,42 @@ describe('database.rules.json', () => {
     });
   });
 
+  describe('thumb_live', () => {
+    const live = 'thumb_live/g1';
+    const fight = { st: 'idle', ph: 'fight', hp: [100, 100], sta: [100, 100] };
+    const create = () => update(ref(rtdb('alice'), live), { p0: 'alice', p1: 'bob' });
+
+    it('only the host creates it, naming itself first', async () => {
+      await assertFails(update(ref(rtdb('carol'), live), { p0: 'alice', p1: 'bob' }));
+      await assertFails(update(ref(rtdb('bob'), live), { p0: 'alice', p1: 'bob' }));
+      await assertSucceeds(create());
+      await assertFails(set(ref(rtdb('alice'), `${live}/p1`), 'carol'));
+    });
+
+    it('only the host shares the fight; only players read it', async () => {
+      await create();
+      await assertSucceeds(set(ref(rtdb('alice'), `${live}/s`), fight));
+      await assertFails(set(ref(rtdb('bob'), `${live}/s`), fight));
+      await assertSucceeds(get(ref(rtdb('bob'), `${live}/s`)));
+      await assertFails(get(ref(rtdb('carol'), `${live}/s`)));
+    });
+
+    it('a player writes only its own button and heartbeat', async () => {
+      await create();
+      await assertSucceeds(set(ref(rtdb('bob'), `${live}/in/bob`), true));
+      await assertFails(set(ref(rtdb('bob'), `${live}/in/alice`), true));
+      await assertFails(set(ref(rtdb('bob'), `${live}/in/bob`), 'yes'));
+      await assertFails(set(ref(rtdb('carol'), `${live}/in/carol`), true));
+      await assertSucceeds(set(ref(rtdb('bob'), `${live}/hb/bob`), serverTimestamp()));
+    });
+
+    it('either player removes it; a stranger cannot', async () => {
+      await create();
+      await assertFails(remove(ref(rtdb('carol'), live)));
+      await assertSucceeds(remove(ref(rtdb('bob'), live)));
+    });
+  });
+
   it('users/{uid} is owner-only', async () => {
     await assertSucceeds(update(ref(rtdb('alice'), 'users/alice'), { luckyNumber: 7 }));
     await assertFails(get(ref(rtdb('bob'), 'users/alice')));

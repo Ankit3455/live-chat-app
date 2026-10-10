@@ -25,6 +25,9 @@ class Haptics {
   /// Something finished successfully.
   static void success() => unawaited(HapticFeedback.mediumImpact());
 
+  /// A game hit lands (Thumb War pin). Heavy so it's felt mid-fight.
+  static void hit() => unawaited(HapticFeedback.heavyImpact());
+
   /// Destructive or ending action (decline, end call, delete, block).
   static void warning() => unawaited(HapticFeedback.heavyImpact());
 

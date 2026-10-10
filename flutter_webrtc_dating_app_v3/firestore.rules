@@ -878,17 +878,11 @@ service cloud.firestore {
       return name in ['tennis', 'thumb'];
     }
 
-    // tennis: a zone; thumb: {m: move, p: grip 0..100}.
+    // tennis: a zone; thumb: the round winner's player index (the fight
+    // itself runs live in the Realtime Database, thumb_live/{gameId}).
     function duelPickOk(name, v) {
       return (name == 'tennis' && v in ['L', 'C', 'R'])
-        || (name == 'thumb'
-          && v is map
-          && v.keys().hasOnly(['m', 'p'])
-          && v.size() == 2
-          && v.m in ['pounce', 'guard', 'feint']
-          && v.p is int
-          && v.p >= 0
-          && v.p <= 100);
+        || (name == 'thumb' && v is int && v in [0, 1]);
     }
 
     function duelNewGameOk(name, parts, open) {

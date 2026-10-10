@@ -1,473 +1,638 @@
 // lib/feature/games/chat_games/thumb_war/thumb_widgets.dart
+//
+// The Thumb War arena: two fists with thumbs, health and stamina bars,
+// round pips and the ROUND / FIGHT! / K.O. calls. You are always on the
+// left. Hold anywhere on the arena to press.
 
-import 'dart:math' as math;
+import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/scheduler.dart';
 
-import '../ui/game_motion.dart';
-import '../ui/game_ui.dart';
+import 'thumb_live.dart';
 import 'thumb_war.dart';
 
-/// Semicircle gauge: the needle sweeps across; tap Grip to stop it. Power is
-/// 100 in the green middle and 0 at the red ends.
-class GripGauge extends StatefulWidget {
-  final bool enabled;
-  final GameTheme theme;
-  final ValueChanged<int> onStop;
+class ThumbArena extends StatefulWidget {
+  final ThumbLiveMatch match;
 
-  const GripGauge({
+  /// Names and hats by player index.
+  final List<String> names;
+  final List<String> hats;
+
+  const ThumbArena({
     super.key,
-    required this.enabled,
-    required this.theme,
-    required this.onStop,
+    required this.match,
+    required this.names,
+    required this.hats,
   });
 
-  static int powerAt(double t) =>
-      (100 - ((t - 0.5).abs() * 200)).round().clamp(0, 100);
-
   @override
-  State<GripGauge> createState() => _GripGaugeState();
+  State<ThumbArena> createState() => _ThumbArenaState();
 }
 
-class _GripGaugeState extends State<GripGauge>
+class _ThumbArenaState extends State<ThumbArena>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
-
-  int? _stopped;
+  late final Ticker _ticker = createTicker(_frame);
+  final _ArenaLook _look = _ArenaLook();
+  final Set<int> _pointers = {};
+  Duration _last = Duration.zero;
+  final Random _random = Random();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reduced motion: a slower sweep keeps the game playable.
-    _c.duration = calmMotion(context)
-        ? const Duration(milliseconds: 2400)
-        : const Duration(milliseconds: 1100);
+  void initState() {
+    super.initState();
+    _look.seenPins = widget.match.fight.pins;
+    _ticker.start();
+  }
+
+  void _frame(Duration now) {
+    final real = ((now - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _last = now;
+    final m = widget.match;
+    final f = m.fight;
+    final l = _look;
+    if (f.pins > l.seenPins) {
+      l.seenPins = f.pins;
+      _hitFx(f.state.pinner);
+    }
+    final ko = f.phase == FightPhase.ko || f.phase == FightPhase.over;
+    if (ko && !l.koSeen) {
+      l.koSeen = true;
+      l.timeScale = 0.35;
+      l.shake = 14;
+    }
+    if (!ko) l.koSeen = false;
+    l.timeScale += (1 - l.timeScale) * min(1, real * 6);
+    final dt = real * l.timeScale;
+    l.t += dt;
+    for (final side in const [0, 1]) {
+      final p = _playerAt(side);
+      final target = _poseOf(f.state, p);
+      final speed = target > l.angle[side] ? 28.0 : 14.0;
+      l.angle[side] += (target - l.angle[side]) * min(1, dt * speed);
+      if (f.state.pinner == 1 - p) l.hurt[side] = 0.25;
+      l.hurt[side] = max(0, l.hurt[side] - dt);
+      l.hp[side] += (f.hp[p] - l.hp[side]) * min(1, real * 20);
+      l.recoil[side] += (f.hp[p] - l.recoil[side]) * min(1, real * 2);
+    }
+    l.shake = l.shake > 0.3 ? l.shake * 0.85 : 0;
+    l.flash = max(0, l.flash - real * 4);
+    for (final s in l.sparks) {
+      s.pos += s.vel * dt;
+      s.vel += Offset(0, 400 * dt);
+      s.life -= dt;
+    }
+    l.sparks.removeWhere((s) => s.life <= 0);
+    setState(() {});
+  }
+
+  /// Screen side 0 (left) is me.
+  int _playerAt(int side) => side == 0 ? widget.match.me : 1 - widget.match.me;
+
+  /// 0 = thumb up, 1 = lying across the middle, more = slammed on top.
+  static double _poseOf(FightState s, int p) {
+    if (s.down == p) return 1;
+    if (s.pinner == p) return 1.22;
+    if (s.pinner == 1 - p) return 0.88;
+    if (s.winner == p) return -0.12;
+    return 0;
+  }
+
+  void _hitFx(int? pinner) {
+    final l = _look;
+    l.timeScale = 0.5;
+    l.flash = 1;
+    l.shake = 10;
+    final side = pinner == null ? 0 : (pinner == widget.match.me ? 0 : 1);
+    l.sparkAt = side;
+    for (var i = 0; i < 14; i++) {
+      final a = _random.nextDouble() * pi * 2;
+      final v = 80 + _random.nextDouble() * 180;
+      l.sparks.add(
+        _Spark(Offset.zero, Offset(cos(a) * v, sin(a) * v), 0.5, i.isEven),
+      );
+    }
+  }
+
+  void _down(PointerEvent e) {
+    _pointers.add(e.pointer);
+    widget.match.press(true);
+  }
+
+  void _up(PointerEvent e) {
+    _pointers.remove(e.pointer);
+    if (_pointers.isEmpty) widget.match.press(false);
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
-  void _stop() {
-    if (!widget.enabled || _stopped != null) return;
-    _c.stop();
-    final power = GripGauge.powerAt(_c.value);
-    setState(() => _stopped = power);
-    widget.onStop(power);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final stopped = _stopped;
-    Widget value = Text(
-      stopped == null ? 'GRIP' : '$stopped',
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: stopped == null ? 18 : 34,
-        fontWeight: FontWeight.w900,
-        letterSpacing: stopped == null ? 3 : 0,
-      ),
-    );
-    if (stopped != null && !calmMotion(context)) {
-      value = value.animate().scaleXY(
-        begin: 1.8,
-        end: 1,
-        duration: 420.ms,
-        curve: Curves.elasticOut,
-      );
-    }
-    return Column(
-      children: [
-        Semantics(
-          label: stopped == null
-              ? 'Grip gauge. Tap Grip when the needle is in the green.'
-              : 'Grip $stopped out of 100',
-          liveRegion: stopped != null,
-          excludeSemantics: true,
-          // The needle repaints every frame; keep it in its own layer.
-          child: RepaintBoundary(
-            child: SizedBox(
-              height: 132,
-              child: AnimatedBuilder(
-                animation: _c,
-                builder: (context, _) => CustomPaint(
-                  painter: _GaugePainter(_c.value, widget.theme),
-                  child: Align(
-                    alignment: const Alignment(0, 0.3),
-                    child: value,
-                  ),
-                ),
-              ),
-            ),
+    final m = widget.match;
+    final f = m.fight;
+    return Semantics(
+      label: 'Thumb War arena. Hold anywhere to press.',
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: _down,
+        onPointerUp: _up,
+        onPointerCancel: _up,
+        child: CustomPaint(
+          painter: _ArenaPainter(
+            look: _look,
+            fight: f,
+            me: m.me,
+            names: [widget.names[m.me], widget.names[1 - m.me]],
+            hats: [widget.hats[m.me], widget.hats[1 - m.me]],
           ),
+          size: Size.infinite,
         ),
-        const SizedBox(height: 10),
-        GameButton(
-          label: stopped == null ? 'Grip!' : 'Locked in',
-          icon: stopped == null ? Icons.back_hand_rounded : Icons.check_rounded,
-          theme: widget.theme,
-          onPressed: widget.enabled && stopped == null ? _stop : null,
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _GaugePainter extends CustomPainter {
-  final double t;
-  final GameTheme theme;
+/// Animated values the painter reads; by screen side (0 = me, left).
+class _ArenaLook {
+  double t = 0;
+  double timeScale = 1;
+  double shake = 0;
+  double flash = 0;
+  bool koSeen = false;
+  int seenPins = 0;
+  int sparkAt = 0;
+  final List<double> angle = [0, 0];
+  final List<double> hurt = [0, 0];
+  final List<double> hp = [ThumbWar.maxHp, ThumbWar.maxHp];
+  final List<double> recoil = [ThumbWar.maxHp, ThumbWar.maxHp];
+  final List<_Spark> sparks = [];
+}
 
-  _GaugePainter(this.t, this.theme);
+class _Spark {
+  Offset pos;
+  Offset vel;
+  double life;
+  final bool white;
+  _Spark(this.pos, this.vel, this.life, this.white);
+}
+
+class _Skin {
+  final Color lite, base, shade, edge, ring;
+  const _Skin(this.lite, this.base, this.shade, this.edge, this.ring);
+}
+
+const List<_Skin> _skins = [
+  _Skin(
+    Color(0xFFFFD2B0),
+    Color(0xFFF2B48A),
+    Color(0xFFD68A5E),
+    Color(0xFF8A4A2C),
+    Color(0xFFF5C76B),
+  ),
+  _Skin(
+    Color(0xFFF0BC98),
+    Color(0xFFD99A78),
+    Color(0xFFB5734F),
+    Color(0xFF6E3A22),
+    Color(0xFFFF5C8A),
+  ),
+];
+
+class _ArenaPainter extends CustomPainter {
+  final _ArenaLook look;
+  final ThumbFight fight;
+  final int me;
+
+  /// By screen side (0 = me).
+  final List<String> names;
+  final List<String> hats;
+
+  _ArenaPainter({
+    required this.look,
+    required this.fight,
+    required this.me,
+    required this.names,
+    required this.hats,
+  });
+
+  int _player(int side) => side == 0 ? me : 1 - me;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = math.min(size.width / 2 - 12, size.height - 14);
-    final c = Offset(size.width / 2, size.height - 6);
-    final rect = Rect.fromCircle(center: c, radius: r);
-    // Track with the sweet spot in the middle.
-    canvas.drawArc(
-      rect,
-      math.pi,
-      math.pi,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 18
-        ..strokeCap = StrokeCap.round
-        ..shader = const SweepGradient(
-          startAngle: math.pi,
-          endAngle: math.pi * 2,
-          colors: [
-            Color(0xFFFF4D6D),
-            Color(0xFFFFC145),
-            Color(0xFF2BD98C),
-            Color(0xFFFFC145),
-            Color(0xFFFF4D6D),
-          ],
-        ).createShader(rect),
-    );
-    // Tick marks.
-    final tick = Paint()
-      ..color = Colors.white.withOpacity(0.35)
-      ..strokeWidth = 2;
-    for (var i = 0; i <= 10; i++) {
-      final a = math.pi + math.pi * i / 10;
-      canvas.drawLine(
-        c + Offset(math.cos(a), math.sin(a)) * (r - 18),
-        c + Offset(math.cos(a), math.sin(a)) * (r - 24),
-        tick,
+    final w = size.width, h = size.height;
+    final rnd = Random(look.t.hashCode);
+    canvas.save();
+    if (look.shake > 0) {
+      canvas.translate(
+        (rnd.nextDouble() * 2 - 1) * look.shake,
+        (rnd.nextDouble() * 2 - 1) * look.shake,
       );
     }
-    // Needle.
-    final a = math.pi + math.pi * t;
-    final tip = c + Offset(math.cos(a), math.sin(a)) * (r + 4);
-    canvas.drawLine(
-      c,
-      tip,
-      Paint()
-        ..color = theme.a.withOpacity(0.55)
-        ..strokeWidth = 10
-        ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawLine(
-      c,
-      tip,
-      Paint()
-        ..color = Colors.white
-        ..strokeWidth = 4
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawCircle(c, 9, Paint()..color = Colors.white);
-    canvas.drawCircle(c, 5, Paint()..color = theme.b);
+    _arenaFloor(canvas, w, h);
+
+    // Whoever is pinning is drawn on top.
+    final pinner = fight.state.pinner;
+    final order = pinner != null && _sideOf(pinner) == 0 ? [1, 0] : [0, 1];
+    for (final side in order) {
+      _fighter(canvas, w, h, side);
+    }
+    canvas.restore();
+
+    final sparkOrigin = Offset(w / 2 + (look.sparkAt == 0 ? 20 : -20), h * .6);
+    for (final s in look.sparks) {
+      canvas.drawCircle(
+        sparkOrigin + s.pos,
+        4,
+        Paint()
+          ..color = (s.white ? Colors.white : _skins[look.sparkAt].ring)
+              .withValues(alpha: (s.life * 2).clamp(0.0, 1.0)),
+      );
+    }
+    if (look.flash > 0) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = Colors.white.withValues(alpha: look.flash * .5),
+      );
+    }
+    _hud(canvas, w);
+    _banner(canvas, w, h);
   }
 
-  @override
-  bool shouldRepaint(covariant _GaugePainter old) => old.t != t;
-}
+  int _sideOf(int player) => player == me ? 0 : 1;
 
-/// One fighter: name, hearts for rounds won, a health bar with a damage
-/// trail, and a big thumb with its accessory over a coloured aura. The thumb
-/// bobs, lunges when [strikeKey] changes and shakes when [hitKey] changes,
-/// showing [lastDamage] floating up.
-class ThumbFighter extends StatelessWidget {
-  final String name;
-  final String accessory;
-  final int hp;
-  final int roundsWon;
-  final bool top;
-  final Color color;
-  final int strikeKey;
-  final int hitKey;
-  final int lastDamage;
-
-  const ThumbFighter({
-    super.key,
-    required this.name,
-    required this.accessory,
-    required this.hp,
-    required this.roundsWon,
-    required this.top,
-    required this.color,
-    required this.strikeKey,
-    required this.hitKey,
-    required this.lastDamage,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final calm = calmMotion(context);
-    Widget thumb = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (!top) Text(accessory, style: const TextStyle(fontSize: 30)),
-        Transform.rotate(
-          angle: top ? math.pi : 0,
-          child: const Text('👍', style: TextStyle(fontSize: 72)),
-        ),
-        if (top) Text(accessory, style: const TextStyle(fontSize: 30)),
-      ],
+  void _arenaFloor(Canvas canvas, double w, double h) {
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w / 2, h * .9),
+        width: w * 1.5,
+        height: h * .4,
+      ),
+      Paint()..color = const Color(0xFF2B1F5E),
     );
-    if (!calm) {
-      // Painted once, then only moved: the bob loops forever.
-      thumb = RepaintBoundary(child: thumb)
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .moveY(
-            begin: -3,
-            end: 3,
-            duration: (top ? 900 : 1050).ms,
-            curve: Curves.easeInOut,
-          );
-      if (strikeKey > 0) {
-        thumb = thumb
-            .animate(key: ValueKey('strike$strikeKey'))
-            .moveY(end: top ? 26 : -26, duration: 140.ms, curve: Curves.easeOut)
-            .scaleXY(end: 1.2, duration: 140.ms)
-            .then()
-            .moveY(end: 0, duration: 260.ms, curve: Curves.easeOutBack)
-            .scaleXY(end: 1 / 1.2, duration: 260.ms);
-      }
-      if (hitKey > 0) {
-        thumb = thumb
-            .animate(key: ValueKey('hit$hitKey'))
-            .shakeX(hz: 7, amount: 7, duration: 420.ms)
-            .tint(color: const Color(0xFFFF4D6D), end: 0.45, duration: 120.ms)
-            .then()
-            .tint(end: 0, duration: 300.ms);
-      }
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w / 2, h * .84),
+        width: w * .84,
+        height: h * .13,
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0x33F5C76B),
+    );
+  }
+
+  Paint _fill(_Skin s, Offset a, Offset b) => Paint()
+    ..shader = ui.Gradient.linear(
+      a,
+      b,
+      [s.lite, s.base, s.shade],
+      const [0, .55, 1],
+    );
+
+  Paint _stroke(Color c, double width) => Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round
+    ..color = c;
+
+  void _fighter(Canvas canvas, double w, double h, int side) {
+    final p = _player(side);
+    final s = _skins[side];
+    final dir = side == 0 ? 1.0 : -1.0;
+    final k = min(w / 390 * .92, h / 700);
+    final a = look.angle[side];
+    final st = fight.state;
+    final edge = _stroke(s.edge, 5);
+
+    canvas.save();
+    canvas.translate(w / 2 - dir * w * .25, h * .82);
+    canvas.scale(dir * k, k);
+
+    // Forearm from the bottom corner.
+    final arm = Path()
+      ..moveTo(-58, 40)
+      ..cubicTo(-90, 120, -150, 190, -190, 260)
+      ..lineTo(10, 260)
+      ..cubicTo(20, 190, 40, 120, 50, 70)
+      ..close();
+    canvas.drawPath(arm, _fill(s, const Offset(-140, 0), const Offset(40, 0)));
+    canvas.drawPath(arm, edge);
+
+    // Back of the hand.
+    final hand = Path()
+      ..moveTo(-62, 10)
+      ..cubicTo(-70, -30, -30, -42, 10, -36)
+      ..cubicTo(50, -32, 70, -10, 70, 30)
+      ..cubicTo(72, 80, 50, 110, 0, 112)
+      ..cubicTo(-45, 112, -66, 70, -62, 10)
+      ..close();
+    canvas.drawPath(
+        hand, _fill(s, const Offset(-70, -20), const Offset(70, 90)));
+    canvas.drawPath(hand, edge);
+
+    // Curled fingers on the side facing the opponent.
+    for (var i = 0; i < 4; i++) {
+      final y = -24.0 + i * 30;
+      final finger = Path()
+        ..moveTo(34, y)
+        ..cubicTo(70, y - 6, 90, y + 4, 90, y + 15)
+        ..cubicTo(90, y + 28, 68, y + 33, 34, y + 28)
+        ..close();
+      canvas.drawPath(finger, _fill(s, Offset(30, y), Offset(92, y + 30)));
+      canvas.drawPath(finger, edge);
+      canvas.drawPath(
+        Path()
+          ..moveTo(74, y + 6)
+          ..quadraticBezierTo(80, y + 15, 74, y + 23),
+        _stroke(s.edge.withValues(alpha: .6), 2.5),
+      );
+    }
+    for (final x in const [-30.0, -6.0, 18.0]) {
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(x, -30), radius: 9),
+        pi * 1.1,
+        pi * .8,
+        false,
+        _stroke(s.edge.withValues(alpha: .5), 3),
+      );
     }
 
-    final fighter = SizedBox(
-      width: 118,
-      height: 150,
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 104,
-            height: 104,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [color.withOpacity(0.55), color.withOpacity(0)],
-              ),
-            ),
-          ),
-          calm ? thumb : RepaintBoundary(child: thumb),
-          if (hitKey > 0 && lastDamage > 0)
-            Positioned(
-              top: top ? null : 0,
-              bottom: top ? 0 : null,
-              child: FloatingNumber(
-                key: ValueKey('dmg$hitKey'),
-                text: '-$lastDamage',
-                color: const Color(0xFFFF6B8B),
-              ),
-            ),
-        ],
-      ),
+    // The thumb pivots at its base joint and leans toward the middle.
+    final bob = sin(look.t * 3.2 + p * 1.7) * .05 * (1 - min(1.0, a.abs()));
+    canvas.save();
+    canvas.translate(-14, -30);
+    canvas.rotate(bob + a * 1.28);
+    if (st.pinner == 1 - p) canvas.scale(1.06, .9);
+    final thumb = Path()
+      ..moveTo(-34, 14)
+      ..cubicTo(-42, -40, -40, -104, -6, -132)
+      ..cubicTo(22, -146, 40, -118, 38, -86)
+      ..cubicTo(36, -50, 34, -16, 32, 14)
+      ..close();
+    canvas.drawPath(thumb, _fill(s, const Offset(-36, 0), const Offset(34, 0)));
+    canvas.drawPath(thumb, edge);
+    canvas.drawPath(
+      Path()
+        ..moveTo(20, -36)
+        ..quadraticBezierTo(27, -30, 33, -36)
+        ..moveTo(18, -28)
+        ..quadraticBezierTo(26, -21, 33, -27),
+      _stroke(s.edge.withValues(alpha: .6), 2.5),
     );
+    // Nail on the back of the tip.
+    canvas.save();
+    canvas.translate(-22, -104);
+    canvas.rotate(-.35);
+    final nail = Rect.fromCenter(center: Offset.zero, width: 22, height: 48);
+    canvas.drawOval(nail, Paint()..color = const Color(0xFFFFE6DA));
+    canvas.drawOval(nail, _stroke(s.edge, 3));
+    canvas.drawArc(
+      Rect.fromCircle(center: const Offset(0, -6), radius: 7),
+      pi * 1.15,
+      pi * .7,
+      false,
+      _stroke(Colors.white.withValues(alpha: .8), 3),
+    );
+    canvas.restore();
 
-    final bar = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            for (var i = 0; i < ThumbWar.roundsToWin; i++)
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Text(
-                  i < roundsWon ? '❤️' : '🤍',
-                  style: const TextStyle(fontSize: 15),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _HealthBar(hp: hp, color: color),
-        const SizedBox(height: 4),
-        Text('$hp / ${ThumbWar.maxHp}', style: GameText.caption),
-      ],
-    );
+    _face(canvas, p);
 
-    return Semantics(
-      label: '$name, $hp health, $roundsWon rounds won',
-      excludeSemantics: true,
-      child: Row(
-        children: top
-            ? [Expanded(child: bar), const SizedBox(width: 8), fighter]
-            : [fighter, const SizedBox(width: 8), Expanded(child: bar)],
-      ),
-    );
+    // Hat on the tip.
+    canvas.save();
+    canvas.translate(4, -136);
+    canvas.rotate(-.15);
+    final hat = TextPainter(
+      text: TextSpan(text: hats[side], style: const TextStyle(fontSize: 40)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    hat.paint(canvas, Offset(-hat.width / 2, -hat.height + 8));
+    canvas.restore();
+
+    canvas.restore();
+    canvas.restore();
   }
-}
 
-/// Health bar with a white "damage taken" trail that catches up slowly.
-class _HealthBar extends StatelessWidget {
-  final int hp;
-  final Color color;
+  void _face(Canvas canvas, int p) {
+    final st = fight.state;
+    final side = _sideOf(p);
+    final hurt = look.hurt[side] > 0 || st.winner == 1 - p;
+    final smug = st.down == p || st.winner == p;
+    final pinning = st.pinner == p;
+    const ink = Color(0xFF2A1610);
+    final line = _stroke(ink, 2.6);
+    canvas.save();
+    canvas.translate(14, -86);
+    for (final ex in const [-7.0, 11.0]) {
+      if (hurt) {
+        canvas.drawLine(Offset(ex - 5, -5), Offset(ex + 5, 5), line);
+        canvas.drawLine(Offset(ex + 5, -5), Offset(ex - 5, 5), line);
+      } else {
+        final eye = Rect.fromCenter(
+          center: Offset(ex, 0),
+          width: 13,
+          height: smug ? 8 : 16,
+        );
+        canvas.drawOval(eye, Paint()..color = Colors.white);
+        canvas.drawOval(eye, line);
+        canvas.drawCircle(
+          Offset(ex + 2.5, smug ? 1 : .5),
+          2.8,
+          Paint()..color = ink,
+        );
+      }
+    }
+    final brow = _stroke(ink, 3.2);
+    canvas.drawLine(
+        const Offset(-15, -14), Offset(-2, pinning ? -7 : -10), brow);
+    canvas.drawLine(const Offset(20, -15), Offset(7, pinning ? -7 : -10), brow);
+    if (hurt) {
+      final mouth =
+          Rect.fromCenter(center: const Offset(2, 20), width: 16, height: 12);
+      canvas.drawOval(mouth, Paint()..color = const Color(0xFF5A1F1F));
+      canvas.drawOval(mouth, line);
+    } else if (smug) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(-8, 16)
+          ..quadraticBezierTo(4, 26, 14, 13),
+        line,
+      );
+    } else {
+      final teeth = RRect.fromLTRBR(-8, 13, 14, 23, const Radius.circular(4));
+      canvas.drawRRect(teeth, Paint()..color = Colors.white);
+      canvas.drawRRect(teeth, line);
+      canvas.drawLine(const Offset(-8, 18), const Offset(14, 18), line);
+    }
+    canvas.restore();
+  }
 
-  const _HealthBar({required this.hp, required this.color});
+  void _hud(Canvas canvas, double w) {
+    const top = 14.0;
+    final half = w / 2 - 14;
+    for (final side in const [0, 1]) {
+      final p = _player(side);
+      final x0 = side == 0 ? 12.0 : w / 2 + 8;
+      final bw = half - 8;
+      // Bars drain from the outside toward the middle.
+      void bar(double frac, Paint paint, double y, double bh, double width) {
+        final ww = max(bh, width * frac.clamp(0.0, 1.0));
+        final left = side == 0 ? x0 + bw - ww : x0;
+        canvas.drawRRect(
+          RRect.fromLTRBR(left, y, left + ww, y + bh, Radius.circular(bh / 2)),
+          paint,
+        );
+      }
+
+      canvas.drawRRect(
+        RRect.fromLTRBR(x0, top, x0 + bw, top + 16, const Radius.circular(8)),
+        Paint()..color = Colors.white.withValues(alpha: .08),
+      );
+      bar(
+        look.recoil[side] / 100,
+        Paint()..color = const Color(0xFFFF5C8A),
+        top,
+        16,
+        bw,
+      );
+      bar(
+        look.hp[side] / 100,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            const Offset(0, top),
+            const Offset(0, top + 16),
+            [const Color(0xFFFFF3C9), _skins[side].ring],
+          ),
+        top,
+        16,
+        bw,
+      );
+      // Stamina, blinking while the other player's taunt drains it.
+      final drained = fight.state.down == 1 - p;
+      final blink = drained ? .55 + .45 * sin(look.t * 30) : 1.0;
+      final sw = bw * .75;
+      final sx = side == 0 ? x0 + bw - sw : x0;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+            sx, top + 22, sx + sw, top + 29, const Radius.circular(4)),
+        Paint()..color = Colors.white.withValues(alpha: .06),
+      );
+      final staminaFrac = max(.04, fight.stamina[p] / 100);
+      final stw = sw * staminaFrac;
+      final stx = side == 0 ? x0 + bw - stw : x0;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+            stx, top + 22, stx + stw, top + 29, const Radius.circular(4)),
+        Paint()..color = const Color(0xFF8BE9FF).withValues(alpha: blink),
+      );
+      // Name and round pips.
+      final name = TextPainter(
+        text: TextSpan(
+          text: names[side],
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        maxLines: 1,
+        ellipsis: '…',
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: half - 60);
+      name.paint(
+        canvas,
+        Offset(side == 0 ? 14 : w - 14 - name.width, top + 38),
+      );
+      final won = fight.roundsOf(p);
+      for (var i = 0; i < ThumbWar.roundsToWin; i++) {
+        final cx = side == 0 ? w / 2 - 22 - i * 18.0 : w / 2 + 22 + i * 18.0;
+        final c = Offset(cx, top + 46);
+        if (won > i) {
+          canvas.drawCircle(c, 6, Paint()..color = const Color(0xFFF5C76B));
+        }
+        canvas.drawCircle(
+            c, 6, _stroke(Colors.white.withValues(alpha: .5), 1.5));
+      }
+    }
+    final vs = TextPainter(
+      text: const TextSpan(
+        text: 'VS',
+        style: TextStyle(
+          color: Color(0xFFF5C76B),
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    vs.paint(canvas, Offset(w / 2 - vs.width / 2, top));
+  }
+
+  void _banner(Canvas canvas, double w, double h) {
+    final f = fight;
+    String? text;
+    var ticks = f.phaseTicks;
+    if (f.phase == FightPhase.intro) {
+      if (ticks < ThumbWar.fightCallTick) {
+        text = f.isFinalRound ? 'FINAL ROUND' : 'ROUND ${f.round}';
+      } else {
+        text = 'FIGHT!';
+        ticks -= ThumbWar.fightCallTick;
+      }
+    } else if (f.phase == FightPhase.ko || f.phase == FightPhase.over) {
+      text = 'K.O.';
+    }
+    if (text == null) return;
+    final grow = min(1.0, ticks / 12);
+    final scale = .6 + .4 * grow;
+    final style = TextStyle(
+      fontSize: 48,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 1,
+      foreground: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xFF1B1030),
+    );
+    final outline = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final fill = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: style.copyWith(
+          foreground: Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(0, -outline.height / 2),
+              Offset(0, outline.height / 2),
+              [
+                const Color(0xFFFFF3C9),
+                text == 'K.O.'
+                    ? const Color(0xFFFF5C8A)
+                    : const Color(0xFFF5C76B),
+              ],
+            ),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(w / 2, h * .36);
+    canvas.scale(scale);
+    final at = Offset(-outline.width / 2, -outline.height / 2);
+    outline.paint(canvas, at);
+    fill.paint(canvas, at);
+    canvas.restore();
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final f = hp / ThumbWar.maxHp;
-    final calm = calmMotion(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        height: 14,
-        child: LayoutBuilder(
-          builder: (context, box) => Stack(
-            children: [
-              Container(color: Colors.white.withOpacity(0.08)),
-              TweenAnimationBuilder<double>(
-                tween: Tween(end: f),
-                duration: calm ? Duration.zero : 900.ms,
-                curve: Curves.easeOutCubic,
-                builder: (context, v, _) => Container(
-                  width: box.maxWidth * v,
-                  color: Colors.white.withOpacity(0.75),
-                ),
-              ),
-              TweenAnimationBuilder<double>(
-                tween: Tween(end: f),
-                duration: calm ? Duration.zero : 220.ms,
-                builder: (context, v, _) => Container(
-                  width: box.maxWidth * v,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, Color.lerp(color, Colors.white, 0.35)!],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A move card: big emoji, name and what it beats; glows when picked.
-class MoveCard extends StatelessWidget {
-  final ThumbMove move;
-  final bool selected;
-  final bool dimmed;
-  final GameTheme theme;
-  final VoidCallback? onTap;
-
-  const MoveCard({
-    super.key,
-    required this.move,
-    required this.selected,
-    required this.dimmed,
-    required this.theme,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final card = AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: selected
-            ? theme.gradient
-            : LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.10),
-                  Colors.white.withOpacity(0.04),
-                ],
-              ),
-        border: Border.all(
-          color: selected ? Colors.white : Colors.white.withOpacity(0.14),
-          width: selected ? 2 : 1,
-        ),
-        boxShadow: selected
-            ? [BoxShadow(color: theme.a.withOpacity(0.55), blurRadius: 20)]
-            : null,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(move.emoji, style: const TextStyle(fontSize: 32)),
-          const SizedBox(height: 6),
-          Text(
-            move.label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'beats ${move.beats.emoji}',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 11.5,
-            ),
-          ),
-        ],
-      ),
-    );
-    return Semantics(
-      button: onTap != null,
-      selected: selected,
-      label: '${move.label}, beats ${move.beats.label}',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 180),
-        opacity: dimmed ? 0.4 : 1,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 180),
-          scale: selected ? 1.06 : 1,
-          curve: Curves.easeOutBack,
-          child: GestureDetector(onTap: onTap, child: card),
-        ),
-      ),
-    );
-  }
+  bool shouldRepaint(covariant _ArenaPainter old) => true;
 }

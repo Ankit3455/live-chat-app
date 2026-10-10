@@ -1514,22 +1514,21 @@ describe('firestore.rules', () => {
     const firstPick = (uid, pick) => updateDoc(doc(db(uid), path),
       { picks: { [uid]: pick }, updatedAt: serverTimestamp() });
 
-    it('a pick is a known move with a grip from 0 to 100', async () => {
+    it('a pick is the round winner\'s player index', async () => {
       await seed();
       await assertFails(firstPick('alice', 'L'));
-      await assertFails(firstPick('alice', { m: 'kick', p: 50 }));
-      await assertFails(firstPick('alice', { m: 'pounce', p: 101 }));
-      await assertFails(firstPick('alice', { m: 'pounce', p: 50.5 }));
-      await assertFails(firstPick('alice', { m: 'pounce', p: 50, extra: 1 }));
-      await assertSucceeds(firstPick('alice', { m: 'pounce', p: 50 }));
+      await assertFails(firstPick('alice', 2));
+      await assertFails(firstPick('alice', 0.5));
+      await assertFails(firstPick('alice', { m: 'pounce', p: 50 }));
+      await assertSucceeds(firstPick('alice', 1));
     });
 
-    it('the second pick finishes the clash; earlier picks stay', async () => {
-      await seed({ picks: { alice: { m: 'guard', p: 20 } } });
+    it('the second pick finishes the round; earlier picks stay', async () => {
+      await seed({ picks: { alice: 0 } });
       const finish = (history) => updateDoc(doc(db('bob'), path),
         { picks: {}, history, turnStartedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      await assertFails(finish([{ alice: { m: 'feint', p: 20 }, bob: { m: 'pounce', p: 90 } }]));
-      await assertSucceeds(finish([{ alice: { m: 'guard', p: 20 }, bob: { m: 'pounce', p: 90 } }]));
+      await assertFails(finish([{ alice: 1, bob: 0 }]));
+      await assertSucceeds(finish([{ alice: 0, bob: 0 }]));
     });
 
     it('tennis zones are not valid thumb picks and vice versa', async () => {
@@ -1541,7 +1540,7 @@ describe('firestore.rules', () => {
         });
       });
       await assertFails(updateDoc(doc(db('alice'), 'conversations/c1/games/tennis'),
-        { picks: { alice: { m: 'pounce', p: 50 } }, updatedAt: serverTimestamp() }));
+        { picks: { alice: 0 }, updatedAt: serverTimestamp() }));
     });
   });
 

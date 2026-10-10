@@ -28,6 +28,11 @@
 // closeIncomingForCallee, inbox cleanup), incoming_call_screen (inbox read),
 // presence_service (presence/{me} + onDisconnect), astrology answers (users/{me}),
 // account_deletion_service (presence/{me}, incoming_calls/{me}, users/{me} removal).
+//
+//  - thumb_live/{gameId}: a live Thumb War. p0 (the host) creates it naming
+//    both players; ids immutable. Only the two players read. s (the fight) is
+//    host-only; in/{uid} (button) and hb/{uid} (heartbeat) only by that player.
+//    Either player may remove the node. Checked: thumb_live.dart.
 {
   "rules": {
     ".read": false,
@@ -116,6 +121,32 @@
         "$other": {
           ".write": "auth != null && (root.child('rooms').child($roomId).child('callerId').val() === auth.uid || root.child('rooms').child($roomId).child('calleeId').val() === auth.uid)"
         }
+      }
+    },
+
+    "thumb_live": {
+      "$gameId": {
+        ".read": "auth != null && (!data.exists() || data.child('p0').val() === auth.uid || data.child('p1').val() === auth.uid)",
+        ".write": "auth != null && ((!data.exists() && newData.child('p0').val() === auth.uid) || (data.exists() && !newData.exists() && (data.child('p0').val() === auth.uid || data.child('p1').val() === auth.uid)))",
+        "p0": { ".validate": "newData.isString() && (!data.exists() || data.val() === newData.val())" },
+        "p1": { ".validate": "newData.isString() && newData.val() !== newData.parent().child('p0').val() && (!data.exists() || data.val() === newData.val())" },
+        "s": {
+          ".write": "auth != null && root.child('thumb_live').child($gameId).child('p0').val() === auth.uid",
+          ".validate": "newData.hasChildren(['st', 'ph', 'hp', 'sta'])"
+        },
+        "in": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && (root.child('thumb_live').child($gameId).child('p0').val() === auth.uid || root.child('thumb_live').child($gameId).child('p1').val() === auth.uid)",
+            ".validate": "newData.isBoolean()"
+          }
+        },
+        "hb": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && (root.child('thumb_live').child($gameId).child('p0').val() === auth.uid || root.child('thumb_live').child($gameId).child('p1').val() === auth.uid)",
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        },
+        "$other": { ".validate": false }
       }
     }
   }

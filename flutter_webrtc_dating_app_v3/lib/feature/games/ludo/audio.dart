@@ -39,6 +39,18 @@ class Audio {
 
   static Future<void> playLose() => _play('sounds/lose.mp3');
 
+  /// Thumb War: a thumb slams onto the other one.
+  static Future<void> playThumbHit() => _play('sounds/thumb_hit.wav');
+
+  /// Thumb War: a thumb goes down to taunt.
+  static Future<void> playThumbDown() => _play('sounds/thumb_down.wav');
+
+  /// Thumb War: "FIGHT!".
+  static Future<void> playGong() => _play('sounds/thumb_gong.wav');
+
+  /// Thumb War: a round is knocked out.
+  static Future<void> playKo() => _play('sounds/thumb_ko.wav');
+
   static void dispose() {
     for (final player in _pool) {
       player.dispose();

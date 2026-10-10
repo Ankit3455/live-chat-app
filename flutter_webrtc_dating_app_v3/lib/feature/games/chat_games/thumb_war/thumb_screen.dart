@@ -1,7 +1,10 @@
 // lib/feature/games/chat_games/thumb_war/thumb_screen.dart
 //
-// Thumb War with a match: each clash pick Pounce / Guard / Feint, then stop
-// the grip gauge. 30 seconds per clash; no pick in time = pinned.
+// Thumb War with a match, played live: hold anywhere to press. The invite,
+// join, give up and result card work like the other duels; the fight runs
+// through thumb_live.dart and each finished round is stored as one shot.
+
+import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +13,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/haptics.dart';
 import '../../ludo/audio.dart';
-import '../chat_game.dart';
 import '../chat_game_service.dart';
 import '../duel/duel_game.dart';
 import '../duel/duel_service.dart';
@@ -20,6 +22,7 @@ import '../ui/game_ui.dart';
 import '../widgets/game_leave.dart';
 import '../widgets/room_mode.dart';
 import '../widgets/turn_clock.dart';
+import 'thumb_live.dart';
 import 'thumb_rules.dart';
 import 'thumb_war.dart';
 import 'thumb_widgets.dart';
@@ -44,8 +47,7 @@ class ThumbScreen extends StatefulWidget {
   State<ThumbScreen> createState() => _ThumbScreenState();
 }
 
-class _ThumbScreenState extends State<ThumbScreen>
-    with TurnClockTicker, RoomMode, GameLeave {
+class _ThumbScreenState extends State<ThumbScreen> with RoomMode, GameLeave {
   static const GameTheme _theme = GameTheme.thumb;
 
   final DuelService _service = DuelService(ThumbRules.instance);
@@ -54,52 +56,127 @@ class _ThumbScreenState extends State<ThumbScreen>
   @override
   String get spaceId => widget.conversationId;
   bool _busy = false;
-
-  /// Move chosen for this clash, before the grip gauge is stopped.
-  ThumbMove? _move;
-  int _seenClashes = -1;
   bool _heardEnd = false;
 
-  /// Per player index: bumps when they land / take a hit (drives animations).
-  final List<int> _strikeKeys = [0, 0];
-  final List<int> _hitKeys = [0, 0];
-  int _lastDamage = 0;
+  /// The live fight for the running game, and the game it belongs to.
+  ThumbLiveMatch? _match;
+  String? _matchGameId;
+  DuelGame? _latest;
 
-  String? _replayKey;
-  ThumbReplay? _replay;
+  bool _sendingRound = false;
+  Timer? _roundFallback;
+  DateTime _nextLeftClaim = DateTime.fromMillisecondsSinceEpoch(0);
 
   String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  ThumbReplay _replayOf(DuelGame g) {
-    final key = '${g.gameId}|${g.history.length}|${g.resignedBy}';
-    if (key != _replayKey || _replay == null) {
-      _replayKey = key;
-      _replay = ThumbRules.replayOf(g);
-    }
-    return _replay!;
+  /// The live fight for [g], made once per game.
+  ThumbLiveMatch _matchFor(DuelGame g) {
+    final current = _match;
+    if (current != null && _matchGameId == g.gameId) return current;
+    _closeMatch();
+    final match = ThumbLiveMatch.online(
+      gameId: g.gameId,
+      players: g.players,
+      me: _myUid,
+    );
+    match
+      ..onDown = Audio.playThumbDown
+      ..onPin = (_) {
+        Audio.playThumbHit();
+        Haptics.hit();
+      }
+      ..onFightCall = Audio.playGong
+      ..onRoundOver = (_) {
+        Audio.playKo();
+        Haptics.warning();
+        _sendRounds();
+      }
+      ..addListener(_onLive);
+    _match = match;
+    _matchGameId = g.gameId;
+    unawaited(match.start());
+    return match;
   }
 
-  /// A new clash arrived: forget the chosen move, animate the hit, play sounds.
-  void _onClashes(ThumbReplay r) {
-    final count = r.clashes.length;
-    if (count == _seenClashes) return;
-    final first = _seenClashes < 0;
-    _seenClashes = count;
-    _move = null;
-    if (first) return;
-    final last = r.lastClash;
-    final w = last?.winner;
-    if (last != null && w != null) {
-      _strikeKeys[w]++;
-      _hitKeys[1 - w]++;
-      _lastDamage = last.damage;
-      Haptics.medium();
+  void _closeMatch() {
+    _roundFallback?.cancel();
+    _match?.removeListener(_onLive);
+    _match?.dispose();
+    _match = null;
+    _matchGameId = null;
+  }
+
+  /// Every live update: store finished rounds, and end the game as left
+  /// when the other phone has gone quiet.
+  void _onLive() {
+    final match = _match;
+    if (match == null) return;
+    _sendRounds();
+    final now = DateTime.now();
+    if (match.otherGone && now.isAfter(_nextLeftClaim)) {
+      _nextLeftClaim = now.add(const Duration(seconds: 5));
+      unawaited(
+        _service
+            .claimLeft(
+              convId: widget.conversationId,
+              otherUserId: widget.otherUserId,
+            )
+            .catchError((Object _) {}),
+      );
     }
-    Audio.playMove();
-    final me = r.indexOf(_myUid);
-    if (r.isOver && !_heardEnd && me >= 0) {
+  }
+
+  /// Stores the next finished round (the winner as both phones saw it). If
+  /// the other phone doesn't store its side, the shot is closed with mine.
+  void _sendRounds() {
+    final game = _latest;
+    final match = _match;
+    if (game == null || match == null || _sendingRound) return;
+    if (!game.isPlaying || game.picks.containsKey(_myUid)) return;
+    final done = match.fight.roundWinners;
+    final n = game.history.length;
+    if (done.length <= n) return;
+    _sendingRound = true;
+    _service
+        .pick(
+          convId: widget.conversationId,
+          otherUserId: widget.otherUserId,
+          pick: done[n],
+        )
+        .catchError((Object _) {})
+        .whenComplete(() {
+      _sendingRound = false;
+      _roundFallback?.cancel();
+      // Retried until the shot closes; the server allows it 30 s after the
+      // last round was stored.
+      _roundFallback = Timer.periodic(const Duration(seconds: 6), (t) {
+        final latest = _latest;
+        if (latest == null ||
+            !latest.isPlaying ||
+            !latest.picks.containsKey(_myUid)) {
+          t.cancel();
+          return;
+        }
+        unawaited(
+          _service
+              .timeout(
+                convId: widget.conversationId,
+                otherUserId: widget.otherUserId,
+              )
+              .catchError((Object _) {}),
+        );
+      });
+    });
+  }
+
+  void _onGame(DuelGame? game, ThumbReplay? replay) {
+    _latest = game;
+    final me = replay?.indexOf(_myUid) ?? -1;
+    if (replay != null && replay.isOver && !_heardEnd && me >= 0) {
       _heardEnd = true;
-      r.winner == me ? Audio.playWin() : Audio.playLose();
+      replay.winner == me ? Audio.playWin() : Audio.playLose();
+      final match = _match;
+      if (match != null && match.isHost) unawaited(match.cleanUp());
     }
   }
 
@@ -124,53 +201,29 @@ class _ThumbScreenState extends State<ThumbScreen>
   }
 
   Future<void> _start() => _run(() async {
-    await _service.start(
-      convId: widget.conversationId,
-      otherUserId: widget.otherUserId,
-    );
-    // The first listen may have been denied before the chat existed.
-    if (mounted) {
-      setState(() {
-        _game = _service.watch(widget.conversationId);
-        _heardEnd = false;
-      });
-    }
-  }, "Couldn't start the Thumb War. Check your connection and try again.");
+        await _service.start(
+          convId: widget.conversationId,
+          otherUserId: widget.otherUserId,
+        );
+        // The first listen may have been denied before the chat existed.
+        if (mounted) {
+          setState(() {
+            _game = _service.watch(widget.conversationId);
+            _heardEnd = false;
+          });
+        }
+      }, "Couldn't start the Thumb War. Check your connection and try again.");
 
   Future<void> _join() => _run(
-    () => _service.join(widget.conversationId),
-    "Couldn't join. Try again.",
-  );
-
-  Future<void> _grip(int power) {
-    final move = _move;
-    if (move == null) return Future.value();
-    Haptics.medium();
-    return _run(
-      () => _service.pick(
-        convId: widget.conversationId,
-        otherUserId: widget.otherUserId,
-        pick: ThumbPick(move, power).toMap(),
-      ),
-      "Couldn't send your move. Try again.",
-    );
-  }
-
-  Future<void> _timeout() => _service.timeout(
-    convId: widget.conversationId,
-    otherUserId: widget.otherUserId,
-  );
-
-  Future<void> _claimLeft() => _service.claimLeft(
-    convId: widget.conversationId,
-    otherUserId: widget.otherUserId,
-  );
+        () => _service.join(widget.conversationId),
+        "Couldn't join. Try again.",
+      );
 
   Future<void> _leave() => _service.resign(
-    convId: widget.conversationId,
-    otherUserId: widget.otherUserId,
-    left: true,
-  );
+        convId: widget.conversationId,
+        otherUserId: widget.otherUserId,
+        left: true,
+      );
 
   Future<void> _resign({required bool started}) async {
     final ok = await showDialog<bool>(
@@ -214,25 +267,25 @@ class _ThumbScreenState extends State<ThumbScreen>
   }
 
   @override
+  void dispose() {
+    _closeMatch();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<DuelGame?>(
       stream: _game,
       builder: (context, snap) {
         final game = snap.data;
         final waiting = snap.connectionState == ConnectionState.waiting;
-        final replay = game == null ? null : _replayOf(game);
-        final running =
-            game != null &&
+        final replay = game == null ? null : ThumbRules.replayOf(game);
+        final running = game != null &&
             game.isPlaying &&
             game.bothJoined &&
             replay != null &&
             !replay.isOver;
-        updateClock(
-          running ? game.deadline : null,
-          _timeout,
-          isMineOverdue: game == null || !game.picks.containsKey(_myUid),
-          onStale: _claimLeft,
-        );
+        _onGame(game, replay);
         updateLeave(
           endsGame: game != null && game.isPlaying && (running || inRoom),
           ask: running,
@@ -242,8 +295,7 @@ class _ThumbScreenState extends State<ThumbScreen>
           roomStep(
             hasGame: game != null,
             bothJoined: game?.bothJoined ?? false,
-            needsMyJoin:
-                game != null &&
+            needsMyJoin: game != null &&
                 game.isPlaying &&
                 !game.joined.contains(_myUid) &&
                 game.createdBy != _myUid,
@@ -252,7 +304,6 @@ class _ThumbScreenState extends State<ThumbScreen>
             join: _join,
           );
         }
-        if (replay != null) _onClashes(replay);
 
         return leaveScope(
           otherName: widget.otherName,
@@ -280,7 +331,7 @@ class _ThumbScreenState extends State<ThumbScreen>
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: waiting
                         ? const Center(child: CircularProgressIndicator())
-                        : _body(game, replay),
+                        : _body(game, replay, running: running),
                   ),
                 ),
               ),
@@ -291,7 +342,7 @@ class _ThumbScreenState extends State<ThumbScreen>
     );
   }
 
-  Widget _body(DuelGame? game, ThumbReplay? replay) {
+  Widget _body(DuelGame? game, ThumbReplay? replay, {required bool running}) {
     final leftBy = game?.leftBy;
     if (game != null && !game.isPlaying && leftBy != null && leftBy != _myUid) {
       return LeftPanel(
@@ -321,17 +372,12 @@ class _ThumbScreenState extends State<ThumbScreen>
         title: 'Thumb War with ${widget.otherName}',
         subtitle: 'One, two, three, four… I declare a Thumb War!',
         steps: const [
-          HowToStep(
-            '⚡',
-            'Pounce beats Feint. Feint beats Guard. Guard beats '
-                'Pounce.',
-          ),
-          HowToStep('🎯', 'Stop the grip gauge in the green for a harder hit.'),
-          HowToStep(
-            '⏱️',
-            '${TurnClock.seconds} seconds per clash, or you get '
-                'pinned.',
-          ),
+          HowToStep('👇',
+              'Hold anywhere: your thumb goes down and drains their stamina.'),
+          HowToStep('💥',
+              'Press while their thumb is down to pin it. Every moment pinned costs them HP.'),
+          HowToStep('🔋',
+              'Pinning burns your stamina. Run dry and they get to pin you.'),
           HowToStep('❤️', 'Knock them to 0 HP. First to 2 rounds wins.'),
         ],
         buttonLabel: "Let's fight",
@@ -357,187 +403,69 @@ class _ThumbScreenState extends State<ThumbScreen>
 
     final me = replay.indexOf(_myUid);
     if (me < 0) return const SizedBox.shrink();
-    final them = 1 - me;
-    final over = !game.isPlaying || replay.isOver;
-    final myPick = ThumbPick.parse(game.picks[_myUid]);
-    final last = replay.lastClash;
-    final looks = ThumbWar.accessoriesFor(replay.players);
     final iWon = replay.winner == me;
-    // Built here so a clock tick rebuilding the arena reuses them as is.
-    final topFighter = ThumbFighter(
-      name: widget.otherName,
-      accessory: looks[them],
-      hp: replay.hp[them],
-      roundsWon: replay.rounds[them],
-      top: true,
-      color: const Color(0xFF8B7BFF),
-      strikeKey: _strikeKeys[them],
-      hitKey: _hitKeys[them],
-      lastDamage: _lastDamage,
-    );
-    final bottomFighter = ThumbFighter(
-      name: 'You',
-      accessory: looks[me],
-      hp: replay.hp[me],
-      roundsWon: replay.rounds[me],
-      top: false,
-      color: _theme.b,
-      strikeKey: _strikeKeys[me],
-      hitKey: _hitKeys[me],
-      lastDamage: _lastDamage,
-    );
-
-    return WinCelebration(
-      won: over && iWon,
-      theme: _theme,
-      child: TurnBanner(
-        turnKey: replay.clashes.length,
-        show: !over && myPick == null,
-        text: 'Fight!',
+    if (!running) {
+      _closeMatch();
+      return WinCelebration(
+        won: iWon,
         theme: _theme,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              clockBuilder(
-                (seconds) => _Arena(
-                  round: replay.round,
-                  over: over,
-                  secondsLeft: seconds,
-                  top: topFighter,
-                  bottom: bottomFighter,
-                ),
-              ),
-              if (!over)
-                awayBanner(
-                  otherUserId: widget.otherUserId,
-                  otherName: widget.otherName,
-                ),
-              const SizedBox(height: 14),
-              RevealToast(
-                key: ValueKey('clash${replay.clashes.length}'),
-                theme: _theme,
-                text: last == null
-                    ? 'Round ${replay.round}. One, two, three, four… fight!'
-                    : _describe(last, me),
-              ),
-              const SizedBox(height: 18),
-              if (over)
-                _Over(
-                  text: _outcome(replay, me, left: game.leftBy != null),
-                  won: iWon,
-                  busy: _busy,
-                  onPlayAgain: _start,
-                  extra: inRoom
-                      ? SayHiButton(
-                          theme: _theme,
-                          otherUserId: widget.otherUserId,
-                          otherName: widget.otherName,
-                          secondary: true,
-                        )
-                      : null,
-                )
-              else if (myPick != null)
-                GlassPanel(
-                  radius: 30,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  child: Text(
-                    'Locked in: ${myPick.move.emoji} ${myPick.move.label} · '
-                    'grip ${myPick.power}\nWaiting for ${widget.otherName}…',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
-                    ),
-                  ),
-                )
-              else
-                _picker(replay),
-            ],
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+          child: _Over(
+            text: _outcome(replay, me, left: game.leftBy != null),
+            score: '${replay.rounds[me]} – ${replay.rounds[1 - me]}',
+            won: iWon,
+            busy: _busy,
+            onPlayAgain: _start,
+            extra: inRoom
+                ? SayHiButton(
+                    theme: _theme,
+                    otherUserId: widget.otherUserId,
+                    otherName: widget.otherName,
+                    secondary: true,
+                  )
+                : null,
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _picker(ThumbReplay replay) {
-    final move = _move;
+    final match = _matchFor(game);
+    final names = [
+      for (final uid in game.players) uid == _myUid ? 'You' : widget.otherName,
+    ];
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          move == null ? 'Pick your move' : 'Now stop the gauge in the green!',
-          textAlign: TextAlign.center,
-          style: GameText.title,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            for (final m in ThumbMove.values) ...[
-              if (m != ThumbMove.values.first) const SizedBox(width: 10),
-              Expanded(
-                child: MoveCard(
-                  move: m,
-                  theme: _theme,
-                  selected: move == m,
-                  dimmed: move != null && move != m,
-                  onTap: _busy ? null : () => setState(() => _move = m),
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (move != null) ...[
-          const SizedBox(height: 18),
-          enterFx(
-            context,
-            GripGauge(
-              key: ValueKey('grip-${replay.clashes.length}'),
-              enabled: !_busy,
-              theme: _theme,
-              onStop: _grip,
-            ),
+        Expanded(
+          child: ThumbArena(
+            match: match,
+            names: names,
+            hats: ThumbWar.accessoriesFor(game.players),
           ),
-        ],
+        ),
+        ListenableBuilder(
+          listenable: match,
+          builder: (context, _) => match.otherGone
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: OpponentAwayBanner(
+                    otherUserId: widget.otherUserId,
+                    otherName: widget.otherName,
+                    running: true,
+                    staleSecondsLeft: null,
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 14, top: 4),
+          child: Text(
+            'Hold anywhere · strike when they are down',
+            style: GameText.caption,
+          ),
+        ),
       ],
     );
-  }
-
-  /// "Your ⚡ Pounce beat Bob's 🌀 Feint! -27 HP" for the last clash.
-  String _describe(ThumbClash c, int me) {
-    final mine = c.picks[me];
-    final theirs = c.picks[1 - me];
-    final other = widget.otherName;
-    String tail() => c.endedRound
-        ? (c.winner == me ? ' Round to you! 👑' : ' Round to $other.')
-        : '';
-    if (c.timeout) {
-      if (mine == null && theirs == null) {
-        return '⏱️ Nobody moved. Shake it out!';
-      }
-      return mine == null
-          ? '⏱️ Too slow! $other pinned you. -${c.damage} HP${tail()}'
-          : '⏱️ $other froze. You pinned them! -${c.damage} HP${tail()}';
-    }
-    final a = '${mine!.move.emoji} ${mine.move.label}';
-    final b = '${theirs!.move.emoji} ${theirs.move.label}';
-    if (c.winner == null) return "Your $a met $other's $b. Dead even!";
-    if (c.sameMove) {
-      return c.winner == me
-          ? 'Both went $a. Your grip ${mine.power} beat ${theirs.power}! '
-                '-${c.damage} HP${tail()}'
-          : "Both went $a. $other's grip ${theirs.power} beat ${mine.power}. "
-                '-${c.damage} HP${tail()}';
-    }
-    return c.winner == me
-        ? "Your $a beat $other's $b! -${c.damage} HP${tail()}"
-        : "$other's $b beat your $a. -${c.damage} HP${tail()}";
   }
 
   String _outcome(ThumbReplay r, int me, {bool left = false}) {
@@ -553,95 +481,11 @@ class _ThumbScreenState extends State<ThumbScreen>
   }
 }
 
-/// The ring: spotlight, round badge and the two fighters.
-class _Arena extends StatelessWidget {
-  final int round;
-  final bool over;
-  final int? secondsLeft;
-  final Widget top;
-  final Widget bottom;
-
-  const _Arena({
-    required this.round,
-    required this.over,
-    required this.secondsLeft,
-    required this.top,
-    required this.bottom,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final seconds = secondsLeft;
-    return GlassPanel(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.10),
-                      Colors.transparent,
-                    ],
-                    radius: 0.7,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Column(
-            children: [
-              top,
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Divider(color: Colors.white.withOpacity(0.15)),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: GameTheme.thumb.gradient,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        over
-                            ? 'FINAL'
-                            : 'ROUND $round${seconds == null ? '' : '  ·  0:${seconds.toString().padLeft(2, '0')}'}',
-                        style: TextStyle(
-                          color: seconds != null && seconds <= 10
-                              ? const Color(0xFFFFE0E6)
-                              : Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(color: Colors.white.withOpacity(0.15)),
-                    ),
-                  ],
-                ),
-              ),
-              bottom,
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _Over extends StatelessWidget {
   final String text;
+
+  /// Rounds, mine first, e.g. "2 – 1".
+  final String score;
   final bool won;
   final bool busy;
   final VoidCallback onPlayAgain;
@@ -651,6 +495,7 @@ class _Over extends StatelessWidget {
 
   const _Over({
     required this.text,
+    required this.score,
     required this.won,
     required this.busy,
     required this.onPlayAgain,
@@ -661,7 +506,7 @@ class _Over extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassPanel(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      borderColor: GameTheme.thumb.a.withOpacity(0.6),
+      borderColor: GameTheme.thumb.a.withValues(alpha: 0.6),
       child: Column(
         children: [
           ResultHero(
@@ -670,6 +515,7 @@ class _Over extends StatelessWidget {
             title: text,
             celebrate: won,
           ),
+          Text(score, style: GameText.title),
           const SizedBox(height: 18),
           enterFx(
             context,
