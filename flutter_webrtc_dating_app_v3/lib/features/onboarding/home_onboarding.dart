@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'tour_prefs.dart';
+import 'tour_scroll.dart';
 import '../../core/constants/app_colors.dart';
 
 /// Tour target keys. Owned by a HomeScreen instance so two mounted
@@ -185,6 +186,9 @@ class HomeOnboarding {
       onClickOverlay: (target) {
         debugPrint('👆 Overlay clicked: ${target.identify}');
       },
+      // Scroll each step's target into view first, so the spotlight and the
+      // page move together.
+      beforeFocus: revealTourTarget,
     );
 
     _tutorialCoachMark!.show(context: context);
